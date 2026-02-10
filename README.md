@@ -5,6 +5,9 @@
 
 
 * 完全兼容  Claude Code Agent Skills 规范
+* 支持 cli 命令行体验
+* 支持 webapi 体验
+* 支持 acp 协议（可接入支持的 IDE）
 
 
 ### 下载 skills 参考：
