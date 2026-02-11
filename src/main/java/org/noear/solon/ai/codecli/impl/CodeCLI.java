@@ -27,7 +27,6 @@ import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
-import org.noear.solon.ai.agent.react.task.PlanChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
@@ -229,9 +228,7 @@ public class CodeCLI implements Handler, Runnable {
                         .stream()
                         .map(chunk -> {
                             if (chunk.hasContent()) {
-                                if (chunk instanceof PlanChunk) {
-                                    return ONode.serialize(new Chunk("plan", chunk.getContent()));
-                                } else if (chunk instanceof ReasonChunk) {
+                                if (chunk instanceof ReasonChunk) {
                                     return ONode.serialize(new Chunk("reason", chunk.getContent()));
                                 } else if (chunk instanceof ActionChunk) {
                                     return ONode.serialize(new Chunk("action", chunk.getContent()));
@@ -312,16 +309,7 @@ public class CodeCLI implements Handler, Runnable {
                     .stream()
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
-                        if (chunk instanceof PlanChunk) {
-                            // 计划逻辑：青色高亮
-                            if (chunk.hasContent()) {
-                                System.out.print(CYAN + chunk.getContent() + RESET);
-                                if (((PlanChunk) chunk).isFinished()) {
-                                    System.out.println();
-                                }
-                                System.out.flush();
-                            }
-                        } else if (chunk instanceof ReasonChunk) {
+                        if (chunk instanceof ReasonChunk) {
                             // 思考逻辑：灰色
                             ReasonChunk reasonChunk = (ReasonChunk) chunk;
                             if (chunk.hasContent() && !reasonChunk.isToolCalls()) {
