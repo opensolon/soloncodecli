@@ -65,7 +65,7 @@ public class App {
 
         ChatModel chatModel = ChatModel.of(config.chatModel).build();
         Map<String, AgentSession> store = new ConcurrentHashMap<>();
-        AgentSessionProvider sessionProvider = (sessionId) -> store.computeIfAbsent(sessionId, key -> new FileAgentSession(key, config.workDir + "/" + key));
+        AgentSessionProvider sessionProvider = (sessionId) -> store.computeIfAbsent(sessionId, key -> new FileAgentSession(key, config.workDir + "/.system/sessions/" + key));
 
         CodeCLI solonCodeCLI = new CodeCLI(chatModel)
                 .name(config.name)
