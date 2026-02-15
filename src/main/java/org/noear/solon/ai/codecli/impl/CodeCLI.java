@@ -15,6 +15,13 @@
  */
 package org.noear.solon.ai.codecli.impl;
 
+import org.jline.reader.EndOfFileException;
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.UserInterruptException;
+import org.jline.reader.impl.completer.FileNameCompleter;
+import org.jline.terminal.Terminal;
+import org.jline.terminal.TerminalBuilder;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
@@ -47,7 +54,6 @@ import java.io.File;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -67,13 +73,17 @@ public class CodeCLI implements Handler, Runnable {
 
     private final ChatModel chatModel;
     private AgentSessionProvider sessionProvider;
-    private String name = "CodeCLI"; // 默认名称
+    private String name = "CodeCLI";
     private String workDir = ".";
     private final Map<String, String> extraPools = new LinkedHashMap<>();
     private Consumer<ReActAgent.Builder> configurator;
-    private boolean enableWeb = true;      // 默认启用 Web
-    private boolean enableConsole = true;  // 默认启用控制台
+    private boolean enableWeb = true;
+    private boolean enableConsole = true;
     private boolean enableHitl = false;
+
+    // JLine 3 终端与行读取器句柄
+    private Terminal terminal;
+    private LineReader reader;
 
     public CodeCLI(ChatModel chatModel) {
         this.chatModel = chatModel;
@@ -139,7 +149,6 @@ public class CodeCLI implements Handler, Runnable {
 
     protected CliSkill getSkill(AgentSession session) {
         String boxId = session.getSessionId();
-
         return (CliSkill) session.attrs().computeIfAbsent("CliSkill", x -> {
             CliSkill skill = new CliSkill(boxId, workDir + "/boxes/" + boxId);
             extraPools.forEach(skill::mountPool);
@@ -156,10 +165,14 @@ public class CodeCLI implements Handler, Runnable {
 
             ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel)
                     .role("你的名字叫 " + name + "。")
-                    .instruction("你是一个超级智能助手，有记忆能力。" +
-                            "首要原则是解决任务。执行任务时参考挂载技能的【规范】与【准则】；" +
-                            "若现有技能不足以完成任务，请尝试组合现有技能，或通过 bash 自主创建脚本/工具来解决问题。" +
-                            "遇到 @pool 路径请阅读其 SKILL.md。");
+                    .instruction(
+                            "你是一个具备深度工程能力的 AI 协作终端。请遵循以下准则：\n" +
+                                    "1.【行动原则】：不要假设，要验证。在修改代码前必须先阅读文件；在交付任务前必须验证执行结果。\n" +
+                                    "2.【自主性】：bash 是你的万能工具。当内置技能不足时，应自主编写脚本或调用系统命令解决环境问题。\n" +
+                                    "3.【上下文感知】：遇到 @pool 路径时，必须先同步阅读其 SKILL.md；遵循项目根目录的开发规范。\n" +
+                                    "4.【交互风格】：像资深工程师一样沟通——简洁、直接、结果导向。避免 AI 废话（如：'作为一个 AI...'）。\n" +
+                                    "5.【安全性】：敏感操作（如删除、大规模修改、提交代码）需触发授权。保护环境安全，不泄漏密钥。"
+                    );
 
             if (enableHitl) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
@@ -171,6 +184,23 @@ public class CodeCLI implements Handler, Runnable {
             }
 
             agent = agentBuilder.build();
+
+            // [优化点] 初始化 JLine 终端，启用文件名补全
+            try {
+                this.terminal = TerminalBuilder.builder()
+                        .jna(true)    // 尝试使用 JNA 提升兼容性
+                        .jansi(true)  // 尝试使用 Jansi 提升兼容性
+                        .system(true)
+                        .dumb(true)
+                        .build();
+
+                this.reader = LineReaderBuilder.builder()
+                        .terminal(terminal)
+                        .completer(new FileNameCompleter()) // 路径自动补全
+                        .build();
+            } catch (Exception e) {
+                LOG.error("JLine 初始化失败", e);
+            }
         }
     }
 
@@ -258,32 +288,30 @@ public class CodeCLI implements Handler, Runnable {
         }
 
         prepare();
-        Scanner scanner = new Scanner(System.in);
         printWelcome();
         AgentSession session = sessionProvider.getSession("cli");
 
         while (true) {
             try {
-                cleanInputBuffer();
-
-                // --- 优化输出：仅在就绪时打印提示符 ---
-                System.out.print("\r\033[K" + CYAN + "\uD83D\uDCBB > " + RESET);
-                System.out.flush();
-
-                if (!scanner.hasNextLine()) break;
-                String input = scanner.nextLine();
+                // [优化点] 使用 JLine 的清理机制代替原始的 System.in 清理
+                String promptStr = CYAN + "\uD83D\uDCBB > " + RESET;
+                String input;
+                try {
+                    input = reader.readLine(promptStr); // 支持历史记录、Tab 补全
+                } catch (UserInterruptException e) { continue; } // Ctrl+C
+                catch (EndOfFileException e) { break; }      // Ctrl+D
 
                 if (input == null || input.trim().isEmpty()) continue;
                 if (isSystemCommand(input)) break;
 
-                // 打印 Agent 响应前缀并清除当前行提示符余墨
-                System.out.print("\r\033[K" + name + ": ");
-                System.out.flush();
+                // [优化点] 使用 \r 清行，确保 Agent 输出前缀整洁
+                terminal.writer().print("\r" + name + ": ");
+                terminal.flush();
 
-                performAgentTask(session, input, scanner);
+                performAgentTask(session, input);
 
             } catch (Throwable e) {
-                System.err.println("\n" + RED + "[错误] " + RESET + (e.getMessage() == null ? "执行中断" : e.getMessage()));
+                terminal.writer().println("\n" + RED + "[错误] " + RESET + e.getMessage());
             }
         }
     }
@@ -291,10 +319,7 @@ public class CodeCLI implements Handler, Runnable {
     final static String GRAY = "\033[90m", YELLOW = "\033[33m", GREEN = "\033[32m",
             RED = "\033[31m", CYAN = "\033[36m", RESET = "\033[0m";
 
-    /**
-     * 执行 Agent 任务（优化版：修复状态泄露与异步同步问题）
-     */
-    private void performAgentTask(AgentSession session, String input, Scanner scanner) throws Exception {
+    private void performAgentTask(AgentSession session, String input) throws Exception {
         String currentInput = input;
         boolean isSubmittingDecision = false;
 
@@ -305,87 +330,67 @@ public class CodeCLI implements Handler, Runnable {
             reactor.core.Disposable disposable = stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
-                        // --- 优化输出：分段式渲染 ---
                         if (chunk instanceof ReasonChunk) {
-                            ReasonChunk reasonChunk = (ReasonChunk) chunk;
-                            if (chunk.hasContent() && !reasonChunk.isToolCalls()) {
-                                // 思考过程：使用淡灰色
-                                System.out.print(GRAY + clearThink(chunk.getContent()) + RESET);
-                                if (reasonChunk.isFinished()) System.out.println();
-                                System.out.flush();
+                            if (chunk.hasContent() && !((ReasonChunk) chunk).isToolCalls()) {
+                                terminal.writer().print(GRAY + clearThink(chunk.getContent()) + RESET);
+                                terminal.flush();
                             }
                         } else if (chunk instanceof ActionChunk) {
                             ActionChunk actionChunk = (ActionChunk) chunk;
-                            String toolName = actionChunk.getToolName();
-                            String content = chunk.getContent();
-
-                            if (Assert.isNotEmpty(toolName)) {
-                                // 工具调用：块状高亮，借鉴 Claude 的清晰边界
-                                System.out.println("\n" + YELLOW + " ❯ " + toolName + RESET);
-                                if (Assert.isNotEmpty(content)) {
-                                    System.out.println(GRAY + "   " + content.replace("\n", "\n   ") + RESET);
+                            if (Assert.isNotEmpty(actionChunk.getToolName())) {
+                                terminal.writer().println("\n" + YELLOW + " ❯ " + actionChunk.getToolName() + RESET);
+                                if (Assert.isNotEmpty(chunk.getContent())) {
+                                    terminal.writer().println(GRAY + "   " + chunk.getContent().replace("\n", "\n   ") + RESET);
                                 }
                             }
-                            System.out.flush();
+                            terminal.flush();
                         } else if (chunk instanceof ReActChunk) {
-                            // 最终回复：与上方内容空一行，确保易读性
-                            System.out.println("\n" + GREEN + "━━ " + name + " 回复 ━━━━━━━━━━━━━━━━━━━━" + RESET);
-                            System.out.println(chunk.getContent());
+                            terminal.writer().println("\n" + GREEN + "━━ " + name + " 回复 ━━━━━━━━━━━━━━━━━━━━" + RESET);
+                            terminal.writer().println(chunk.getContent());
+                            terminal.flush();
                         }
                     })
                     .doFinally(signal -> latch.countDown())
                     .subscribe();
 
-            if (isSubmittingDecision) {
-                Thread.sleep(100);
-                isSubmittingDecision = false;
-            }
+            if (isSubmittingDecision) { Thread.sleep(100); isSubmittingDecision = false; }
 
-            // 阻塞监控循环：监听键盘中断和 HITL
+            // [优化点] 关键：利用 JLine 的非阻塞读取捕获中断按键
             while (latch.getCount() > 0) {
-                if (System.in.available() > 0) {
-                    disposable.dispose();
-                    isInterrupted.set(true);
-                    latch.countDown();
-                    break;
+                if (terminal.reader().peek(10) != -2) { // 如果 10ms 内有按键
+                    int c = terminal.reader().read();
+                    if (c == '\r' || c == '\n') { // 回车中断
+                        disposable.dispose();
+                        isInterrupted.set(true);
+                        latch.countDown();
+                        break;
+                    }
                 }
-                if (HITL.isHitl(session)) {
-                    latch.countDown();
-                    break;
-                }
-                Thread.sleep(40);
+                if (HITL.isHitl(session)) { latch.countDown(); break; }
+                Thread.sleep(30);
             }
             latch.await();
 
             if (isInterrupted.get()) {
-                cleanInputBuffer();
-                System.out.println(YELLOW + "\n[已中断]" + RESET);
+                terminal.writer().println(YELLOW + "\n[已中断]" + RESET);
                 session.addMessage(ChatMessage.ofAssistant("【执行摘要】：该任务已被用户手动中断。"));
                 return;
             }
 
-            // --- 优化：HITL 交互区渲染 ---
             if (HITL.isHitl(session)) {
                 HITLTask task = HITL.getPendingTask(session);
+                terminal.writer().println("\n" + RED + " ⚠ 需要授权 " + RESET);
+                if (Assert.isNotEmpty(task.getComment())) terminal.writer().println(GRAY + "   原因: " + task.getComment() + RESET);
+                if ("bash".equals(task.getToolName())) terminal.writer().println(CYAN + "   执行: " + RESET + task.getArgs().get("command"));
 
-                System.out.println("\n" + RED + " ⚠ 需要授权 " + RESET);
-                if (Assert.isNotEmpty(task.getComment())) {
-                    System.out.println(GRAY + "   原因: " + task.getComment() + RESET);
-                }
-                if ("bash".equals(task.getToolName())) {
-                    System.out.println(CYAN + "   执行: " + RESET + task.getArgs().get("command"));
-                }
-
-                System.out.print(GREEN + "   确认执行？(y/n) " + RESET);
-                String choice = scanner.nextLine().trim().toLowerCase();
-
+                // [优化点] HITL 授权同样使用 LineReader 以获得更好的输入体验
+                String choice = reader.readLine(GREEN + "   确认执行？(y/n) " + RESET).trim().toLowerCase();
                 if (choice.equals("y") || choice.equals("yes")) {
                     HITL.approve(session, task.getToolName());
                 } else {
-                    System.out.println(RED + "   已拒绝操作。" + RESET);
+                    terminal.writer().println(RED + "   已拒绝操作。" + RESET);
                     HITL.reject(session, task.getToolName());
                 }
-
                 currentInput = null;
                 isSubmittingDecision = true;
                 continue;
@@ -394,75 +399,36 @@ public class CodeCLI implements Handler, Runnable {
         }
     }
 
-    private String clearThink(String chunk) {
-        return chunk.replaceAll("(?s)<\\s*/?think\\s*>", "");
-    }
+    private String clearThink(String chunk) { return chunk.replaceAll("(?s)<\\s*/?think\\s*>", ""); }
 
-    /**
-     * 清理输入缓冲区，防止中断触发的回车符污染下一个指令
-     */
     private void cleanInputBuffer() throws Exception {
-        Thread.sleep(50); // 给系统 IO 一点反应时间
-        while (System.in.available() > 0) {
-            System.in.read();
-        }
+        // [优化点] 使用 terminal 刷新代替原始 sleep
+        terminal.flush();
     }
 
-    /**
-     * 系统指令判定
-     */
     private boolean isSystemCommand(String input) {
         String cmd = input.trim().toLowerCase();
-        if ("exit".equals(cmd) || "quit".equals(cmd)) {
-            System.out.println("再见！");
-            System.exit(0); // 强制退出 JVM
-            return true;
-        }
-
-        if ("clear".equals(cmd)) {
-            System.out.print("\033[H\033[2J");
-            System.out.flush();
-            return false;
-        }
+        if ("exit".equals(cmd) || "quit".equals(cmd)) { terminal.writer().println("再见！"); return true; }
+        if ("clear".equals(cmd)) { terminal.puts(org.jline.utils.InfoCmp.Capability.clear_screen); return false; }
         return false;
     }
 
     protected void printWelcome() {
-        // 获取绝对且规范化的路径，去掉多余的 "."
         String absolutePath;
-        try {
-            absolutePath = new File(workDir).getCanonicalPath();
-        } catch (Exception e) {
-            absolutePath = new File(workDir).getAbsolutePath();
-        }
-
-        System.out.println("==================================================");
-        System.out.println("🚀 " + name + " 已就绪");
-        System.out.println("--------------------------------------------------");
-        System.out.println("📂 工作空间: " + absolutePath);
-
-        if (!extraPools.isEmpty()) {
-            System.out.println("📦 挂载技能池:");
-            extraPools.forEach((k, v) -> {
-                // 对池路径也做一下规范化显示
-                String p = new File(v).getAbsolutePath();
-                System.out.println("  - " + k + " -> " + p);
-            });
-        }
-
-        System.out.println("--------------------------------------------------");
-        System.out.println("💡 输入 'exit' 退出, 'clear' 清屏");
-        System.out.println("🛑 在输出时按 '回车(Enter)' 可中断回复"); // 新增提示
-        System.out.println("==================================================");
+        try { absolutePath = new File(workDir).getCanonicalPath(); } catch (Exception e) { absolutePath = new File(workDir).getAbsolutePath(); }
+        terminal.writer().println("==================================================");
+        terminal.writer().println("🚀 " + name + " 已就绪");
+        terminal.writer().println("--------------------------------------------------");
+        terminal.writer().println("📂 工作空间: " + absolutePath);
+        terminal.writer().println("💡 支持 Tab 补全、方向键历史记录");
+        terminal.writer().println("🛑 输出时按回车(Enter)中断");
+        terminal.writer().println("==================================================");
+        terminal.flush();
     }
 
     public static class Chunk implements Serializable {
         public final String type;
         public final String text;
-
-        public Chunk(String type, String text) {
-            this.type = type;
-            this.text = text;
-        }
+        public Chunk(String type, String text) { this.type = type; this.text = text; }
     }
 }
