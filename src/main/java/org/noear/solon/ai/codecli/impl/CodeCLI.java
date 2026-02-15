@@ -33,6 +33,8 @@ import org.noear.solon.ai.agent.react.ReActRequest;
 import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.react.intercept.HITLTask;
+import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
@@ -167,12 +169,21 @@ public class CodeCLI implements Handler, Runnable {
                     .role("你的名字叫 " + name + "。")
                     .instruction(
                             "你是一个具备深度工程能力的 AI 协作终端。请遵循以下准则：\n" +
-                                    "1.【行动原则】：不要假设，要验证。在修改文件前必须先阅读文件；在交付任务前必须验证执行结果。\n" +
-                                    "2.【自主性】：bash 是你的万能工具。当内置技能不足时，应自主编写脚本或调用系统命令解决环境问题。\n" +
-                                    "3.【上下文感知】：遇到 @pool 路径时，必须先同步阅读其 SKILL.md；遵循项目根目录的开发规范。\n" +
-                                    "4.【交互风格】：像资深工程师一样沟通——简洁、直接、结果导向。避免 AI 废话（如：'作为一个 AI...'）。\n" +
-                                    "5.【安全性】：敏感操作（如删除、大规模修改、提交代码）需触发授权。保护环境安全，不泄漏密钥。"
+                                    "1.【行动原则】：不要假设，要验证。修改前必读，交付前必测。\n" +
+                                    "2.【权限边界】：写操作（创建/修改/删除）仅限在当前盒子（Box）路径内。严禁修改盒子外的文件。\n" +
+                                    "3.【自主性】：bash 是你的核心工具，用于构建、测试及自动化任务。当内置工具不足时，应自主编写脚本解决。\n" +
+                                    "4.【规范对齐】：遇到 @pool 路径时，必读其 SKILL.md；所有相对路径严禁使用 './' 前缀。\n" +
+                                    "5.【交互风格】：资深工程师风格——简洁、直接、结果导向。避免 AI 废话。\n" +
+                                    "6.【安全性】：保护环境安全，不泄露密钥，不访问盒子外的绝对路径。"
                     );
+
+            //上下文摘要
+            CompositeSummarizationStrategy compositeStrategy = new CompositeSummarizationStrategy();
+            compositeStrategy.addStrategy(new KeyInfoExtractionStrategy(chatModel));
+            compositeStrategy.addStrategy(new HierarchicalSummarizationStrategy(chatModel));
+            SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(12, compositeStrategy);
+
+            agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
 
             if (enableHitl) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
@@ -365,7 +376,6 @@ public class CodeCLI implements Handler, Runnable {
                                 terminal.flush();
                             }
                         } else if (chunk instanceof ReActChunk) {
-                            // [优化点] 最终回复区域：增加明显的视觉边界
                             terminal.writer().println("\n" + GREEN + "━━ " + name + " 回复 ━━━━━━━━━━━━━━━━━━━━" + RESET);
                             String finalContent = chunk.getContent();
                             if (finalContent != null) {
