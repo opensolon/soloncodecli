@@ -156,7 +156,10 @@ public class CodeCLI implements Handler, Runnable {
 
             ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel)
                     .role("你的名字叫 " + name + "。")
-                    .instruction("你是一个超级智能助手（什么都能干），有记忆能力。要严格遵守挂载技能中的【交互规范】与【操作准则】执行任务。遇到 @pool 路径请阅读其 SKILL.md。");
+                    .instruction("你是一个超级智能助手，有记忆能力。" +
+                            "首要原则是解决任务。执行任务时参考挂载技能的【规范】与【准则】；" +
+                            "若现有技能不足以完成任务，请尝试组合现有技能，或通过 bash 自主创建脚本/工具来解决问题。" +
+                            "遇到 @pool 路径请阅读其 SKILL.md。");
 
             if (enableHitl) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
@@ -216,8 +219,7 @@ public class CodeCLI implements Handler, Runnable {
         if (Assert.isNotEmpty(input)) {
             if ("call".equals(mode)) {
                 ctx.contentType(MimeType.TEXT_PLAIN_UTF8_VALUE);
-                String result = buildRequest(sessionId, Prompt.of(input))
-                        .call()
+                String result = call(sessionId, Prompt.of(input))
                         .getContent();
 
                 ctx.output(result);
@@ -225,8 +227,7 @@ public class CodeCLI implements Handler, Runnable {
                 ctx.contentType(MimeType.TEXT_EVENT_STREAM_UTF8_VALUE);
 
 
-                Flux<String> stringFlux = buildRequest(sessionId, Prompt.of(input))
-                        .stream()
+                Flux<String> stringFlux = stream(sessionId, Prompt.of(input))
                         .map(chunk -> {
                             if (chunk.hasContent()) {
                                 if (chunk instanceof ReasonChunk) {
@@ -263,12 +264,10 @@ public class CodeCLI implements Handler, Runnable {
 
         while (true) {
             try {
-                // 1. 清理输入缓冲区
-                while (System.in.available() > 0) {
-                    System.in.read();
-                }
+                cleanInputBuffer();
 
-                System.out.print("\n\uD83D\uDCBB > ");
+                // --- 优化输出：仅在就绪时打印提示符 ---
+                System.out.print("\r\033[K" + CYAN + "\uD83D\uDCBB > " + RESET);
                 System.out.flush();
 
                 if (!scanner.hasNextLine()) break;
@@ -277,14 +276,14 @@ public class CodeCLI implements Handler, Runnable {
                 if (input == null || input.trim().isEmpty()) continue;
                 if (isSystemCommand(input)) break;
 
-                System.out.print(name + ": ");
+                // 打印 Agent 响应前缀并清除当前行提示符余墨
+                System.out.print("\r\033[K" + name + ": ");
                 System.out.flush();
 
-                // 【优化点 1】调用封装好的任务执行方法
                 performAgentTask(session, input, scanner);
 
             } catch (Throwable e) {
-                System.err.println("\n[提示] " + (e.getMessage() == null ? "执行中断" : e.getMessage()));
+                System.err.println("\n" + RED + "[错误] " + RESET + (e.getMessage() == null ? "执行中断" : e.getMessage()));
             }
         }
     }
@@ -296,123 +295,101 @@ public class CodeCLI implements Handler, Runnable {
      * 执行 Agent 任务（优化版：修复状态泄露与异步同步问题）
      */
     private void performAgentTask(AgentSession session, String input, Scanner scanner) throws Exception {
-
         String currentInput = input;
-        // 标记：是否刚提交完审核结果
         boolean isSubmittingDecision = false;
 
         while (true) {
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
 
-            // 1. 启动流（注意：currentInput 在续传时为 null）
-            reactor.core.Disposable disposable = buildRequest(session.getSessionId(), Prompt.of(currentInput))
-                    .stream()
+            reactor.core.Disposable disposable = stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
+                        // --- 优化输出：分段式渲染 ---
                         if (chunk instanceof ReasonChunk) {
-                            // 思考逻辑：灰色
                             ReasonChunk reasonChunk = (ReasonChunk) chunk;
                             if (chunk.hasContent() && !reasonChunk.isToolCalls()) {
+                                // 思考过程：使用淡灰色
                                 System.out.print(GRAY + clearThink(chunk.getContent()) + RESET);
-                                if (reasonChunk.isFinished()) {
-                                    System.out.println();
-                                }
+                                if (reasonChunk.isFinished()) System.out.println();
                                 System.out.flush();
                             }
                         } else if (chunk instanceof ActionChunk) {
-                            // 工具调用逻辑：黄色
                             ActionChunk actionChunk = (ActionChunk) chunk;
                             String toolName = actionChunk.getToolName();
                             String content = chunk.getContent();
 
                             if (Assert.isNotEmpty(toolName)) {
-                                // 打印工具调用的 Observation 结果
-                                System.out.println("\n" + YELLOW + "🔨 [执行工具: " + toolName + "]" + RESET);
-                                System.out.print(GRAY + ">> Observation: " + RESET + YELLOW + content + RESET);
-                            } else {
-                                // 兜底打印（非工具调用的 Action）
-                                System.out.print("\n" + YELLOW + content + RESET);
+                                // 工具调用：块状高亮，借鉴 Claude 的清晰边界
+                                System.out.println("\n" + YELLOW + " ❯ " + toolName + RESET);
+                                if (Assert.isNotEmpty(content)) {
+                                    System.out.println(GRAY + "   " + content.replace("\n", "\n   ") + RESET);
+                                }
                             }
-                            // 统一在这里换行或 flush
-                            System.out.println();
                             System.out.flush();
                         } else if (chunk instanceof ReActChunk) {
-                            // 最终回复：增加分界线
-                            System.out.println("\n" + GREEN + "----------------------" + RESET);
+                            // 最终回复：与上方内容空一行，确保易读性
+                            System.out.println("\n" + GREEN + "━━ " + name + " 回复 ━━━━━━━━━━━━━━━━━━━━" + RESET);
                             System.out.println(chunk.getContent());
                         }
                     })
                     .doFinally(signal -> latch.countDown())
                     .subscribe();
 
-            // 【关键点 1】如果是续传，给流一点启动时间，避开旧状态残留的毫秒级窗口
             if (isSubmittingDecision) {
-                Thread.sleep(60);
+                Thread.sleep(100);
                 isSubmittingDecision = false;
             }
 
-            // 2. 阻塞监控循环
+            // 阻塞监控循环：监听键盘中断和 HITL
             while (latch.getCount() > 0) {
-                // A. 检查键盘中断 (Enter)
                 if (System.in.available() > 0) {
                     disposable.dispose();
                     isInterrupted.set(true);
                     latch.countDown();
                     break;
                 }
-
-                // B. 检查是否有新的人工介入请求
                 if (HITL.isHitl(session)) {
                     latch.countDown();
                     break;
                 }
-
-                Thread.sleep(40); // 采样频率
+                Thread.sleep(40);
             }
             latch.await();
 
-            // 处理用户手动中断
             if (isInterrupted.get()) {
                 cleanInputBuffer();
-                session.addMessage(ChatMessage.ofAssistant(
-                        "【执行摘要】：该任务已被用户手动中断。当前上下文已冻结，我将不再主动执行此任务的后续逻辑。已就绪，请下达新指令。"
-                ));
+                System.out.println(YELLOW + "\n[已中断]" + RESET);
+                session.addMessage(ChatMessage.ofAssistant("【执行摘要】：该任务已被用户手动中断。"));
                 return;
             }
 
-            // 3. 处理人工介入逻辑
+            // --- 优化：HITL 交互区渲染 ---
             if (HITL.isHitl(session)) {
                 HITLTask task = HITL.getPendingTask(session);
 
-                // 💡 改进：先打印风险评估报告 (Reason)
+                System.out.println("\n" + RED + " ⚠ 需要授权 " + RESET);
                 if (Assert.isNotEmpty(task.getComment())) {
-                    System.out.println(RED + "\n[安全风险评估]: " + task.getComment() + RESET);
+                    System.out.println(GRAY + "   原因: " + task.getComment() + RESET);
                 }
-
-                // 💡 改进：如果是 bash，直接显示指令内容，用户不需要猜
                 if ("bash".equals(task.getToolName())) {
-                    System.out.println(YELLOW + "👉 待执行指令: " + task.getArgs().get("command") + RESET);
+                    System.out.println(CYAN + "   执行: " + RESET + task.getArgs().get("command"));
                 }
 
-                System.out.print(GREEN + "❓ 是否授权执行？(y/n): " + RESET);
-
+                System.out.print(GREEN + "   确认执行？(y/n) " + RESET);
                 String choice = scanner.nextLine().trim().toLowerCase();
+
                 if (choice.equals("y") || choice.equals("yes")) {
-                    System.out.println(GREEN + "✅ 已授权，执行中..." + RESET);
                     HITL.approve(session, task.getToolName());
                 } else {
-                    System.out.println(RED + "❌ 已拒绝。" + RESET);
+                    System.out.println(RED + "   已拒绝操作。" + RESET);
                     HITL.reject(session, task.getToolName());
                 }
 
-                // 准备续传
                 currentInput = null;
                 isSubmittingDecision = true;
                 continue;
             }
-
-            // 既无中断也无拦截，说明 Prompt 任务彻底执行完毕
             break;
         }
     }
