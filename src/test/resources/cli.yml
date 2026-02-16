@@ -8,6 +8,7 @@ solon.code.cli:
   name: "小花"
   workDir: "work"
   maxSteps: 100
+  maxStepsExtensible: true
   sessionWindowSize: 10
 
   planningMode: true
@@ -24,9 +25,7 @@ solon.code.cli:
 
   chatModel:
     apiUrl: "https://api.deepseek.com/v1/chat/completions"
-    apiKey: "sk-251740c893994c57a6536ecdbc33c189"
+    apiKey: "sk-***"
     model: "deepseek-chat"
   mountPool:
-    "@shared": "${user.home}/WORK/work_github/solonlab/opencode-skills"
-
-# 下载 skills： https://github.com/solonlab/opencode-skills
+    "@shared": "${user.home}/WORK/work_github/solonlab/awesome-claude-skills"

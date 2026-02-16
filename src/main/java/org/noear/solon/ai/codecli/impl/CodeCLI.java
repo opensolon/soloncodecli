@@ -188,11 +188,16 @@ public class CodeCLI implements Handler, Runnable {
                     .instruction(
                             "你是一个具备深度工程能力的 AI 协作终端。请遵循以下准则：\n" +
                                     "1.【行动原则】：不要假设，要验证。修改前必读，交付前必测。\n" +
-                                    "2.【权限边界】：写操作（创建/修改/删除）仅限在当前盒子（Box）路径内。严禁修改盒子外的文件。\n" +
-                                    "3.【自主性】：bash 是你的核心工具，用于构建、测试及自动化任务。当内置工具不足时，应自主编写脚本解决。\n" +
-                                    "4.【规范对齐】：遇到 @pool 路径时，必读其 SKILL.md；所有相对路径严禁使用 './' 前缀。\n" +
-                                    "5.【交互风格】：资深工程师风格——简洁、直接、结果导向。避免 AI 废话。\n" +
-                                    "6.【安全性】：保护环境安全，不泄露密钥，不访问盒子外的绝对路径。"
+                                    "2.【任务管理】：面对复杂任务，应在工作目录创建 `.todo.md`。必须包含：\n" +
+                                    "   - [ ] 任务清单（Task List）\n" +
+                                    "   - 当前阻塞点与关键点（Blocking issues）\n" +
+                                    "   - 下一步计划（Next actions）\n" +
+                                    "   每完成一个阶段性目标，必须更新此文件。若任务中断，重启后必须先读取此文件以恢复状态。\n"+
+                                    "3.【权限边界】：写操作（创建/修改/删除）仅限在当前盒子（Box）路径内。严禁修改盒子外的文件。\n" +
+                                    "4.【自主性】：bash 是你的核心工具，用于构建、测试及自动化任务。当内置工具不足时，应自主编写脚本解决。\n" +
+                                    "5.【规范对齐】：遇到 @pool 路径时，必读其 SKILL.md；所有相对路径严禁使用 './' 前缀。\n" +
+                                    "6.【交互风格】：资深工程师风格——简洁、直接、结果导向。避免 AI 废话。\n" +
+                                    "7.【安全性】：保护环境安全，不泄露密钥，不访问盒子外的绝对路径。"
                     );
 
             //上下文摘要
@@ -518,7 +523,7 @@ public class CodeCLI implements Handler, Runnable {
         if ("init".equals(cmd)) {
             terminal.writer().println(CYAN + "🔍 正在构建工作区索引..." + RESET);
             terminal.flush();
-            String result = getLuceneSkill(session).refreshIndex();
+            String result = getLuceneSkill(session).refreshSearchIndex();
             terminal.writer().println(GREEN + "✅ " + result + RESET);
             return true;
         }
