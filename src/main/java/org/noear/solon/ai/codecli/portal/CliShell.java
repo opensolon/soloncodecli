@@ -131,35 +131,41 @@ public class CliShell implements Runnable {
                         if (chunk instanceof ReasonChunk) {
                             ReasonChunk reason = (ReasonChunk) chunk;
                             if (!reason.isToolCalls()) {
-                                String content = clearThink(chunk.getContent());
-                                if (Assert.isNotEmpty(content)) {
+                                String content = clearThink(reason.getContent());
+
+                                if (content.length() > printedLength.get()) {
+                                    String delta = content.substring(printedLength.get());
+
                                     if (isFirstReasonChunk.get()) {
-                                        content = content.replaceAll("^[\\s\\n]+", "");
-                                        if (Assert.isNotEmpty(content)) isFirstReasonChunk.set(false);
+                                        delta = delta.replaceAll("^[\\s\\n]+", "");
+                                        if (Assert.isNotEmpty(delta)) isFirstReasonChunk.set(false);
                                     }
-                                    terminal.writer().print(content);
+
+                                    terminal.writer().print(delta);
                                     terminal.flush();
+                                    printedLength.set(content.length());
                                 }
                             }
                         } else if (chunk instanceof ActionChunk) {
                             ActionChunk action = (ActionChunk) chunk;
                             if (Assert.isNotEmpty(action.getToolName())) {
-                                // Claude 的工具调用通常是紧随其后的，不需要多余的换行
                                 terminal.writer().print("\r" + YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
                                 if (Assert.isNotEmpty(action.getContent())) {
-                                    // 将参数限制在同一行或紧随其后，使用更暗的颜色
-                                    terminal.writer().print(DIM + " " + action.getContent().trim() + RESET);
+                                    String args = action.getContent().trim().replace("\n", " ");
+                                    if (args.length() > 80) args = args.substring(0, 77) + "...";
+                                    terminal.writer().print(DIM + " " + args + RESET);
                                 }
                                 terminal.writer().println();
                                 terminal.flush();
+
                                 isFirstReasonChunk.set(true);
+                                printedLength.set(0);
                             }
                         } else if (chunk instanceof ReActChunk) {
                             isTaskCompleted.set(true);
-                            ReActChunk reActChunk = (ReActChunk) chunk;
-                            // 打印 Token 指标 (对齐 Claude 的低调展示)
-                            if (reActChunk.getTrace().getMetrics() != null) {
-                                terminal.writer().println("\n" + DIM + "(" + reActChunk.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
+                            ReActChunk reAct = (ReActChunk) chunk;
+                            if (reAct.getTrace().getMetrics() != null) {
+                                terminal.writer().println(DIM + " (" + reAct.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
                             }
                         }
                     })
@@ -191,7 +197,8 @@ public class CliShell implements Runnable {
             latch.await();
 
             if (isInterrupted.get()) {
-                terminal.writer().println("\n" + DIM + "[Task interrupted by user]" + RESET);
+                terminal.writer().println(DIM + "[Task interrupted]" + RESET);
+                session.addMessage(org.noear.solon.ai.chat.message.ChatMessage.ofAssistant("Task interrupted by user."));
                 return;
             }
 
