@@ -29,7 +29,6 @@ import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
-import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.AgentNexus;
 import org.noear.solon.ai.codecli.core.skills.CodeSkill;
@@ -44,40 +43,38 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Code CLI 终端 (Pool-Box 模型)
- * <p>基于 ReAct 模式的代码协作终端，提供多池挂载与任务盒隔离体验</p>
- *
- * @author noear
- * @since 3.9.1
+ * Code CLI 终端 (Claude Code 风格对齐版)
  */
-@Preview("3.9.1")
-public class CliShell implements  Runnable {
+@Preview("3.9.4")
+public class CliShell implements Runnable {
     private final static Logger LOG = LoggerFactory.getLogger(CliShell.class);
 
-    // JLine 3 终端与行读取器句柄
     private Terminal terminal;
     private LineReader reader;
-
     private final AgentNexus codeAgent;
+
+    // ANSI 颜色常量 - 严格对齐 Claude 极简风
+    private final static String
+            BOLD = "\033[1m",
+            DIM = "\033[2m",
+            GREEN = "\033[32m",
+            YELLOW = "\033[33m",
+            RED = "\033[31m",
+            CYAN = "\033[36m",
+            RESET = "\033[0m";
 
     public CliShell(AgentNexus codeAgent) {
         this.codeAgent = codeAgent;
-
-        // [优化点] 初始化 JLine 终端，启用文件名补全
         try {
             this.terminal = TerminalBuilder.builder()
-                    .jna(true)    // 尝试使用 JNA 提升兼容性
-                    .jansi(true)  // 尝试使用 Jansi 提升兼容性
-                    .system(true)
-                    .dumb(true)
-                    .build();
+                    .jna(true).jansi(true).system(true).dumb(true).build();
 
             this.reader = LineReaderBuilder.builder()
                     .terminal(terminal)
-                    .completer(new FileNameCompleter()) // 路径自动补全
+                    .completer(new FileNameCompleter())
                     .build();
         } catch (Exception e) {
-            LOG.error("JLine 初始化失败", e);
+            LOG.error("JLine initialization failed", e);
         }
     }
 
@@ -87,133 +84,92 @@ public class CliShell implements  Runnable {
         printWelcome();
         AgentSession session = codeAgent.getSession("cli");
 
+        // 1. 初始化对齐
         CodeSkill codeSkill = codeAgent.getCodeSkill(session);
-        if(codeSkill.isSupported(null)) {
-            terminal.writer().println(GRAY + "✨ 正在对齐项目规约与索引..." + RESET);
+        if (codeSkill.isSupported(null)) {
+            terminal.writer().println(DIM + "Aligning project contract & indexing..." + RESET);
             codeAgent.init(session);
-            // 只打印简要的一行，不破坏终端的美感
-            terminal.writer().println(GRAY + "  ❯ 已就绪 (Project Contract & Indexing)" + RESET);
+            terminal.writer().println(DIM + "❯ Ready (CLAUDE.md)" + RESET);
         }
 
+        // 2. 主循环
         while (true) {
             try {
-                // [优化点] 使用 JLine 的清理机制代替原始的 System.in 清理
-                String promptStr = CYAN + "\uD83D\uDCBB > " + RESET;
+                String promptStr = "\n" + BOLD + CYAN + "User" + RESET + " (type 'exit' to quit)\n" + BOLD + CYAN + "> " + RESET;
                 String input;
                 try {
-                    input = reader.readLine(promptStr); // 支持历史记录、Tab 补全
+                    input = reader.readLine(promptStr);
                 } catch (UserInterruptException e) {
                     continue;
-                } // Ctrl+C
-                catch (EndOfFileException e) {
+                } catch (EndOfFileException e) {
                     break;
-                }      // Ctrl+D
+                }
 
-                if (input == null || input.trim().isEmpty()) continue;
+                if (Assert.isEmpty(input)) continue;
 
-                if (isSystemCommand(session, input) == false) {
-                    terminal.writer().print("\r" + codeAgent.getName() + ": "); // \r 清除当前的输入行
-                    terminal.flush();
-
+                if (!isSystemCommand(session, input)) {
+                    terminal.writer().println("\n" + BOLD + codeAgent.getName() + RESET);
                     performAgentTask(session, input);
-
-                    // 任务结束后，确保新的一行干净利落
-                    terminal.writer().println();
-                    terminal.flush();
                 }
             } catch (Throwable e) {
-                terminal.writer().println("\n" + RED + "[错误] " + RESET + e.getMessage());
+                terminal.writer().println("\n" + RED + "! Error: " + RESET + e.getMessage());
             }
         }
     }
 
-    final static String GRAY = "\033[90m", YELLOW = "\033[33m", GREEN = "\033[32m",
-            RED = "\033[31m", CYAN = "\033[36m", RESET = "\033[0m";
-
     private void performAgentTask(AgentSession session, String input) throws Exception {
         String currentInput = input;
-        boolean isSubmittingDecision = false;
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
 
         while (true) {
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
-            final AtomicBoolean isFirstChunk = new AtomicBoolean(true);
+            final AtomicBoolean isFirstReasonChunk = new AtomicBoolean(true);
 
             reactor.core.Disposable disposable = codeAgent.stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
                         if (chunk instanceof ReasonChunk) {
-                            if (chunk.hasContent() && !((ReasonChunk) chunk).isToolCalls()) {
-                                String content = clearThink(chunk.getContent());
-
-                                // [核心优化] 消除首行空行：若是第一块内容，剔除其开头的换行和空格
-                                if (isFirstChunk.get()) {
+                            String content = clearThink(chunk.getContent());
+                            if (Assert.isNotEmpty(content)) {
+                                if (isFirstReasonChunk.get()) {
                                     content = content.replaceAll("^[\\s\\n]+", "");
-                                    if (Assert.isNotEmpty(content)) {
-                                        isFirstChunk.set(false);
-                                    }
+                                    if (Assert.isNotEmpty(content)) isFirstReasonChunk.set(false);
                                 }
-
-                                if (Assert.isNotEmpty(content)) {
-                                    terminal.writer().print(GRAY + content + RESET);
-                                    terminal.flush();
-                                }
+                                terminal.writer().print(content);
+                                terminal.flush();
                             }
                         } else if (chunk instanceof ActionChunk) {
-                            ActionChunk actionChunk = (ActionChunk) chunk;
-                            if (Assert.isNotEmpty(actionChunk.getToolName())) {
-                                if (!isFirstChunk.get()) {
-                                    terminal.writer().println();
+                            ActionChunk action = (ActionChunk) chunk;
+                            if (Assert.isNotEmpty(action.getToolName())) {
+                                // Claude 的工具调用通常是紧随其后的，不需要多余的换行
+                                terminal.writer().print("\r" + YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+                                if (Assert.isNotEmpty(action.getContent())) {
+                                    // 将参数限制在同一行或紧随其后，使用更暗的颜色
+                                    terminal.writer().print(DIM + " " + action.getContent().trim() + RESET);
                                 }
-                                terminal.writer().println(YELLOW + " ❯ " + actionChunk.getToolName() + RESET);
-
-                                if (Assert.isNotEmpty(chunk.getContent())) {
-                                    terminal.writer().println(GRAY + "   " + chunk.getContent().replace("\n", "\n   ") + RESET);
-                                }
-                                isFirstChunk.set(false);
+                                terminal.writer().println();
                                 terminal.flush();
+                                isFirstReasonChunk.set(true);
                             }
                         } else if (chunk instanceof ReActChunk) {
                             isTaskCompleted.set(true);
-
                             ReActChunk reActChunk = (ReActChunk) chunk;
-                            terminal.writer().println("\n" + GREEN + "━━ " + codeAgent.getName() + " 回复 ━━━━━━━━━━━━━━━━━━━━" + RESET);
-                            String finalContent = chunk.getContent();
-                            if (finalContent != null) {
-                                terminal.writer().println(finalContent.replaceAll("^[\\s\\n]+", ""));
-                            }
-
+                            // 打印 Token 指标 (对齐 Claude 的低调展示)
                             if (reActChunk.getTrace().getMetrics() != null) {
-                                long total = reActChunk.getTrace().getMetrics().getTotalTokens();
-                                long prompt = reActChunk.getTrace().getMetrics().getPromptTokens();
-                                long completion = reActChunk.getTrace().getMetrics().getCompletionTokens();
-                                // 使用调色盘中的灰色 (GRAY) 打印，保持低调不干扰视觉
-                                terminal.writer().println(GRAY + String.format(" tokens: %d (in: %d, out: %d)", total, prompt, completion) + RESET);
+                                terminal.writer().println("\n" + DIM + "(" + reActChunk.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
                             }
-
-                            terminal.flush();
-                            isFirstChunk.set(false);
                         }
                     })
                     .doOnError(e -> {
-                        terminal.writer().println();
-                        terminal.writer().println(RED + "[ERROR] 任务执行异常: " + e.getMessage() + RESET);
+                        terminal.writer().println("\n" + RED + "── Error ────────────────" + RESET);
+                        terminal.writer().println(e.getMessage());
                         isTaskCompleted.set(true);
                     })
-                    .doFinally(signal -> {
-                        terminal.writer().println();
-                        terminal.flush();
-                        latch.countDown();
-                    })
+                    .doFinally(signal -> latch.countDown())
                     .subscribe();
 
-            if (isSubmittingDecision) {
-                Thread.sleep(100);
-                isSubmittingDecision = false;
-            }
-
-            // 阻塞监控：监听键盘中断和 HITL
+            // 监听回车中断
             while (latch.getCount() > 0) {
                 if (terminal.reader().peek(10) != -2) {
                     int c = terminal.reader().read();
@@ -233,40 +189,31 @@ public class CliShell implements  Runnable {
             latch.await();
 
             if (isInterrupted.get()) {
-                terminal.writer().println(YELLOW + "\n[已中断]" + RESET);
-                session.addMessage(ChatMessage.ofAssistant("【执行摘要】：该任务已被用户手动中断。"));
+                terminal.writer().println("\n" + DIM + "[Task interrupted by user]" + RESET);
                 return;
             }
 
-            // HITL 交互处理
+            // HITL 处理 (授权交互)
             if (HITL.isHitl(session)) {
                 HITLTask task = HITL.getPendingTask(session);
-                terminal.writer().println("\n" + RED + " ⚠ 需要授权 " + RESET);
-                if (Assert.isNotEmpty(task.getComment())) {
-                    terminal.writer().println(GRAY + "   原因: " + task.getComment() + RESET);
-                }
+                terminal.writer().println("\n" + BOLD + YELLOW + "Permission Required" + RESET);
                 if ("bash".equals(task.getToolName())) {
-                    terminal.writer().println(CYAN + "   执行: " + RESET + task.getArgs().get("command"));
+                    terminal.writer().println(DIM + "Command: " + RESET + task.getArgs().get("command"));
                 }
 
-                String choice = reader.readLine(GREEN + "   确认执行？(y/n) " + RESET).trim().toLowerCase();
-
-                if (choice.equals("y") || choice.equals("yes")) {
+                String choice = reader.readLine(BOLD + GREEN + "Approve? (y/n) " + RESET).trim().toLowerCase();
+                if ("y".equals(choice) || "yes".equals(choice)) {
                     HITL.approve(session, task.getToolName());
+                    currentInput = null; // 触发 Agent 继续执行
+                    continue;
                 } else {
-                    terminal.writer().println(RED + "   已拒绝操作。" + RESET);
                     HITL.reject(session, task.getToolName());
+                    terminal.writer().println(DIM + "Action rejected." + RESET);
+                    return;
                 }
-
-                currentInput = null;
-                isSubmittingDecision = true;
-                continue;
             }
 
-            if (isTaskCompleted.get()) {
-                terminal.writer().flush();
-                return;
-            }
+            if (isTaskCompleted.get()) return;
             break;
         }
     }
@@ -275,55 +222,31 @@ public class CliShell implements  Runnable {
         return chunk.replaceAll("(?s)<\\s*/?think\\s*>", "");
     }
 
-    private void cleanInputBuffer() throws Exception {
-        // [优化点] 使用 terminal 刷新代替原始 sleep
-        terminal.flush();
-    }
-
     private boolean isSystemCommand(AgentSession session, String input) {
         String cmd = input.trim().toLowerCase();
         if ("exit".equals(cmd) || "quit".equals(cmd)) {
-            terminal.writer().println("再见！");
+            terminal.writer().println(DIM + "Exiting..." + RESET);
             System.exit(0);
             return true;
         }
-
         if ("init".equals(cmd)) {
-            terminal.writer().println(CYAN + "🏗️  正在初始化工作空间 (Pool-Box)..." + RESET);
-            terminal.flush();
-
-            // 直接调用核心层封装
+            terminal.writer().println(DIM + "Re-initializing workspace..." + RESET);
             String result = codeAgent.init(session);
-
-            // 格式化输出
-            for (String line : result.split("\n")) {
-                terminal.writer().println(GRAY + "  ❯ " + line + RESET);
-            }
-            terminal.writer().println(GREEN + "✅ 初始化完成！" + RESET);
+            terminal.writer().println(DIM + result + RESET);
             return true;
         }
-
         if ("clear".equals(cmd)) {
             terminal.puts(InfoCmp.Capability.clear_screen);
-            return false;
+            return true;
         }
         return false;
     }
 
     protected void printWelcome() {
-        String absolutePath;
-        try {
-            absolutePath = new File(codeAgent.getWorkDir()).getCanonicalPath();
-        } catch (Exception e) {
-            absolutePath = new File(codeAgent.getWorkDir()).getAbsolutePath();
-        }
-        terminal.writer().println("==================================================");
-        terminal.writer().println("🚀 " + codeAgent.getName() + " 已就绪");
-        terminal.writer().println("--------------------------------------------------");
-        terminal.writer().println("📂 工作空间: " + absolutePath);
-        terminal.writer().println("💡 支持 Tab 补全、方向键历史记录");
-        terminal.writer().println("🛑 输出时按回车(Enter)中断");
-        terminal.writer().println("==================================================");
+        String path = new File(codeAgent.getWorkDir()).getAbsolutePath();
+        terminal.writer().println(BOLD + codeAgent.getName() + RESET + DIM + " (v3.9.4)" + RESET);
+        terminal.writer().println(DIM + "Working directory: " + path + RESET);
+        terminal.writer().println();
         terminal.flush();
     }
 }
