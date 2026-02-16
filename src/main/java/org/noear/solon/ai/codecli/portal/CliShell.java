@@ -123,11 +123,19 @@ public class CliShell implements Runnable {
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
             final AtomicBoolean isFirstReasonChunk = new AtomicBoolean(true);
+            final AtomicBoolean isActionStarted = new AtomicBoolean(false);
 
             reactor.core.Disposable disposable = codeAgent.stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
                         if (chunk instanceof ReasonChunk) {
+                            if (isActionStarted.get()) {
+                                terminal.writer().println();
+                                terminal.flush();
+                                isActionStarted.set(false);
+                                isFirstReasonChunk.set(true); // 准备处理 Reason 的首行缩进
+                            }
+
                             ReasonChunk reason = (ReasonChunk) chunk;
                             if (!reason.isToolCalls()) {
                                 String delta = clearThink(reason.getContent());
@@ -153,23 +161,19 @@ public class CliShell implements Runnable {
                         } else if (chunk instanceof ActionChunk) {
                             ActionChunk action = (ActionChunk) chunk;
                             if (Assert.isNotEmpty(action.getToolName())) {
-                                terminal.writer().println(); // 指令块上方的留白
-                                terminal.writer().print(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
-
-                                if (Assert.isNotEmpty(action.getContent())) {
-                                    String args = action.getContent().trim()
-                                            .replace("\n", " ")
-                                            .replace("[DIR] ", "")
-                                            .replace("[FILE] ", "");
-
-                                    if (args.length() > 60) args = args.substring(0, 57) + "...";
-                                    terminal.writer().print(DIM + " " + args + RESET);
+                                if (!isActionStarted.get()) {
+                                    terminal.writer().println();
+                                    isActionStarted.set(true);
                                 }
 
-                                terminal.writer().println(); // 强制换行，确保指令独占一行
-                                terminal.flush();
+                                // 2. 原地刷新：\r 回到行首 + 清除行 (InfoCmp.Capability.clr_eol 可选，这里用 \r 覆盖即可)
+                                String currentArgs = action.getContent().trim().replace("\n", " ");
+                                currentArgs = currentArgs.replace("[DIR] ", "").replace("[FILE] ", "");
+                                if (currentArgs.length() > 60) currentArgs = currentArgs.substring(0, 57) + "...";
 
-                                isFirstReasonChunk.set(true);
+                                // 覆盖打印整行
+                                terminal.writer().print("\r" + YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + currentArgs + RESET);
+                                terminal.flush();
                             }
                         } else if (chunk instanceof ReActChunk) {
                             isTaskCompleted.set(true);
