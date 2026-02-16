@@ -13,6 +13,7 @@
 
     <artifactId>SolonCodeCLI</artifactId>
     <name>${project.artifactId}</name>
+    <version>0.0.9</version>
     <packaging>jar</packaging>
 
     <dependencies>
