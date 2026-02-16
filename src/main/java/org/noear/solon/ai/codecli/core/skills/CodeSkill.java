@@ -138,10 +138,16 @@ public class CodeSkill extends AbsSkill {
 
             // 4. 环境保护
             ensureInGitignore("CLAUDE.md");
-            ensureInGitignore(".todo.md");
+            ensureInGitignore("TODO.md");
 
             // 5. 物理写入
             Files.write(rootPath.resolve("CLAUDE.md"), sb.toString().getBytes(StandardCharsets.UTF_8));
+
+            Path todoPath = rootPath.resolve("TODO.md");
+            if (!Files.exists(todoPath)) {
+                String initialTodo = "# TODO\n\n- [ ] Initial task identified\n";
+                Files.write(todoPath, initialTodo.getBytes(StandardCharsets.UTF_8));
+            }
 
             // 返回结果：保持专业简洁，提供明确的下一行动指令
             String status = alreadyExists ? "Updated" : "Initialized";
