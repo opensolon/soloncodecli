@@ -117,63 +117,59 @@ public class CliShell implements Runnable {
     private void performAgentTask(AgentSession session, String input) throws Exception {
         String currentInput = input;
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
-        final AtomicInteger printedLength = new AtomicInteger(0);
 
         while (true) {
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
             final AtomicBoolean isFirstReasonChunk = new AtomicBoolean(true);
-            final AtomicBoolean isActionStarted = new AtomicBoolean(false);
 
             reactor.core.Disposable disposable = codeAgent.stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
                         if (chunk instanceof ReasonChunk) {
-                            if (isActionStarted.get()) {
-                                terminal.writer().println();
-                                terminal.flush();
-                                isActionStarted.set(false);
-                                isFirstReasonChunk.set(true); // 准备处理 Reason 的首行缩进
-                            }
-
                             ReasonChunk reason = (ReasonChunk) chunk;
                             if (!reason.isToolCalls()) {
                                 String delta = clearThink(reason.getContent());
 
                                 if (Assert.isNotEmpty(delta)) {
+                                    // 对所有换行进行缩进处理
                                     delta = delta.replace("\n", "\n  ");
 
                                     if (isFirstReasonChunk.get()) {
+                                        // 彻底裁剪掉首块前的所有前导换行（因为 ActionChunk 已经给过换行了）
                                         String trimmed = delta.replaceAll("^[\\s\\n]+", "");
                                         if (Assert.isNotEmpty(trimmed)) {
-                                            // 2. 针对首行，手动补齐因为 replace 没覆盖到的初始缩进
-                                            delta = "  " + trimmed;
+                                            // 打印两个空格作为首行缩进，接上内容
+                                            terminal.writer().print("  " + trimmed);
                                             isFirstReasonChunk.set(false);
-                                        } else {
-                                            return;
                                         }
+                                        // 如果 trimmed 是空的，说明这块全是空白，等下一块内容
+                                    } else {
+                                        terminal.writer().print(delta);
                                     }
-
-                                    terminal.writer().print(delta);
                                     terminal.flush();
                                 }
                             }
                         } else if (chunk instanceof ActionChunk) {
                             ActionChunk action = (ActionChunk) chunk;
                             if (Assert.isNotEmpty(action.getToolName())) {
-                                if (!isActionStarted.get()) {
-                                    terminal.writer().println();
-                                    isActionStarted.set(true);
+                                // 1. 打印指令行（面包屑）
+                                terminal.writer().println();
+                                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+
+                                // 2. 处理工具返回的结果内容 (getContent)
+                                if (Assert.isNotEmpty(action.getContent())) {
+                                    // 给结果内容的每一行开头都加上 2 个空格的缩进
+                                    String indentedContent = "  " + action.getContent().trim().replace("\n", "\n  ");
+
+                                    // 使用 DIM 颜色（灰色）让工具输出看起来更像“系统日志”，不干扰主视线
+                                    terminal.writer().println(DIM + indentedContent + RESET);
                                 }
 
-                                // 2. 原地刷新：\r 回到行首 + 清除行 (InfoCmp.Capability.clr_eol 可选，这里用 \r 覆盖即可)
-                                String currentArgs = action.getContent().trim().replace("\n", " ");
-                                currentArgs = currentArgs.replace("[DIR] ", "").replace("[FILE] ", "");
-                                if (currentArgs.length() > 60) currentArgs = currentArgs.substring(0, 57) + "...";
-
-                                // 覆盖打印整行
-                                terminal.writer().print("\r" + YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + currentArgs + RESET);
                                 terminal.flush();
+
+                                // 3. 接下来 AI 可能会针对这个结果进行分析 (Reasoning)，设置首行缩进标记
+                                isFirstReasonChunk.set(true);
                             }
                         } else if (chunk instanceof ReActChunk) {
                             isTaskCompleted.set(true);
