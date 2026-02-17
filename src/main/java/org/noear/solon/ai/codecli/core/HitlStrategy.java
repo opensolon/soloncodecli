@@ -78,7 +78,7 @@ public class HitlStrategy implements HITLInterceptor.InterventionStrategy {
             return "禁止执行多条组合命令以确保审计追踪。";
         }
 
-        if (cmd.contains("|")) {
+        if (cmd.contains("|") && !cmd.contains("||")) {
             // 严格对齐只读工具白名单
             if (!cmd.matches(".*\\|\\s*\\b(grep|head|tail|awk|sort|uniq|wc|jq|column|less|sed|xxd)\\b.*")) {
                 return "检测到潜在风险的管道链操作。";
