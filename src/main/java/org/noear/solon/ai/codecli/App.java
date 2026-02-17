@@ -91,7 +91,7 @@ public class App {
         }
 
         if (config.enableConsole) {
-            new Thread(new CliShell(codeAgent), "CLI-Interactive-Thread").start();
+            new Thread(new CliShell(codeAgent, config.cliPrintSimplified), "CLI-Interactive-Thread").start();
         }
 
         if (config.enableWeb) {

@@ -37,12 +37,14 @@ public class Config {
     public boolean maxStepsExtensible = false;
     public int sessionWindowSize = 10;
 
+    public boolean cliPrintSimplified = true;
 
     public String webEndpoint = "/cli";
+
     public String acpTransport = "stdio";
     public String acpEndpoint = "/acp";
 
-    public boolean planningMode = false;
+    public boolean planningMode = true;
 
     public boolean enableConsole = true;
     public boolean enableWeb = false;

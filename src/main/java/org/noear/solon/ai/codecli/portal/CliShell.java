@@ -31,7 +31,6 @@ import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.AgentNexus;
-import org.noear.solon.ai.codecli.core.skills.CodeSkill;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import org.slf4j.Logger;
@@ -39,9 +38,9 @@ import org.slf4j.LoggerFactory;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Code CLI 终端 (Claude Code 风格对齐版)
@@ -53,6 +52,7 @@ public class CliShell implements Runnable {
     private Terminal terminal;
     private LineReader reader;
     private final AgentNexus codeAgent;
+    private final boolean cliPrintSimplified;
 
     // ANSI 颜色常量 - 严格对齐 Claude 极简风
     private final static String
@@ -64,8 +64,10 @@ public class CliShell implements Runnable {
             CYAN = "\033[36m",
             RESET = "\033[0m";
 
-    public CliShell(AgentNexus codeAgent) {
+    public CliShell(AgentNexus codeAgent, boolean cliPrintSimplified) {
         this.codeAgent = codeAgent;
+        this.cliPrintSimplified = cliPrintSimplified;
+
         try {
             this.terminal = TerminalBuilder.builder()
                     .jna(true).jansi(true).system(true).dumb(true).build();
@@ -127,6 +129,7 @@ public class CliShell implements Runnable {
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
                         if (chunk instanceof ReasonChunk) {
+                            // ReasonChunk 非工具调用时，为流式增量（工具调用时为全量，不需要打印）
                             ReasonChunk reason = (ReasonChunk) chunk;
                             if (!reason.isToolCalls()) {
                                 String delta = clearThink(reason.getContent());
@@ -151,27 +154,16 @@ public class CliShell implements Runnable {
                                 }
                             }
                         } else if (chunk instanceof ActionChunk) {
+                            //ActionChunk 为全量，一次工具调用一个 ActionChunk
                             ActionChunk action = (ActionChunk) chunk;
                             if (Assert.isNotEmpty(action.getToolName())) {
-                                // 1. 打印指令行（面包屑）
-                                terminal.writer().println();
-                                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
-
-                                // 2. 处理工具返回的结果内容 (getContent)
-                                if (Assert.isNotEmpty(action.getContent())) {
-                                    // 给结果内容的每一行开头都加上 2 个空格的缩进
-                                    String indentedContent = "  " + action.getContent().trim().replace("\n", "\n  ");
-
-                                    // 使用 DIM 颜色（灰色）让工具输出看起来更像“系统日志”，不干扰主视线
-                                    terminal.writer().println(DIM + indentedContent + RESET);
-                                }
-
-                                terminal.flush();
+                                onActionChunk(action);
 
                                 // 3. 接下来 AI 可能会针对这个结果进行分析 (Reasoning)，设置首行缩进标记
                                 isFirstReasonChunk.set(true);
                             }
                         } else if (chunk instanceof ReActChunk) {
+                            // ReActChunk 为全量，ReAct 完成任务时的最后答复
                             isTaskCompleted.set(true);
                             ReActChunk reAct = (ReActChunk) chunk;
                             if (reAct.getTrace().getMetrics() != null) {
@@ -234,6 +226,51 @@ public class CliShell implements Runnable {
 
             if (isTaskCompleted.get()) return;
             break;
+        }
+    }
+
+    private void onActionChunk(ActionChunk action) {
+        Map<String,Object> args = action.getArgs();
+
+        if (cliPrintSimplified) {
+            // 像 claude code cli 一样，提供简化风格：单行摘要模式
+            String content = action.getContent() == null ? "" : action.getContent().trim();
+            String summary;
+
+            if (Assert.isEmpty(content)) {
+                summary = "completed";
+            } else {
+                // 计算行数或字符大小作为摘要
+                String[] lines = content.split("\n");
+                if (lines.length > 1) {
+                    summary = "returned " + lines.length + " lines";
+                } else {
+                    // 如果是很短的单行，可以尝试截断显示一点点
+                    summary = content.length() > 40 ? content.substring(0, 37) + "..." : content;
+                }
+            }
+
+            // 简化风格不打印 (End of output)，只输出一行：❯ tool_name (summary)
+            terminal.writer().println();
+            terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + DIM + " (" + summary + ")" + RESET);
+            terminal.flush();
+
+        } else {
+            // 1. 打印指令行（面包屑）
+            terminal.writer().println();
+            terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+
+            // 2. 处理工具返回的结果内容 (getContent)
+            if (Assert.isNotEmpty(action.getContent())) {
+                // 给结果内容的每一行开头都加上 2 个空格的缩进
+                String indentedContent = "  " + action.getContent().trim().replace("\n", "\n  ");
+
+                // 使用 DIM 颜色（灰色）让工具输出看起来更像“系统日志”，不干扰主视线
+                terminal.writer().println(DIM + indentedContent + RESET);
+            }
+
+            terminal.writer().println(DIM + "  (End of output)" + RESET);
+            terminal.flush();
         }
     }
 
