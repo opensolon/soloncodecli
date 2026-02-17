@@ -79,7 +79,7 @@ public class App {
                     agent.maxStepsExtensible(config.enableHitl);
                     //添加步数
                     agent.maxSteps(config.maxSteps);
-                    agent.maxStepsExtensible(config.maxStepsExtensible);
+                    agent.maxStepsExtensible(config.maxStepsAutoExtensible);
                     //添加会话窗口大小
                     agent.sessionWindowSize(config.sessionWindowSize);
                 });

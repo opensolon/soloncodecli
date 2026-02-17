@@ -230,42 +230,68 @@ public class CliShell implements Runnable {
     }
 
     private void onActionChunk(ActionChunk action) {
-        Map<String,Object> args = action.getArgs();
+        // 1. 准备参数字符串
+        StringBuilder argsBuilder = new StringBuilder();
+        Map<String, Object> args = action.getArgs();
+        if (args != null && !args.isEmpty()) {
+            args.forEach((k, v) -> {
+                if (argsBuilder.length() > 0) argsBuilder.append(" ");
+                argsBuilder.append(k).append("=").append(v);
+            });
+        }
+        String argsStr = argsBuilder.toString().replace("\n", " ");
+        boolean hasBigArgs = argsStr.length() > 100 || (args != null && args.values().stream().anyMatch(v -> v instanceof String && ((String) v).contains("\n")));
 
         if (cliPrintSimplified) {
-            // 像 claude code cli 一样，提供简化风格：单行摘要模式
+            // --- 简化风格：单行摘要模式 ---
             String content = action.getContent() == null ? "" : action.getContent().trim();
             String summary;
 
             if (Assert.isEmpty(content)) {
                 summary = "completed";
             } else {
-                // 计算行数或字符大小作为摘要
                 String[] lines = content.split("\n");
                 if (lines.length > 1) {
                     summary = "returned " + lines.length + " lines";
                 } else {
-                    // 如果是很短的单行，可以尝试截断显示一点点
                     summary = content.length() > 40 ? content.substring(0, 37) + "..." : content;
                 }
             }
 
-            // 简化风格不打印 (End of output)，只输出一行：❯ tool_name (summary)
+            // 简化模式下，参数也进行极简压缩
+            String shortArgs = argsStr.length() > 40 ? argsStr.substring(0, 37) + "..." : argsStr;
+
             terminal.writer().println();
-            terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + DIM + " (" + summary + ")" + RESET);
+            terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + shortArgs + " (" + summary + ")" + RESET);
             terminal.flush();
 
         } else {
-            // 1. 打印指令行（面包屑）
+            // --- 全量风格 ---
+            // 1. 打印指令行
             terminal.writer().println();
-            terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+            if (!hasBigArgs) {
+                // 短参数直接跟在后面
+                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + argsStr + RESET);
+            } else {
+                // 大参数块，指令名独占一行，参数作为缩进内容打印（类似 write_file 的 content 部分）
+                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+                if (args != null) {
+                    args.forEach((k, v) -> {
+                        String val = String.valueOf(v).trim();
+                        if ("content".equals(k) && val.split("\n").length > 10) {
+                            // 如果是写文件，且内容太长，只显示头尾
+                            String[] lines = val.split("\n");
+                            val = lines[0] + "\n    ...\n    " + lines[lines.length-1];
+                        }
+                        terminal.writer().println(DIM + "  [" + k + "]: " + val.replace("\n", "\n    ") + RESET);
+                    });
+                }
+            }
 
             // 2. 处理工具返回的结果内容 (getContent)
             if (Assert.isNotEmpty(action.getContent())) {
-                // 给结果内容的每一行开头都加上 2 个空格的缩进
+                // 在参数和结果之间如果内容较多，可以加个小分隔，或者直接缩进打印
                 String indentedContent = "  " + action.getContent().trim().replace("\n", "\n  ");
-
-                // 使用 DIM 颜色（灰色）让工具输出看起来更像“系统日志”，不干扰主视线
                 terminal.writer().println(DIM + indentedContent + RESET);
             }
 
