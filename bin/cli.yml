@@ -5,7 +5,7 @@ solon.logging.appender:
     level: INFO
 
 solon.code.cli:
-  name: "小花" # 智能体名字
+  nickname: "小花" # 智能体昵称
   workDir: "work" # 工作区目录
   maxSteps: 100 # ReAct 最大循环步数
   maxStepsAutoExtensible: true #最大步数自动续航（由 LLM 反思控制）
