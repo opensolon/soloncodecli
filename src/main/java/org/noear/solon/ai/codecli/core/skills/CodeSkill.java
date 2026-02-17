@@ -172,8 +172,9 @@ public class CodeSkill extends AbsSkill {
                     .append("- Test all: `mvn test`\n")
                     .append("- Test single: `mvn test -Dtest=ClassName` (Replace with actual class)\n\n");
         } else {
-            buf.append("### Heterogeneous Module: ").append(moduleName).append(" (Maven)\n")
-                    .append("- Build/Test: `cd ").append(moduleName).append(" && mvn clean compile test`\n\n");
+            buf.append("### Module: ").append(moduleName).append(" (Maven)\n")
+                    .append("- Build: `cd ").append(moduleName).append(" && mvn clean compile`\n")
+                    .append("- Test: `cd ").append(moduleName).append(" && mvn test`\n\n");
         }
     }
 
@@ -181,10 +182,13 @@ public class CodeSkill extends AbsSkill {
         if (moduleName == null) {
             buf.append("### Root Project (Node)\n")
                     .append("- Install: `npm install`\n")
-                    .append("- Build: `npm run build`\n\n");
+                    .append("- Build: `npm run build`\n")
+                    .append("- Test: `npm test`\n\n"); // 建议增加 Test 项
         } else {
-            buf.append("### Heterogeneous Project: ").append(moduleName).append(" (Node)\n")
-                    .append("- Run: `cd ").append(moduleName).append(" && npm install && npm run build`\n\n");
+            buf.append("### Module: ").append(moduleName).append(" (Node)\n")
+                    .append("- Install: `cd ").append(moduleName).append(" && npm install`\n")
+                    .append("- Build: `cd ").append(moduleName).append(" && npm run build`\n")
+                    .append("- Test: `cd ").append(moduleName).append(" && npm test`\n\n");
         }
     }
 
