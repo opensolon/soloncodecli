@@ -121,9 +121,15 @@ public class CliShell implements Runnable {
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
 
         while (true) {
+            if (currentInput == null && !isTaskCompleted.get()) {
+                terminal.writer().print("\r" + DIM + "  ... " + RESET);
+                terminal.flush();
+            }
+
             CountDownLatch latch = new CountDownLatch(1);
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
             final AtomicBoolean isFirstReasonChunk = new AtomicBoolean(true);
+
 
             reactor.core.Disposable disposable = codeAgent.stream(session.getSessionId(), Prompt.of(currentInput))
                     .subscribeOn(Schedulers.boundedElastic())
@@ -224,8 +230,11 @@ public class CliShell implements Runnable {
                 }
             }
 
-            if (isTaskCompleted.get()) return;
-            break;
+            if (isTaskCompleted.get()) {
+                return;
+            }
+
+            currentInput = null;
         }
     }
 
@@ -327,7 +336,7 @@ public class CliShell implements Runnable {
     protected void printWelcome() {
         String path = new File(codeAgent.getWorkDir()).getAbsolutePath();
         // 连带版本号，紧凑排列
-        terminal.writer().println(BOLD + codeAgent.getName() + RESET + DIM + " v3.9.4" + RESET);
+        terminal.writer().println(BOLD + codeAgent.getName() + RESET + DIM + " v0.0.10" + RESET);
         terminal.writer().println(DIM + path + RESET);
         // 仅保留一个空行
         terminal.writer().println();

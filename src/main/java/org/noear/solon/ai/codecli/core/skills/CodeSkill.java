@@ -87,7 +87,16 @@ public class CodeSkill extends AbsSkill {
                 .append("2. **原子追踪**: 所有逻辑步骤必须实时同步至 `TODO.md`，严禁口头承诺进度。\n")
                 .append("3. **验证闭环**: 修改文件后，必须根据 `CLAUDE.md` 提供的命令进行验证。\n");
 
+        if (exists("TODO.md")) {
+            buf.append("4. **上下文恢复**: 检测到 `TODO.md`，请先通过阅读它来确认当前任务进度。\n");
+        }
+
         return buf.toString();
+    }
+
+    public String refresh() {
+        cachedMsg = null; // 清除缓存，强制下一轮 getInstruction 重新扫描
+        return init();
     }
 
     public String init() {
@@ -98,51 +107,61 @@ public class CodeSkill extends AbsSkill {
 
             boolean alreadyExists = exists("CLAUDE.md");
             List<String> detected = new ArrayList<>();
-            StringBuilder sb = new StringBuilder();
+            StringBuilder newContent = new StringBuilder();
+            Path targetPath = rootPath.resolve("CLAUDE.md");
 
             // 1. 标准头部定义 (Strict Claude Code style)
-            sb.append("# CLAUDE.md\n\n");
-            sb.append("This file contains project-specific build, test, and style guidelines.\n");
-            sb.append("AI assistants must consult this file before making any changes.\n\n");
+            newContent.append("# CLAUDE.md\n\n");
+            newContent.append("This file contains project-specific build, test, and style guidelines.\n");
+            newContent.append("AI assistants must consult this file before making any changes.\n\n");
 
             // 2. 指令对齐 (针对不同技术栈提供具体的命令模版)
-            sb.append("## Build and Test Commands\n\n");
+            newContent.append("## Build and Test Commands\n\n");
             if (exists("pom.xml")) {
                 detected.add("Java/Maven");
-                sb.append("- Build: `mvn clean compile`\n");
-                sb.append("- Test all: `mvn test`\n");
-                sb.append("- Test single class: `mvn test -Dtest=ClassName` (Replace with actual class)\n");
-                sb.append("- Solon test: `mvn solon:test`\n\n");
+                newContent.append("- Build: `mvn clean compile`\n");
+                newContent.append("- Test all: `mvn test`\n");
+                newContent.append("- Test single class: `mvn test -Dtest=ClassName` (Replace with actual class)\n");
+                newContent.append("- Solon test: `mvn solon:test`\n\n");
             } else if (exists("package.json")) {
                 detected.add("Node.js");
-                sb.append("- Install dependencies: `npm install`\n");
-                sb.append("- Build: `npm run build`\n");
-                sb.append("- Test all: `npm test`\n\n");
+                newContent.append("- Install dependencies: `npm install`\n");
+                newContent.append("- Build: `npm run build`\n");
+                newContent.append("- Test all: `npm test`\n\n");
             } else if (exists("go.mod")) {
                 detected.add("Go");
-                sb.append("- Build: `go build ./...`\n");
-                sb.append("- Test all: `go test ./...`\n");
-                sb.append("- Test single package: `go test ./path/to/pkg`\n\n");
+                newContent.append("- Build: `go build ./...`\n");
+                newContent.append("- Test all: `go test ./...`\n");
+                newContent.append("- Test single package: `go test ./path/to/pkg`\n\n");
             } else {
                 // 通用兜底
-                sb.append("- Build: [Specify build command]\n");
-                sb.append("- Test: [Specify test command]\n\n");
+                newContent.append("- Build: [Specify build command]\n");
+                newContent.append("- Test: [Specify test command]\n\n");
             }
 
             // 3. 核心准则 (Strictly align with Claude Code's "Read-Before-Edit" philosophy)
-            sb.append("## Guidelines\n\n");
-            sb.append("- **Read-Before-Edit**: Always read the full file content before applying any changes.\n");
-            sb.append("- **Atomic Changes**: Implement one logical change at a time and verify immediately.\n");
-            sb.append("- **Test-Driven**: Run relevant test commands from this file after every modification.\n");
-            sb.append("- **Path Usage**: Use relative paths only (no './' prefix or absolute paths).\n");
-            sb.append("- **Code Style**: Follow the existing project patterns and maintain Solon best practices.\n\n");
+            newContent.append("## Guidelines\n\n");
+            newContent.append("- **Read-Before-Edit**: Always read the full file content before applying any changes.\n");
+            newContent.append("- **Atomic Changes**: Implement one logical change at a time and verify immediately.\n");
+            newContent.append("- **Test-Driven**: Run relevant test commands from this file after every modification.\n");
+            newContent.append("- **Path Usage**: Use relative paths only (no './' prefix or absolute paths).\n");
+            newContent.append("- **Code Style**: Follow the existing project patterns and maintain Solon best practices.\n\n");
 
             // 4. 环境保护
             ensureInGitignore("CLAUDE.md");
             ensureInGitignore("TODO.md");
 
+            String finalStringContent = newContent.toString(); // 转换为 String 再对比
+            if (Files.exists(targetPath)) {
+                String existingContent = new String(Files.readAllBytes(targetPath), StandardCharsets.UTF_8);
+                if (finalStringContent.equals(existingContent)) {
+                    cachedMsg = "Project contract is already up-to-date."; // 更新缓存状态
+                    return cachedMsg;
+                }
+            }
+
             // 5. 物理写入
-            Files.write(rootPath.resolve("CLAUDE.md"), sb.toString().getBytes(StandardCharsets.UTF_8));
+            Files.write(targetPath, finalStringContent.getBytes(StandardCharsets.UTF_8));
 
             Path todoPath = rootPath.resolve("TODO.md");
             if (!Files.exists(todoPath)) {
