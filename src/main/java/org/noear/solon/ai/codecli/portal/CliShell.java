@@ -20,6 +20,7 @@ import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.completer.FileNameCompleter;
+import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp;
@@ -197,24 +198,26 @@ public class CliShell implements Runnable {
 
     private void waitForTask(CountDownLatch latch, Disposable disposable,
                              AgentSession session, AtomicBoolean isInterrupted) throws Exception {
-        while (latch.getCount() > 0) {
-            int available = terminal.reader().available();
-            if (available > 0) {
-                int c = terminal.reader().read();
+        Attributes originalAttributes = terminal.getAttributes();
+        try {
+            terminal.enterRawMode();
+
+            while (latch.getCount() > 0) {
+                int c = terminal.reader().read(50);
                 if (c == '\r' || c == '\n') {
                     disposable.dispose();
                     isInterrupted.set(true);
                     latch.countDown();
                     break;
                 }
-            }
 
-            if (HITL.isHitl(session)) {
-                latch.countDown();
-                break;
+                if (HITL.isHitl(session)) {
+                    latch.countDown();
+                    break;
+                }
             }
-
-            Thread.sleep(50);
+        } finally {
+            terminal.setAttributes(originalAttributes);
         }
 
         latch.await();
