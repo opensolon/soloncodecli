@@ -42,7 +42,8 @@ public class CodeSkill extends AbsSkill {
 
     @Override
     public boolean isSupported(Prompt prompt) {
-        if (exists("pom.xml") || exists("package.json") || exists("go.mod") || exists(".git")) {
+        if (exists("CLAUDE.md") || exists("pom.xml") || exists("package.json") ||
+                exists("go.mod") || exists(".git")) {
             return true;
         }
 
