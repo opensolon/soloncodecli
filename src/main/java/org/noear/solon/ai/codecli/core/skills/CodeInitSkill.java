@@ -21,12 +21,12 @@ import java.util.stream.Stream;
  * @author noear
  * @since 3.9.4
  */
-public class CodeSkill extends AbsSkill {
-    private static final Logger LOG = LoggerFactory.getLogger(CodeSkill.class);
+public class CodeInitSkill extends AbsSkill {
+    private static final Logger LOG = LoggerFactory.getLogger(CodeInitSkill.class);
     private final Path rootPath;
     private String cachedMsg;
 
-    public CodeSkill(String workDir) {
+    public CodeInitSkill(String workDir) {
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
     }
 

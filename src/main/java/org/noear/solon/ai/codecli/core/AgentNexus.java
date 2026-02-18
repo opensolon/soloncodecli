@@ -27,10 +27,10 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
-import org.noear.solon.ai.codecli.core.skills.CodeSkill;
+import org.noear.solon.ai.codecli.core.skills.CodeInitSkill;
+import org.noear.solon.ai.codecli.core.skills.CodeLuceneSkill;
 import org.noear.solon.ai.skills.cli.CliSkill;
 import org.noear.solon.ai.skills.diff.DiffSkill;
-import org.noear.solon.ai.skills.lucene.LuceneSkill;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import reactor.core.publisher.Flux;
@@ -133,22 +133,22 @@ public class AgentNexus {
         });
     }
 
-    public CodeSkill getCodeSkill(AgentSession session) {
+    public CodeInitSkill getInitSkill(AgentSession session) {
         String effectiveWorkDir = (String) session.attrs().getOrDefault("context:cwd", this.workDir);
         String boxId = session.getSessionId();
 
-        return (CodeSkill) session.attrs().computeIfAbsent("CodeSkill", x -> {
-            CodeSkill skill = new CodeSkill(effectiveWorkDir);
+        return (CodeInitSkill) session.attrs().computeIfAbsent("CodeSkill", x -> {
+            CodeInitSkill skill = new CodeInitSkill(effectiveWorkDir);
             return skill;
         });
     }
 
-    public LuceneSkill getLuceneSkill(AgentSession session) {
+    public CodeLuceneSkill getLuceneSkill(AgentSession session) {
         String effectiveWorkDir = (String) session.attrs().getOrDefault("context:cwd", this.workDir);
         String boxId = session.getSessionId();
 
-        return (LuceneSkill) session.attrs().computeIfAbsent("LuceneSkill", x -> {
-            return new LuceneSkill(effectiveWorkDir);
+        return (CodeLuceneSkill) session.attrs().computeIfAbsent("LuceneSkill", x -> {
+            return new CodeLuceneSkill(effectiveWorkDir);
         });
     }
 
@@ -211,14 +211,14 @@ public class AgentNexus {
                 .session(session)
                 .options(o -> {
                     o.skillAdd(getCliSkill(session));
-                    o.skillAdd(getCodeSkill(session));
+                    o.skillAdd(getInitSkill(session));
                     o.skillAdd(getLuceneSkill(session));
                     o.skillAdd(getDiffSkill(session));
                 });
     }
 
     public String init(AgentSession session) {
-        getCodeSkill(session).refresh();
+        getInitSkill(session).refresh();
         return getLuceneSkill(session).refreshSearchIndex();
     }
 
