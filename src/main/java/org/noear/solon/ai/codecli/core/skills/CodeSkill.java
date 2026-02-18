@@ -42,13 +42,14 @@ public class CodeSkill extends AbsSkill {
 
     @Override
     public boolean isSupported(Prompt prompt) {
-        if (exists("CLAUDE.md") || exists("pom.xml") || exists("package.json") ||
-                exists("go.mod") || exists(".git")) {
+        if (exists("pom.xml") || exists("package.json") || exists("go.mod") || exists(".git")) {
             return true;
         }
+
         if (exists("src") || exists("lib") || exists(".github")) {
             return true;
         }
+
         if (prompt != null) {
             String cmd = prompt.getUserContent();
             if (cmd == null) return false;
