@@ -31,6 +31,7 @@ import org.noear.solon.ai.codecli.core.skills.CodeSkill;
 import org.noear.solon.ai.skills.cli.CliSkill;
 import org.noear.solon.ai.skills.diff.DiffSkill;
 import org.noear.solon.ai.skills.lucene.LuceneSkill;
+import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import reactor.core.publisher.Flux;
 import java.util.LinkedHashMap;
@@ -52,6 +53,7 @@ public class AgentNexus {
     private final ChatModel chatModel;
     private AgentSessionProvider sessionProvider;
     private String nickname = "CodeCLI";
+    private String instruction = "";
     private String workDir = ".";
     private final Map<String, String> extraPools = new LinkedHashMap<>();
     private Consumer<ReActAgent.Builder> configurator;
@@ -68,6 +70,11 @@ public class AgentNexus {
         if (nickname != null && !nickname.isEmpty()) {
             this.nickname = nickname;
         }
+        return this;
+    }
+
+    public AgentNexus instruction(String instruction) {
+        this.instruction = instruction;
         return this;
     }
 
@@ -166,21 +173,11 @@ public class AgentNexus {
             }
 
             ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel)
-                    .role("你的名字叫 " + nickname + "。")
-                    .instruction(
-                            "你是一个超级智能体。请遵循以下准则：\n" +
-                                    "1.【技能优先】：你拥有一套专业技能库（Claude Code Skills）。在处理任何任务前，必须优先检索可用工具说明。\n" +
-                                    "2.【任务管理】：面对复杂任务，必须在根目录维护 `TODO.md`。规范：\n" +
-                                    "   - 初始任务：收到指令后，先在 `TODO.md` 中列出所有逻辑步骤。\n" +
-                                    "   - 状态追踪：使用 [ ] 表示待办，[x] 表示已完成。每完成一步必须物理更新文件。\n" +
-                                    "   - 恢复上下文：任何时候开始工作前（包括每一轮思考开始），必须先读取 `TODO.md` 以确认进度。如果是新任务，必须先初始化 `TODO.md`。\n" +
-                                    "3.【权限边界】：写操作（创建/修改/删除）仅限在当前盒子（Box）路径内。严禁修改盒子外的文件。\n" +
-                                    "4.【自主性】：bash 是你的重要工具，可用于构建、测试及自动化任务。当内置工具和技能库不足时，应自主编写脚本解决。\n" +
-                                    "5.【规范对齐】：遇到 @pool 路径时，必读其 SKILL.md；所有相对路径严禁使用 './' 前缀。\n" +
-                                    "6.【交互风格】：回复问题时——简洁、直接、结果导向，要拟人化。禁止使用表情包（Emoji），禁止长篇大论。\n" +
-                                    "7.【安全性】：保护环境安全，不泄露密钥，不访问盒子外的绝对路径。\n" +
-                                    "8.【任务切换】：若用户中途改变任务方向，必须第一时间清空或重构 `TODO.md` 中的内容，以确保后续步骤与新目标一致。"
-                    );
+                    .role("你的名字叫 " + nickname + "。");
+
+            if (Assert.isNotEmpty(instruction)) {
+                agentBuilder.instruction(instruction);
+            }
 
             //上下文摘要
             CompositeSummarizationStrategy compositeStrategy = new CompositeSummarizationStrategy();
