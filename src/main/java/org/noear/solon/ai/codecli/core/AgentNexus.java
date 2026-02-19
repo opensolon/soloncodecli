@@ -113,7 +113,7 @@ public class AgentNexus {
     }
 
     public String getVersion() {
-        return "v0.0.10";
+        return "v0.0.11";
     }
 
     public String getWorkDir() {
