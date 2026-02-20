@@ -27,6 +27,7 @@ import org.jline.utils.InfoCmp;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.intercept.HITL;
+import org.noear.solon.ai.agent.react.intercept.HITLDecision;
 import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
@@ -223,8 +224,18 @@ public class CliShell implements Runnable {
         latch.await();
     }
 
-    private boolean handleHITL(AgentSession session){
+    private boolean handleHITL(AgentSession session) {
         HITLTask task = HITL.getPendingTask(session);
+        HITLDecision decision = HITL.getDecision(session, task);
+
+        if (decision != null) {
+            if (decision.isRejected()) {
+                return false;
+            } else {
+                return true;
+            }
+        }
+
         terminal.writer().println("\n" + BOLD + YELLOW + "Permission Required" + RESET);
         if ("bash".equals(task.getToolName())) {
             terminal.writer().println(DIM + "Command: " + RESET + task.getArgs().get("command"));
