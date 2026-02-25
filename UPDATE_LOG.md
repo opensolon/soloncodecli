@@ -5,7 +5,10 @@
 * 添加 apply_patch 内置工具（支持批量操作文件），替代 diff 工具
 * 添加 cli.yaml userAgent 默认配置（用于支持阿里云的 coding plan，它需要 UA） 
 * 优化 ssl 处理（方便支持任意证书）
-* 优化 codesearch 工具描述（避免 llm 错用）
+* 优化 codesearch 工具描述（强调是远程查询，避免 llm 错用）
+* 优化 init 提示词
+* 优化 简化系统提示词
+* 优化 取消 ReActAgent 自带的计划模式，改用 TODO.md 纯文件模式（可简化系统提示词）
 
 ### v0.0.13
 
