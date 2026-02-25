@@ -95,8 +95,6 @@ public class App {
                         }
                     }
 
-                    // 启用规划模式
-                    agent.planningMode(config.planningMode);
                     // 添加步数
                     agent.maxSteps(config.maxSteps);
                     // 添加步数自动扩展

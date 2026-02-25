@@ -51,8 +51,6 @@ public class Config {
 
     public boolean hitlEnabled = false;
 
-    public boolean planningMode = true;
-
     public Map<String, McpServerParameters> mcpServers;
     public ChatConfig chatModel;
     public Map<String, String> mountPool;
