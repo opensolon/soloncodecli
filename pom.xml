@@ -4,16 +4,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>org.noear</groupId>
-        <artifactId>solon-parent</artifactId>
-        <version>3.9.4</version>
-        <relativePath />
-    </parent>
-
+    <groupId>org.noear</groupId>
     <artifactId>soloncode</artifactId>
     <name>${project.artifactId}</name>
-    <version>0.0.13</version>
+    <version>dev</version>
     <packaging>pom</packaging>
 
     <properties>
