@@ -89,16 +89,12 @@ public class CodeInitSkill extends AbsSkill {
     }
 
     public String refresh() {
-        if (isSupported(null)) {
-            cachedMsg = init();
-        }
-
-        return cachedMsg;
+        return cachedMsg = init();
     }
 
     public String init() {
         try {
-            if (!Files.isWritable(rootPath)) return "Error: Directory not writable.";
+            if (!Files.isWritable(rootPath)) return "错误：目录不可写。";
 
             StringBuilder newContent = new StringBuilder();
             newContent.append("# CLAUDE.md\n\n");
@@ -164,10 +160,18 @@ public class CodeInitSkill extends AbsSkill {
             ensureInGitignore("TODO.md");
             if (!rootExists("TODO.md")) Files.write(rootPath.resolve("TODO.md"), "# TODO\n\n- [ ] Initial project scan\n".getBytes());
 
-            return (updated ? "Updated" : "Verified") + " project contract. (" + String.join(", ", detectedStacks) + ")";
+            StringBuilder resultMsg = new StringBuilder();
+            resultMsg.append(updated ? "已更新" : "已验证").append("项目工程规范");
+            if (!detectedStacks.isEmpty()) {
+                resultMsg.append(" (检测到技术栈: ").append(String.join(", ", detectedStacks)).append(")");
+            } else {
+                resultMsg.append(" (未检测到明确的技术栈)");
+            }
+
+            return resultMsg.toString();
         } catch (Exception e) {
             LOG.error("Init failed", e);
-            return "Error: " + e.getMessage();
+            return "初始化失败: " + e.getMessage();
         }
     }
 

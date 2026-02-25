@@ -373,7 +373,6 @@ public class CliShell implements Runnable {
             return true;
         }
         if ("init".equals(cmd)) {
-            terminal.writer().println(DIM + "初始化工作区..." + RESET);
             String result = codeAgent.init(session);
             terminal.writer().println(DIM + result + RESET);
             return true;
