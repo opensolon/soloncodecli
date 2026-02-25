@@ -71,7 +71,7 @@ public class CodeInitSkill extends AbsSkill {
         }
 
         StringBuilder buf = new StringBuilder();
-        buf.append("\n### 核心工程规约 (Core Engineering Protocol)\n");
+        buf.append("\n#### 核心工程规约 (Core Engineering Protocol)\n");
         buf.append("> Project Context: ").append(cachedMsg).append("\n\n");
 
         buf.append("为了确保工程质量，你必须严格执行以下操作：\n")
