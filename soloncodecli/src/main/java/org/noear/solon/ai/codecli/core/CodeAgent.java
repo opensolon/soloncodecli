@@ -28,6 +28,7 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
 import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
@@ -206,22 +207,23 @@ public class CodeAgent {
                     "   - **即时对齐**：处理带有 `(@.../SKILL.md)` 标注的项时，**第一动作必须是 `read_file` 该规约**，严禁凭经验盲目执行命令。\n" +
                     "   - **双向同步**：物理更新（打 [x]）后，必须立即调用 `update_plan_progress` 同步内存指针。\n\n" +
                     "4. **循环审查**：\n" +
-                    "   - **触发时机**: \n"+
-                    "     * 开始执行 TODO.md 中的新步骤前（必须） \n"+
-                    "     * 完成任一 TODO 项后（必须） \n"+
-                    "     * 同一步骤内连续调用工具时（可选） \n"+
-                    "   - **优化策略**: \n"+
-                    "     * 若在同一步骤内连续调用工具，无需重复读取 \n"+
-                    "     * 可在内存中缓存 TODO.md 内容，仅在必要时刷新 \n"+
-                    "   - **检查内容**: \n"+
-                    "     * 当前应该执行哪一步？ \n"+
-                    "     * 这一步是否标注了技能路径？ \n"+
-                    "     * 上一步是否已标记为完成？ \n"+
+                    "   - **触发时机**: \n" +
+                    "     * 开始执行 TODO.md 中的新步骤前（必须） \n" +
+                    "     * 完成任一 TODO 项后（必须） \n" +
+                    "     * 同一步骤内连续调用工具时（可选） \n" +
+                    "   - **优化策略**: \n" +
+                    "     * 若在同一步骤内连续调用工具，无需重复读取 \n" +
+                    "     * 可在内存中缓存 TODO.md 内容，仅在必要时刷新 \n" +
+                    "   - **检查内容**: \n" +
+                    "     * 当前应该执行哪一步？ \n" +
+                    "     * 这一步是否标注了技能路径？ \n" +
+                    "     * 上一步是否已标记为完成？ \n" +
                     "   - **修正机制**: 若发现不一致，先同步 TODO.md，再继续执行 \n");
 
             agentBuilder.defaultToolAdd(WebfetchTool.getInstance());
             agentBuilder.defaultToolAdd(WebsearchTool.getInstance());
             agentBuilder.defaultToolAdd(CodeSearchTool.getInstance());
+            agentBuilder.defaultToolAdd(new ApplyPatchTool());
 
             //上下文摘要
             CompositeSummarizationStrategy compositeStrategy = new CompositeSummarizationStrategy();
@@ -274,10 +276,17 @@ public class CodeAgent {
 
     public Flux<AgentChunk> stream(String sessionId, Prompt prompt) {
         return buildRequest(sessionId, prompt)
+                .options(o -> {
+                    o.toolContextPut("__workDir", workDir);
+                })
                 .stream();
     }
 
     public AgentResponse call(String sessionId, Prompt prompt) throws Throwable {
-        return buildRequest(sessionId, prompt).call();
+        return buildRequest(sessionId, prompt)
+                .options(o -> {
+                    o.toolContextPut("__workDir", workDir);
+                })
+                .call();
     }
 }

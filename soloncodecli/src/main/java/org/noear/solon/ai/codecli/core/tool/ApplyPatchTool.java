@@ -17,35 +17,38 @@ import java.util.List;
  * 保持 ToolMapping 描述不变，内部采用非正则解析与高效字符串匹配
  */
 public class ApplyPatchTool {
-
-    private final Path worktree;
-
-    public ApplyPatchTool(String workDir) {
-        this.worktree = Paths.get(workDir).toAbsolutePath().normalize();
-    }
-
     @ToolMapping(
             name = "apply_patch",
-            description = "原子化地对多个文件进行批量编辑。支持新建、修改、移动或删除操作。"
+            description = "批量文件编辑原子工具。使用剥离式的、面向文件的 diff 格式进行多文件新建、修改、移动或删除。\n" +
+                    "所有操作必须包裹在 *** Begin Patch 和 *** End Patch 之间。\n" +
+                    "这是高风险操作，系统会验证 SEARCH 块的精确匹配以确保编辑安全。"
     )
     public Document applyPatch(
-            @Param(name = "patchText", description = "必须包含在 *** Begin Patch 和 *** End Patch 之间。\n" +
-                    "格式规范：\n" +
-                    "1. *** Add File: <path>\n   后续行以 + 开头，代表文件内容。\n" +
-                    "2. *** Delete File: <path>\n" +
-                    "3. *** Update File: <path>\n" +
-                    "   必须配合以下块使用（SEARCH 内容必须与原文件完全一致）：\n" +
-                    "   <<<<<<< SEARCH\n" +
-                    "   [待替换代码]\n" +
-                    "   =======\n" +
-                    "   [新代码]\n" +
-                    "   >>>>>>> REPLACE\n" +
-                    "4. *** Move to: <path>\n   (可选) 仅限在 Update File 指令下使用，实现重命名。")
-            String patchText) throws Exception {
+            @Param(name = "patchText", description =
+                    "完整补丁文本。必须遵循以下结构规范：\n\n" +
+                            "1. 容器：必须以 '*** Begin Patch' 开始，'*** End Patch' 结束。\n" +
+                            "2. 新增 (Add File)：\n" +
+                            "   *** Add File: <path>\n" +
+                            "   随后行必须以 + 开头表示内容。\n" +
+                            "3. 修改 (Update File)：\n" +
+                            "   *** Update File: <path>\n" +
+                            "   (可选) *** Move to: <new_path>\n" +
+                            "   必须使用精确匹配块：\n" +
+                            "   <<<<<<< SEARCH\n" +
+                            "   [原文件中完全一致的代码段]\n" +
+                            "   =======\n" +
+                            "   [替换后的代码段]\n" +
+                            "   >>>>>>> REPLACE\n" +
+                            "4. 删除 (Delete File)：\n" +
+                            "   *** Delete File: <path>\n\n" +
+                            "注意：Update 操作时，SEARCH 块内的空白符必须与源码严格一致。")
+            String patchText,
+            String __workDir) throws Exception {
 
         if (patchText == null || !patchText.contains("*** Begin Patch")) {
             throw new RuntimeException("patchText is required and must contain '*** Begin Patch'");
         }
+
 
         // 1. 高效清洗与解析 (避免全量正则扫描)
         List<PatchHunk> hunks = parsePatchText(stripMarkdown(patchText));
@@ -54,11 +57,13 @@ public class ApplyPatchTool {
             throw new RuntimeException("apply_patch verification failed: no valid hunks found.");
         }
 
+        Path worktree = Paths.get(__workDir).toAbsolutePath().normalize();
+
         // 2. 预校验
         List<FileChange> fileChanges = new ArrayList<>();
         for (PatchHunk hunk : hunks) {
             Path filePath = worktree.resolve(hunk.path).normalize();
-            assertExternalDirectory(filePath);
+            assertExternalDirectory(worktree, filePath);
 
             FileChange change = new FileChange(filePath, hunk.type);
             switch (hunk.type) {
@@ -71,7 +76,7 @@ public class ApplyPatchTool {
                     change.newContent = applyChunks(readFile(filePath), hunk.chunks, hunk.path);
                     if (hunk.movePath != null) {
                         change.movePath = worktree.resolve(hunk.movePath).normalize();
-                        assertExternalDirectory(change.movePath);
+                        assertExternalDirectory(worktree, change.movePath);
                         change.type = "move";
                     }
                     break;
@@ -177,9 +182,14 @@ public class ApplyPatchTool {
 
             // 状态机处理块
             if (line.equals("<<<<<<< SEARCH")) {
-                inS = true; sBuf = new StringBuilder(); continue;
+                inS = true;
+                sBuf = new StringBuilder();
+                continue;
             } else if (line.equals("=======")) {
-                inS = false; inR = true; rBuf = new StringBuilder(); continue;
+                inS = false;
+                inR = true;
+                rBuf = new StringBuilder();
+                continue;
             } else if (line.equals(">>>>>>> REPLACE")) {
                 inR = false;
                 if (current != null) current.chunks.add(new Chunk(sBuf.toString(), rBuf.toString()));
@@ -208,7 +218,7 @@ public class ApplyPatchTool {
         }
     }
 
-    private void assertExternalDirectory(Path path) {
+    private void assertExternalDirectory(Path worktree, Path path) {
         if (!path.startsWith(worktree)) {
             throw new SecurityException("Access denied: " + path);
         }
@@ -221,16 +231,29 @@ public class ApplyPatchTool {
     private static class PatchHunk {
         String type, path, movePath, contents = "";
         List<Chunk> chunks = new ArrayList<>();
-        PatchHunk(String t, String p) { this.type = t; this.path = p; }
+
+        PatchHunk(String t, String p) {
+            this.type = t;
+            this.path = p;
+        }
     }
 
     private static class Chunk {
         String search, replace;
-        Chunk(String s, String r) { this.search = s; this.replace = r; }
+
+        Chunk(String s, String r) {
+            this.search = s;
+            this.replace = r;
+        }
     }
 
     private static class FileChange {
-        Path filePath, movePath; String newContent, type;
-        FileChange(Path p, String t) { this.filePath = p; this.type = t; }
+        Path filePath, movePath;
+        String newContent, type;
+
+        FileChange(Path p, String t) {
+            this.filePath = p;
+            this.type = t;
+        }
     }
 }
