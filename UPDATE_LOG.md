@@ -1,4 +1,8 @@
 
+### v0.0.14
+
+* 添加 mcpServers 配置支持
+
 ### v0.0.13
 
 * 添加 codesearch 内置工具
