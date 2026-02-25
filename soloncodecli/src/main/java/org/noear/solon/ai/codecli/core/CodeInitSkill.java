@@ -42,12 +42,13 @@ public class CodeInitSkill extends AbsSkill {
 
     @Override
     public boolean isSupported(Prompt prompt) {
-        if (exists("CLAUDE.md") || exists("pom.xml") || exists("package.json") ||
-                exists("go.mod") || exists(".git")) {
+        if (rootExists("CLAUDE.md") ||
+                deepExists("pom.xml") || deepExists("package.json") ||
+                deepExists("go.mod") || deepExists(".git")) {
             return true;
         }
 
-        if (exists("src") || exists("lib") || exists(".github")) {
+        if (deepExists("src") || deepExists("lib") || deepExists(".github")) {
             return true;
         }
 
@@ -78,7 +79,7 @@ public class CodeInitSkill extends AbsSkill {
                 .append("2. **[必选] 任务状态机**: 所有的任务进度必须实时同步到 `TODO.md`。在执行任何修改前，先在 `TODO.md` 中列出步骤清单。\n")
                 .append("3. **[必选] 验证驱动**: 修改代码后，必须根据 `CLAUDE.md` 中的指令运行测试，严禁未验证提交。\n");
 
-        if (exists("TODO.md")) {
+        if (rootExists("TODO.md")) {
             buf.append("4. **[必选] 进度对齐**: 已检测到 `TODO.md`。请先读取它以恢复之前的任务上下文。\n");
         }
 
@@ -104,8 +105,8 @@ public class CodeInitSkill extends AbsSkill {
             newContent.append("## Build and Test Commands\n\n");
 
             List<String> detectedStacks = new ArrayList<>();
-            boolean rootHasMaven = exists("pom.xml");
-            boolean rootHasNode = exists("package.json");
+            boolean rootHasMaven = rootExists("pom.xml");
+            boolean rootHasNode = rootExists("package.json");
 
             if (rootHasMaven) {
                 detectedStacks.add("Maven(Root)");
@@ -161,7 +162,7 @@ public class CodeInitSkill extends AbsSkill {
 
             ensureInGitignore("CLAUDE.md");
             ensureInGitignore("TODO.md");
-            if (!exists("TODO.md")) Files.write(rootPath.resolve("TODO.md"), "# TODO\n\n- [ ] Initial project scan\n".getBytes());
+            if (!rootExists("TODO.md")) Files.write(rootPath.resolve("TODO.md"), "# TODO\n\n- [ ] Initial project scan\n".getBytes());
 
             return (updated ? "Updated" : "Verified") + " project contract. (" + String.join(", ", detectedStacks) + ")";
         } catch (Exception e) {
@@ -219,7 +220,23 @@ public class CodeInitSkill extends AbsSkill {
         } catch (Exception ignored) {}
     }
 
-    private boolean exists(String path) {
+    private boolean rootExists(String path) {
         return Files.exists(rootPath.resolve(path));
+    }
+
+    private boolean deepExists(String path) {
+        // 1. 优先检查根目录
+        if (rootExists(path)) {
+            return true;
+        }
+
+        // 2. 检查二级目录 (例如 apps/my-app/pom.xml)
+        try (Stream<Path> stream = Files.list(rootPath)) {
+            return stream.filter(Files::isDirectory)
+                    .filter(p -> !p.getFileName().toString().startsWith(".")) // 排除隐藏目录
+                    .anyMatch(dir -> Files.exists(dir.resolve(path)));
+        } catch (Exception e) {
+            return false;
+        }
     }
 }
