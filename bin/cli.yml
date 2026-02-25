@@ -33,6 +33,13 @@ solon.code.cli:
     userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; SolonCode/1.0; +https://solon.noear.org/)"
   mountPool: # 技能池（可以多个）
     "@shared": "${user.home}/WORK/work_github/solonlab/opencode-skills"
+#  mcpServers:
+#    gitee:
+#      url: "http://..."
+#      headers: { API_KEY: "xxx" }
+#    memory:
+#      command: "npx"
+#      args: [ "-y", "@modelcontextprotocol/server-memory" ]
 
 # 1. chatModel 按需配置，不熟的看下 solon ai 官网资料
 # 2. SolonCodeCLI 兼容 Claude Code Agent Skills
