@@ -42,10 +42,10 @@ public class InitSkill extends AbsSkill {
 
     @Override
     public boolean isSupported(Prompt prompt) {
-       return true;
+        return true;
     }
 
-    private boolean isCode(Prompt prompt){
+    private boolean isCode(Prompt prompt) {
         if (rootExists("CLAUDE.md")) {
             return true;
         }
@@ -73,7 +73,7 @@ public class InitSkill extends AbsSkill {
         StringBuilder buf = new StringBuilder();
 
         if (isCode(prompt)) {
-            refresh();
+            cachedMsg = init();
 
             buf.append("\n#### 核心工程规约 (Core Engineering Protocol)\n");
             buf.append("> Project Context: ").append(cachedMsg).append("\n\n");
@@ -99,7 +99,11 @@ public class InitSkill extends AbsSkill {
     }
 
     public String refresh() {
-        return cachedMsg = init();
+        if (isCode(null)) {
+            cachedMsg = init();
+        }
+
+        return cachedMsg;
     }
 
     public String init() {
@@ -168,8 +172,6 @@ public class InitSkill extends AbsSkill {
 
             ensureInGitignore("CLAUDE.md");
             ensureInGitignore("TODO.md");
-            if (!rootExists("TODO.md"))
-                Files.write(rootPath.resolve("TODO.md"), "# TODO\n\n- [ ] Initial project scan\n".getBytes());
 
             StringBuilder resultMsg = new StringBuilder();
             resultMsg.append(updated ? "已更新" : "已验证").append("项目工程规范");
