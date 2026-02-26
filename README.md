@@ -11,7 +11,7 @@ Solon Code 是基于 [Solon AI](../../../../opensolon/solon-ai) （支持 Java8 
 * 极致性能：基于 Solon AI 响应式引擎，支持流式交互，内存占用极低。
 * 强大技能：完全兼容 Claude Code Agent Skills 规范，可无缝接入现有的技能集。
 * 环境感知：自动索引项目结构，支持文件读写、Grep 搜索及 Bash 命令执行。
-* 安全受控 (HITL)：关键操作（如删除文件、执行写入）支持人工审批（Human-in-the-loop）。
+* 安全受控：关键操作（如删除文件、执行写入）支持人工审批（Human-in-the-loop）。
 * 广泛兼容：支持 Java 8 ~ 25 全环境运行（即便在老旧企业级项目中也能起飞）。
 * 网络能力：自带 Webfetch、Websearch 工具，方便感知网络（基于 `mcp.exa.ai/mcp` 封装）
 * 开源定制：（MIT 开源协议）方便企业基于 Java 生态去定制自己的 Agent
