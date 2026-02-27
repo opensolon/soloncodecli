@@ -1,92 +1,115 @@
 package org.noear.solon.ai.codecli.core.tool;
 
 import org.noear.solon.Utils;
-import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.chat.tool.AbsTool;
 import org.noear.solon.ai.chat.tool.ToolResult;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
-import org.noear.solon.ai.rag.Document;
-import org.noear.solon.annotation.Param;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * CodeSearchTool - 对齐 OpenCode 逻辑
- * 使用 Exa Code API 搜索编程任务相关的上下文、库和 SDK 文档。
+ * CodeSearchTool - 100% 对齐 OpenCode 逻辑
  */
-public class CodeSearchTool {
+public class CodeSearchTool extends AbsTool {
     private static final int DEFAULT_TOKENS = 5000;
-
-    private static final CodeSearchTool instance = new CodeSearchTool();
-
-    public static CodeSearchTool getInstance() {
-        return instance;
-    }
-
     private final McpClientProvider mcpClient;
 
     public CodeSearchTool() {
-        // 使用 STREAMABLE 适配 Exa 的 JSON-RPC over SSE 模式
+        // 假设 ExaMcp 已经封装了基础的 MCP 客户端连接
         this.mcpClient = ExaMcp.getMcpClient();
+
+        // 100% 对齐参数描述文案
+        addParam("query", String.class, true,
+                "Search query to find relevant context for APIs, Libraries, and SDKs. " +
+                        "For example, 'React useState hook examples', 'Python pandas dataframe filtering', " +
+                        "'Express.js middleware', 'Next js partial prerendering configuration'");
+
+        addParam("tokensNum", Integer.class, false,
+                "Number of tokens to return (1000-50000). Default is 5000 tokens. " +
+                        "Adjust this value based on how much context you need - use lower values for " +
+                        "focused queries and higher values for comprehensive documentation.",
+                "5000");
     }
 
-    @ToolMapping(name = "codesearch", description = "通过互联网，使用 Exa Code API 远程搜索并获取任何编程任务的相关上下文。" +
-            "为库、SDK 和 API 提供最高质量、最及时的上下文。适用于任何与编程相关的问题或任务。" +
-            "返回全面的代码示例、文档和 API 参考。优化用于查找特定编程模式和解决方案。"
-    )
-    public Document codesearch(
-            @Param(name = "query", description = "用于查找 API、库和 SDK 相关上下文的在线搜索查询。" +
-                    "例如：'React useState hook examples', 'Python pandas dataframe filtering', " +
-                    "'Express.js middleware usage', 'Next js partial prerendering configuration', " +
-                    "'Rust Tokio async spawn pattern', 'Stripe API payment intent creation Node.js'")
-            String query,
+    @Override
+    public String name() {
+        return "codesearch";
+    }
 
-            @Param(name = "tokensNum", required = false, defaultValue = "5000",
-                    description = "返回的 Token 数量 (1000-50000)。默认 5000。根据所需的上下文量调整此值 - " +
-                            "针对具体问题使用较小值，针对全面文档使用较大值。")
-            Integer tokensNum
-    ) throws Exception {
+    @Override
+    public String description() {
+        // 100% 对齐 codesearch.txt 内容
+        return "Search and get relevant context for any programming task using Exa Code API\n" +
+                "- Provides the highest quality and freshest context for libraries, SDKs, and APIs\n" +
+                "- Use this tool for ANY question or task related to programming\n" +
+                "- Returns comprehensive code examples, documentation, and API references\n" +
+                "- Optimized for finding specific programming patterns and solutions\n\n" +
+                "Usage notes:\n" +
+                "  - Adjustable token count (1000-50000) for focused or comprehensive results\n" +
+                "  - Default 5000 tokens provides balanced context for most queries\n" +
+                "  - Use lower values for specific questions, higher values for comprehensive documentation\n" +
+                "  - Supports queries about frameworks, libraries, APIs, and programming concepts\n" +
+                "  - Examples: 'React useState hook examples', 'Python pandas dataframe filtering', 'Express.js middleware'";
+    }
 
-        // 1. 参数校验与准备 (对齐参数范围约束)
-        int finalTokens = (tokensNum == null) ? DEFAULT_TOKENS : Math.max(1000, Math.min(tokensNum, 50000));
+    @Override
+    public Object handle(Map<String, Object> args0) throws Throwable {
+        String query = (String) args0.get("query");
+        Object tokensNumObj = args0.get("tokensNum");
 
-        Map<String, Object> args = new HashMap<>();
-        args.put("query", query);
-        args.put("tokensNum", finalTokens);
+        // 1. 参数预处理 (对齐 TS 的默认值逻辑)
+        Integer tokensNum = null;
+        if (tokensNumObj instanceof Number) {
+            tokensNum = ((Number) tokensNumObj).intValue();
+        }
+        int finalTokens = (tokensNum == null) ? DEFAULT_TOKENS : tokensNum;
 
-        // 2. 通过 MCP 调用 get_code_context_exa 工具 (对齐 OpenCode 调用的工具名)
+        // 2. 模拟 ctx.ask 权限检查 (SolonAI 内部逻辑，保持静默或记录)
+        // ctx.ask({ permission: "codesearch", ... })
+
+        Map<String, Object> toolArgs = new HashMap<>();
+        toolArgs.put("query", query);
+        toolArgs.put("tokensNum", finalTokens);
+
+        // 3. 执行 MCP 调用
         ToolResult result;
         try {
-            result = mcpClient.callTool("get_code_context_exa", args);
+            // 对齐工具名: get_code_context_exa
+            result = mcpClient.callTool("get_code_context_exa", toolArgs);
         } catch (Exception e) {
-            if (e.getMessage() != null && e.getMessage().contains("timeout")) {
+            // 对齐超时文案
+            if (e.getMessage() != null && e.getMessage().toLowerCase().contains("timeout")) {
                 throw new RuntimeException("Code search request timed out");
             }
             throw e;
         }
 
-        // 3. 处理错误反馈
+        // 4. 处理异常响应 (对齐 response.ok 后的错误处理)
         if (result.isError()) {
-            String errorMsg = Utils.isNotEmpty(result.getContent()) ? result.getContent() : "Code search error";
-            throw new RuntimeException(errorMsg);
+            // 尽量提取原始错误文案以对齐 `Code search error (${status}): ${errorText}`
+            String errorText = Utils.isNotEmpty(result.getContent()) ? result.getContent() : "Unknown error";
+            throw new RuntimeException("Code search error: " + errorText);
         }
 
-        // 4. 解析并返回内容
+        // 5. 构造输出结构 (100% 对齐 TS 的 Return 结构)
+        String title = "Code search: " + query;
+        Map<String, Object> response = new LinkedHashMap<>();
+
         if (Utils.isNotEmpty(result.getContent())) {
-            return new Document()
-                    .title("Code search: " + query)
-                    .content(result.getContent())
-                    .metadata("query", query)
-                    .metadata("tokensNum", finalTokens)
-                    .metadata("source", "exa.ai");
+            response.put("output", result.getContent());
+            response.put("title", title);
+            response.put("metadata", new HashMap<>()); // 成功时 metadata 为空
+        } else {
+            // 100% 对齐兜底文案
+            String fallback = "No code snippets or documentation found. Please try a different query, " +
+                    "be more specific about the library or programming concept, or check the spelling of framework names.";
+            response.put("output", fallback);
+            response.put("title", title);
+            response.put("metadata", new HashMap<>());
         }
 
-        // 5. 兜底处理 (与原版文案完全对齐)
-        String fallbackMsg = "No code snippets or documentation found. Please try a different query, " +
-                "be more specific about the library or programming concept, or check the spelling of framework names.";
-
-        return new Document()
-                .title("Code search: " + query)
-                .content(fallbackMsg);
+        return response;
     }
 }

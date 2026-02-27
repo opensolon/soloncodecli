@@ -1,24 +1,24 @@
 package org.noear.solon.ai.codecli.core.tool;
 
+import com.github.difflib.DiffUtils;
+import com.github.difflib.UnifiedDiffUtils;
+import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.Patch;
 import org.noear.solon.ai.chat.tool.AbsTool;
-import org.noear.solon.ai.rag.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
+import java.util.stream.Collectors;
 
-/**
- * 批量文件原子操作工具
- */
 public class ApplyPatchTool extends AbsTool {
+    private static final Logger LOG = LoggerFactory.getLogger(ApplyPatchTool.class);
+
     public ApplyPatchTool() {
-        addParam("patchText", String.class,
-                "The full patch text with SEARCH/REPLACE blocks");
+        addParam("patchText", String.class, true, "The full patch text that describes all changes to be made");
     }
 
     @Override
@@ -28,41 +28,40 @@ public class ApplyPatchTool extends AbsTool {
 
     @Override
     public String description() {
-        return "Batch file editor for multi-file changes or multiple changes within a single file.\n\n" +
-                "Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format:\n" +
+        // 此处应返回与 apply_patch.txt 一致的内容
+        return "Use the `apply_patch` tool to edit files. Your patch language is a stripped‑down, file‑oriented diff format designed to be easy to parse and safe to apply. You can think of it as a high‑level envelope:\n" +
                 "\n" +
                 "*** Begin Patch\n" +
                 "[ one or more file sections ]\n" +
                 "*** End Patch\n" +
                 "\n" +
+                "Within that envelope, you get a sequence of file operations.\n" +
+                "You MUST include a header to specify the action you are taking.\n" +
                 "Each operation starts with one of three headers:\n" +
-                "*** Add File: <path> - create a new file. Every following line is a + line.\n" +
-                "*** Delete File: <path> - remove an existing file.\n" +
-                "*** Update File: <path> - patch an existing file. You can provide multiple SEARCH/REPLACE blocks for one file.\n" +
                 "\n" +
-                "Example patch (Multiple changes in one file):\n" +
+                "*** Add File: <path> - create a new file. Every following line is a + line (the initial contents).\n" +
+                "*** Delete File: <path> - remove an existing file. Nothing follows.\n" +
+                "*** Update File: <path> - patch an existing file in place (optionally with a rename).\n" +
+                "\n" +
+                "Example patch:\n" +
+                "\n" +
                 "```\n" +
                 "*** Begin Patch\n" +
+                "*** Add File: hello.txt\n" +
+                "+Hello world\n" +
                 "*** Update File: src/app.py\n" +
-                "<<<<<<< SEARCH\n" +
-                "def old_func_one():\n" +
-                "=======\n" +
-                "def new_func_one():\n" +
-                ">>>>>>> REPLACE\n" +
-                "<<<<<<< SEARCH\n" +
-                "def old_func_two():\n" +
-                "=======\n" +
-                "def new_func_two():\n" +
-                ">>>>>>> REPLACE\n" +
+                "*** Move to: src/main.py\n" +
+                "@@ def greet():\n" +
+                "-print(\"Hi\")\n" +
+                "+print(\"Hello, world!\")\n" +
+                "*** Delete File: obsolete.txt\n" +
                 "*** End Patch\n" +
                 "```\n" +
                 "\n" +
-                "Rules:\n" +
-                "- For 'Update', use SEARCH/REPLACE blocks. SEARCH must exactly match the file content (including indentation).\n" +
-                "- **Multiple Blocks**: You can use multiple SEARCH/REPLACE blocks under one '*** Update File' header. They will be applied in order.\n" +
-                "- For 'Add', prefix every line with '+'.\n" +
-                "- You can move a file by adding '*** Move to:' immediately after '*** Update File:'.\n" +
-                "- Trailing whitespace is automatically ignored for better matching.";
+                "It is important to remember:\n" +
+                "\n" +
+                "- You must include a header with your intended action (Add/Delete/Update)\n" +
+                "- You must prefix new lines with `+` even when creating a new file";
     }
 
     @Override
@@ -70,283 +69,249 @@ public class ApplyPatchTool extends AbsTool {
         String patchText = (String) args.get("patchText");
         String __workDir = (String) args.get("__workDir");
 
-
-        if (patchText == null || !patchText.contains("*** Begin Patch")) {
-            throw new RuntimeException("patchText is required and must contain '*** Begin Patch'");
+        // 严格对齐: if (!params.patchText) throw new Error("patchText is required")
+        if (patchText == null || patchText.trim().length() == 0) {
+            throw new RuntimeException("patchText is required");
         }
 
-        List<PatchHunk> hunks = parsePatchText(stripMarkdown(patchText));
+        // 1. Parse result 对齐
+        List<PatchHunk> hunks;
+        try {
+            hunks = parsePatchText(patchText);
+        } catch (Exception e) {
+            throw new RuntimeException("apply_patch verification failed: " + e.getMessage());
+        }
+
+        // 2. 空补丁校验对齐
         if (hunks.isEmpty()) {
-            throw new RuntimeException("apply_patch: no valid hunks found.");
+            String normalized = patchText.replace("\r\n", "\n").replace("\r", "\n").trim();
+            if (normalized.equals("*** Begin Patch\n*** End Patch")) {
+                throw new RuntimeException("patch rejected: empty patch");
+            }
+            throw new RuntimeException("apply_patch verification failed: no hunks found");
         }
 
         Path worktree = Paths.get(__workDir).toAbsolutePath().normalize();
         List<FileChange> fileChanges = new ArrayList<>();
+        StringBuilder totalDiff = new StringBuilder();
 
-        // 1. 预校验阶段
+        // 3. 循环准备变更
         for (PatchHunk hunk : hunks) {
             Path filePath = worktree.resolve(hunk.path).normalize();
             assertExternalDirectory(worktree, filePath);
 
-            FileChange change = new FileChange(filePath, hunk.type);
+            FileChange change = new FileChange();
+            change.filePath = filePath;
+
             switch (hunk.type) {
                 case "add":
-                    if (Files.exists(filePath)) {
-                        throw new RuntimeException("Cannot add: file already exists: " + hunk.path);
-                    }
-                    change.newContent = hunk.contents;
+                    change.type = "add";
+                    change.oldContent = "";
+                    change.newContent = (hunk.contents.length() == 0 || hunk.contents.endsWith("\n"))
+                            ? hunk.contents : hunk.contents + "\n";
+                    calculateDiffAndStats(change, worktree);
                     break;
+
                 case "update":
-                case "move":
-                    if (!Files.exists(filePath)) {
-                        throw new RuntimeException("File not found: " + hunk.path);
+                    // 对齐 stats 校验
+                    if (!Files.exists(filePath) || Files.isDirectory(filePath)) {
+                        throw new RuntimeException("apply_patch verification failed: Failed to read file to update: " + filePath);
                     }
-                    change.originalContent = readFile(filePath);
-                    change.newContent = applyChunks(change.originalContent, hunk.chunks, hunk.path);
-                    if (hunk.movePath != null) {
-                        change.movePath = worktree.resolve(hunk.movePath).normalize();
+                    change.oldContent = readFile(filePath);
+                    try {
+                        // 对应 deriveNewContentsFromChunks
+                        change.newContent = applyHunks(change.oldContent, hunk.lines);
+                    } catch (Exception e) {
+                        throw new RuntimeException("apply_patch verification failed: " + e.getMessage());
+                    }
+
+                    if (hunk.move_path != null) {
+                        change.movePath = worktree.resolve(hunk.move_path).normalize();
                         assertExternalDirectory(worktree, change.movePath);
-                        if (Files.exists(change.movePath) && !change.movePath.equals(filePath)) {
-                            throw new RuntimeException("Cannot move: target exists: " + hunk.movePath);
-                        }
                         change.type = "move";
+                    } else {
+                        change.type = "update";
                     }
+                    calculateDiffAndStats(change, worktree);
                     break;
+
                 case "delete":
-                    if (!Files.exists(filePath)) {
-                        throw new RuntimeException("File not found: " + hunk.path);
-                    }
-                    change.originalContent = readFile(filePath);
+                    change.oldContent = readFile(filePath); // readFile 已处理 NoSuchFileException
+                    change.type = "delete";
                     change.newContent = "";
+                    calculateDiffAndStats(change, worktree);
                     break;
             }
             fileChanges.add(change);
+            totalDiff.append(change.diff).append("\n");
         }
 
-        // 2. 原子执行阶段（带回滚）
-        List<FileChange> executed = new ArrayList<>();
-        try {
-            StringBuilder summary = new StringBuilder("Success. Changes applied:\n");
-            for (FileChange change : fileChanges) {
-                // 补偿换行符
-                if (change.newContent != null && !change.newContent.isEmpty() && !change.newContent.endsWith("\n")) {
-                    change.newContent += "\n";
+        // 4. 执行物理变更 (Apply the changes)
+        for (FileChange change : fileChanges) {
+            applyToDisk(change);
+        }
+
+        // 5. 生成摘要对齐
+        List<String> summaryLines = new ArrayList<>();
+        for (FileChange c : fileChanges) {
+            Path base = c.movePath != null ? c.movePath : c.filePath;
+            String rel = worktree.relativize(base).toString().replace("\\", "/");
+            if (c.type.equals("add")) summaryLines.add("A " + rel);
+            else if (c.type.equals("delete")) summaryLines.add("D " + rel);
+            else summaryLines.add("M " + rel);
+        }
+        String output = "Success. Updated the following files:\n" + String.join("\n", summaryLines);
+
+        // 6. 返回结构 100% 对齐 (包含 title, metadata, output)
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("diff", totalDiff.toString());
+        metadata.put("files", buildFileMetadata(worktree, fileChanges));
+        metadata.put("diagnostics", new HashMap<>()); // 保持结构完整性
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("title", output);
+        result.put("metadata", metadata);
+        result.put("output", output);
+
+        return result;
+    }
+
+    private void calculateDiffAndStats(FileChange change, Path worktree) {
+        List<String> oldLines = Arrays.asList(change.oldContent.split("\\r?\\n", -1));
+        List<String> newLines = Arrays.asList(change.newContent.split("\\r?\\n", -1));
+
+        if (change.type.equals("delete")) {
+            // 对齐 delete 逻辑: contentToDelete.split("\n").length
+            change.deletions = change.oldContent.length() == 0 ? 0 : change.oldContent.split("\n", -1).length;
+            change.additions = 0;
+        }
+
+        Patch<String> patch = DiffUtils.diff(oldLines, newLines);
+        if (!change.type.equals("delete")) {
+            for (AbstractDelta<String> delta : patch.getDeltas()) {
+                switch (delta.getType()) {
+                    case INSERT: change.additions += delta.getTarget().size(); break;
+                    case DELETE: change.deletions += delta.getSource().size(); break;
+                    case CHANGE:
+                        change.additions += delta.getTarget().size();
+                        change.deletions += delta.getSource().size();
+                        break;
                 }
-
-                executeChange(change);
-                executed.add(change);
-
-                // 生成摘要报告
-                String relPath = worktree.relativize(change.movePath != null ? change.movePath : change.filePath)
-                        .toString().replace("\\", "/");
-                String statusChar = change.type.substring(0, 1).toUpperCase();
-                summary.append(statusChar).append(" ").append(relPath).append("\n");
             }
+        }
 
-            return new Document().title("Apply Patch Success").content(summary.toString().trim());
-        } catch (Exception e) {
-            rollback(executed);
-            throw new RuntimeException("Patch failed at operation #" + (executed.size() + 1) + ": " + e.getMessage(), e);
+        // trimDiff 逻辑对齐
+        String fileName = change.filePath.toString().replace("\\", "/");
+        List<String> unifiedDiff = UnifiedDiffUtils.generateUnifiedDiff(fileName, fileName, oldLines, patch, 0);
+        if (unifiedDiff.size() > 2) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 2; i < unifiedDiff.size(); i++) {
+                sb.append(unifiedDiff.get(i)).append("\n");
+            }
+            change.diff = sb.toString();
         }
     }
 
-    private void rollback(List<FileChange> executed) {
-        for (int i = executed.size() - 1; i >= 0; i--) {
-            FileChange change = executed.get(i);
-            try {
-                switch (change.type) {
-                    case "add":
-                        Files.deleteIfExists(change.filePath);
-                        break;
-                    case "update":
-                        if (change.originalContent != null) {
-                            Files.write(change.filePath, change.originalContent.getBytes(StandardCharsets.UTF_8));
-                        }
-                        break;
-                    case "move":
-                        Files.deleteIfExists(change.movePath);
-                        if (change.originalContent != null) {
-                            Files.write(change.filePath, change.originalContent.getBytes(StandardCharsets.UTF_8));
-                        }
-                        break;
-                    case "delete":
-                        if (change.originalContent != null) {
-                            Files.write(change.filePath, change.originalContent.getBytes(StandardCharsets.UTF_8));
-                        }
-                        break;
-                }
-            } catch (IOException e) {
-                System.err.println("Rollback failed for: " + change.filePath);
+    private void applyToDisk(FileChange change) throws IOException {
+        Path target = (change.movePath != null) ? change.movePath : change.filePath;
+        if ("delete".equals(change.type)) {
+            Files.deleteIfExists(change.filePath);
+        } else {
+            if (target.getParent() != null) {
+                Files.createDirectories(target.getParent());
+            }
+            Files.write(target, change.newContent.getBytes(StandardCharsets.UTF_8));
+            if ("move".equals(change.type)) {
+                Files.deleteIfExists(change.filePath);
             }
         }
     }
 
-    private String stripMarkdown(String text) {
-        String input = text.trim();
-        if (input.startsWith("```")) {
-            int start = input.indexOf('\n');
-            int end = input.lastIndexOf("```");
-            if (start != -1 && end > start) {
-                return input.substring(start + 1, end).trim();
-            }
-        }
-        return input;
-    }
-
-    private String applyChunks(String content, List<Chunk> chunks, String path) {
-        String res = content;
-        for (int i = 0; i < chunks.size(); i++) {
-            Chunk chunk = chunks.get(i);
-
-            // 精确匹配
-            if (res.contains(chunk.search)) {
-                res = replaceFirst(res, chunk.search, chunk.replace);
-                continue;
-            }
-
-            // 模糊匹配（去除尾随空白）
-            String searchNorm = normalizeWhitespace(chunk.search);
-            String replaceNorm = normalizeWhitespace(chunk.replace);
-
-            if (res.contains(searchNorm)) {
-                res = replaceFirst(res, searchNorm, replaceNorm);
-                continue;
-            }
-
-            // 匹配失败
-            throw new RuntimeException(String.format(
-                    "SEARCH block #%d not found in %s\nFirst 80 chars:\n%s",
-                    i + 1, path, chunk.search.substring(0, Math.min(80, chunk.search.length()))
-            ));
-        }
-        return res;
-    }
-
-    private String normalizeWhitespace(String s) {
-        return s.replaceAll("[ \\t]+$", "")
-                .replaceAll("\\r\\n", "\n");
-    }
-
-    private String replaceFirst(String text, String search, String replace) {
-        int pos = text.indexOf(search);
-        if (pos == -1) return text;
-        return text.substring(0, pos) + replace + text.substring(pos + search.length());
-    }
-
-    private List<PatchHunk> parsePatchText(String patchText) {
+    private List<PatchHunk> parsePatchText(String text) {
         List<PatchHunk> hunks = new ArrayList<>();
-        String[] lines = patchText.split("\\R");
+        String[] lines = text.split("\\r?\\n");
         PatchHunk current = null;
-        StringBuilder sBuf = null, rBuf = null;
-        boolean inS = false, inR = false;
-
         for (String line : lines) {
-            // 跳过容器标记
-            if (line.trim().isEmpty() ||
-                    line.trim().equals("*** Begin Patch") ||
-                    line.trim().equals("*** End Patch")) {
-                continue;
-            }
-
-            // 解析指令行
-            if (line.startsWith("*** ")) {
-                if (line.startsWith("*** Add File:")) {
-                    current = new PatchHunk("add", line.substring(13).trim());
-                    hunks.add(current);
-                } else if (line.startsWith("*** Update File:")) {
-                    current = new PatchHunk("update", line.substring(16).trim());
-                    hunks.add(current);
-                } else if (line.startsWith("*** Delete File:")) {
-                    current = new PatchHunk("delete", line.substring(16).trim());
-                    hunks.add(current);
-                } else if (line.startsWith("*** Move to:") && current != null) {
-                    current.movePath = line.substring(12).trim();
+            if (line.startsWith("*** Add File:")) {
+                current = new PatchHunk("add", line.substring(13).trim());
+                hunks.add(current);
+            } else if (line.startsWith("*** Update File:")) {
+                current = new PatchHunk("update", line.substring(16).trim());
+                hunks.add(current);
+            } else if (line.startsWith("*** Delete File:")) {
+                current = new PatchHunk("delete", line.substring(16).trim());
+                hunks.add(current);
+            } else if (line.startsWith("*** Move to:") && current != null) {
+                // 对齐 OpenCode 的 move_path 映射
+                current.move_path = line.substring(12).trim();
+            } else if (current != null) {
+                if ("add".equals(current.type)) {
+                    current.contents += (line.startsWith("+") ? line.substring(1) : line) + "\n";
+                } else if (!line.startsWith("@@") && !line.equals("*** End Patch") && !line.equals("*** Begin Patch")) {
+                    current.lines.add(line);
                 }
-                continue;
-            }
-
-            // 状态机转换
-            if (line.equals("<<<<<<< SEARCH")) {
-                inS = true;
-                sBuf = new StringBuilder();
-                continue;
-            } else if (line.equals("=======")) {
-                inS = false;
-                inR = true;
-                rBuf = new StringBuilder();
-                continue;
-            } else if (line.equals(">>>>>>> REPLACE")) {
-                inR = false;
-                if (current != null && sBuf != null && rBuf != null) {
-                    current.chunks.add(new Chunk(sBuf.toString(), rBuf.toString()));
-                }
-                sBuf = null;
-                rBuf = null;
-                continue;
-            }
-
-            // 内容累加
-            if (inS) {
-                sBuf.append(line).append('\n');
-            } else if (inR) {
-                rBuf.append(line).append('\n');
-            } else if (current != null && "add".equals(current.type)) {
-                String content = line.startsWith("+") ? line.substring(1) : line;
-                current.contents += content + "\n";
             }
         }
         return hunks;
     }
 
-    private void executeChange(FileChange change) throws IOException {
-        Path target = (change.movePath != null) ? change.movePath : change.filePath;
-        if (!"delete".equals(change.type)) {
-            Files.createDirectories(target.getParent());
-            Files.write(target, change.newContent.getBytes(StandardCharsets.UTF_8));
-            if (change.movePath != null && !change.movePath.equals(change.filePath)) {
-                Files.deleteIfExists(change.filePath);
-            }
-        } else {
-            Files.deleteIfExists(change.filePath);
+    private String applyHunks(String oldContent, List<String> diffLines) {
+        List<String> lines = new ArrayList<>(Arrays.asList(oldContent.split("\\r?\\n", -1)));
+        for (String d : diffLines) {
+            if (d.startsWith("-")) lines.remove(d.substring(1));
+            else if (d.startsWith("+")) lines.add(d.substring(1));
         }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.size(); i++) {
+            sb.append(lines.get(i));
+            if (i < lines.size() - 1) sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    private List<Map<String, Object>> buildFileMetadata(Path worktree, List<FileChange> changes) {
+        return changes.stream().map(c -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("filePath", c.filePath.toString());
+            // relativePath 对齐：path.relative(Instance.worktree, change.movePath ?? change.filePath)
+            Path target = c.movePath != null ? c.movePath : c.filePath;
+            m.put("relativePath", worktree.relativize(target).toString().replace("\\", "/"));
+            m.put("type", c.type);
+            m.put("diff", c.diff);
+            m.put("before", c.oldContent);
+            m.put("after", c.newContent);
+            m.put("additions", c.additions);
+            m.put("deletions", c.deletions);
+            m.put("movePath", c.movePath != null ? c.movePath.toString() : null);
+            return m;
+        }).collect(Collectors.toList());
     }
 
     private void assertExternalDirectory(Path worktree, Path path) {
-        if (!path.startsWith(worktree)) {
-            throw new SecurityException("Access denied: " + path);
+        if (path != null && !path.normalize().startsWith(worktree)) {
+            throw new RuntimeException("apply_patch verification failed: Access denied to " + path);
         }
     }
 
     private String readFile(Path path) throws IOException {
-        return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
+        try {
+            byte[] encoded = Files.readAllBytes(path);
+            return new String(encoded, StandardCharsets.UTF_8);
+        } catch (NoSuchFileException e) {
+            // 对齐 TS 的报错文案：catch(error) => throw Error(...)
+            throw new IOException(e.toString());
+        }
     }
 
     private static class PatchHunk {
-        String type, path, movePath, contents = "";
-        List<Chunk> chunks = new ArrayList<>();
-
-        PatchHunk(String t, String p) {
-            this.type = t;
-            this.path = p;
-        }
-    }
-
-    private static class Chunk {
-        String search, replace;
-
-        Chunk(String s, String r) {
-            this.search = s;
-            this.replace = r;
-        }
+        String type, path, move_path, contents = "";
+        List<String> lines = new ArrayList<>();
+        PatchHunk(String t, String p) { this.type = t; this.path = p; }
     }
 
     private static class FileChange {
         Path filePath, movePath;
-        String newContent, originalContent, type;
-
-        FileChange(Path p, String t) {
-            this.filePath = p;
-            this.type = t;
-        }
+        String oldContent = "", newContent = "", type, diff = "";
+        int additions = 0, deletions = 0;
     }
 }
