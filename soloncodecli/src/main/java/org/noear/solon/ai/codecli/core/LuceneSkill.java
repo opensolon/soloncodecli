@@ -43,7 +43,6 @@ import java.util.stream.Collectors;
 public class LuceneSkill extends AbsSkill {
     private static final Logger LOG = LoggerFactory.getLogger(LuceneSkill.class);
 
-    protected final Path rootPath;
     protected final Directory indexDirectory;
     protected final Analyzer analyzer;
 
@@ -57,8 +56,7 @@ public class LuceneSkill extends AbsSkill {
             "java", "xml", "js", "ts", "md", "properties", "sql", "txt", "html", "json", "yml", "yaml", "sh", "bat"
     ));
 
-    public LuceneSkill(String workDir) {
-        this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
+    public LuceneSkill() {
         this.indexDirectory = new ByteBuffersDirectory();
         this.analyzer = new StandardAnalyzer();
     }
@@ -98,17 +96,14 @@ public class LuceneSkill extends AbsSkill {
         return true;
     }
 
-    @Override
-    public String getInstruction(Prompt prompt) {
-        return "#### 本地全文搜索协议 (Local Search Protocol)\n" +
-                "- **工具定位**：这是你感知当前工作区内容的“本地雷达”。当你无法通过目录结构定位具体逻辑，或需要查找跨文件的符号引用时使用。\n" +
-                "- **数据边界**：搜索仅限于当前项目根目录及挂载的只读池。它是私有的、实时的、不依赖外部网络的。\n" +
-                "- **搜索策略**：支持模糊关键词。结果按 Lucene 相关性排序。若由于文件大幅改动导致搜索结果不自然，应立即执行 `refresh_search_index`。\n" +
-                "- **性能习惯**：对于已知路径的小文件，优先使用 `read_file`；对于“大海捞针”式的查询，必须使用此协议。";
-    }
 
-    @ToolMapping(name = "full_text_search", description = "在项目文件中进行本地全文检索（支持代码、配置、文档）。")
-    public String full_text_search(@Param(value = "query", description = "搜索关键字或短语") String query) {
+    @ToolMapping(name = "full_text_search", description = "在工作区内中进行本地全文检索（支持代码、配置、文档等文本文件）。")
+    public String full_text_search(@Param(value = "query", description = "搜索关键字或短语") String query,
+                                   String __workDir) {
+
+
+        Path rootPath = Paths.get(__workDir).toAbsolutePath().normalize();
+
         try {
             if (!DirectoryReader.indexExists(indexDirectory)) {
                 return "本地索引尚未建立。请先执行 refresh_search_index 工具以初始化搜索环境。";
@@ -170,8 +165,10 @@ public class LuceneSkill extends AbsSkill {
         }
     }
 
-    @ToolMapping(name = "refresh_search_index", description = "刷新本地全文索引。")
-    public String refreshSearchIndex() {
+    @ToolMapping(name = "refresh_search_index", description = "刷新工作区内的本地全文索引。")
+    public String refreshSearchIndex(String __workDir) {
+        Path rootPath = Paths.get(__workDir).toAbsolutePath().normalize();
+
         long start = System.currentTimeMillis();
         IndexWriterConfig config = new IndexWriterConfig(analyzer);
         config.setOpenMode(IndexWriterConfig.OpenMode.CREATE); // 重新构建索引
