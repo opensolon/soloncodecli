@@ -67,7 +67,11 @@ public class CodeSkill extends AbsSkill {
     }
 
     public String refresh() {
-       return init();
+        if (isSupported(null)) {
+            return init();
+        } else {
+            return null;
+        }
     }
 
     public String init() {

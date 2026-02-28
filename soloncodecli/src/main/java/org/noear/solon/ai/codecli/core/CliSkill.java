@@ -122,7 +122,12 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 1. 执行命令 ---
-    @ToolMapping(name = "run_terminal_command", description = "在 shell 中执行指令。严禁使用绝对路径。")
+    @ToolMapping(
+            name = "run_terminal_command",
+            description = "在 shell 中执行指令。严禁使用绝对路径。\n" +
+                    "必须首先使用 SkillDiscoverySkill 寻找匹配的“专家技能”。" +
+                    "严禁在未确认专家技能规约的情况下，直接通过此命令修改业务逻辑或执行复杂流程。"
+    )
     public String run_terminal_command(@Param(value = "command", description = "要执行的指令。") String command,
                                        String __workDir) {
         Path rootPath = getRootPath(__workDir);

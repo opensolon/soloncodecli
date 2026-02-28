@@ -178,12 +178,10 @@ public class CodeAgent {
             agentBuilder.defaultSkillAdd(skillDiscoverySkill);
 
             //上下文摘要
-            CompositeSummarizationStrategy compositeStrategy = new CompositeSummarizationStrategy();
-            compositeStrategy.addStrategy(new KeyInfoExtractionStrategy(chatModel));
-            compositeStrategy.addStrategy(new HierarchicalSummarizationStrategy(chatModel));
-            SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(12, compositeStrategy);
+//            SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(30,
+//                    new HierarchicalSummarizationStrategy(chatModel));
 
-            agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
+            //agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
 
             if (enableHitl) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
