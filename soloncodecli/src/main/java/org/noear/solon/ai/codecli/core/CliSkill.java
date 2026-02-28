@@ -19,6 +19,7 @@ import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.noear.solon.annotation.Param;
+import org.noear.solon.core.util.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,7 @@ public class CliSkill extends AbsSkill {
     private final String shellCmd;
     private final String extension;
     private final ShellMode shellMode;
+    private final SkillManager skillManager; // 引入技能管理器
     private final Map<String, String> undoHistory = new ConcurrentHashMap<>();
 
     protected Charset fileCharset = StandardCharsets.UTF_8;
@@ -64,12 +66,13 @@ public class CliSkill extends AbsSkill {
             ".system", ".git", "node_modules", ".DS_Store"
     );
 
-    public CliSkill() {
-        this(null);
+    public CliSkill(SkillManager skillManager) {
+        this(null, skillManager);
     }
 
-    public CliSkill(String workDir) {
+    public CliSkill(String workDir, SkillManager skillManager) {
         this.workDirDef = workDir;
+        this.skillManager = skillManager;
 
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
 
@@ -92,16 +95,50 @@ public class CliSkill extends AbsSkill {
     }
 
     private Path getRootPath(String __workDir) {
-        if (__workDir == null) {
-            __workDir = workDirDef;
+        String path = (__workDir != null) ? __workDir : workDirDef;
+        if (path == null) throw new IllegalStateException("Working directory is not set.");
+        return Paths.get(path).toAbsolutePath().normalize();
+    }
+
+    private Path resolveSafePath(Path rootPath, String pStr, boolean writeMode) {
+        if (Assert.isEmpty(pStr) || ".".equals(pStr)) {
+            return rootPath;
         }
 
-        if (__workDir == null) {
-            throw new IllegalStateException("");
-        }
+        Path target = skillManager.resolve(rootPath, pStr);
 
-        Path rootPath = Paths.get(__workDir).toAbsolutePath().normalize();
-        return rootPath;
+        if (pStr.startsWith("@")) {
+            String alias = pStr.split("[/\\\\]")[0];
+            boolean inPool = skillManager.getPoolMap().containsKey(alias);
+            if (!inPool) throw new SecurityException("权限拒绝：未知的技能池路径 " + pStr);
+
+            if (writeMode) {
+                LOG.warn("Attempt to write to skill pool path: {}", pStr);
+            }
+        } else {
+            if (!target.startsWith(rootPath)) {
+                throw new SecurityException("权限拒绝：路径越界。");
+            }
+        }
+        return target;
+    }
+
+    private String formatDisplayPath(Path rootPath, String inputPath, Path targetDir, Path file) {
+        if (inputPath != null && inputPath.startsWith("@")) {
+            String prefix = inputPath.split("[/\\\\]")[0];
+            return prefix + "/" + targetDir.relativize(file).toString().replace("\\", "/");
+        }
+        return rootPath.relativize(file).toString().replace("\\", "/");
+    }
+
+    private String translateCommandPaths(String command) {
+        String result = command;
+        for (Map.Entry<String, Path> entry : skillManager.getPoolMap().entrySet()) {
+            if (result.contains(entry.getKey())) {
+                result = result.replace(entry.getKey(), entry.getValue().toString());
+            }
+        }
+        return result;
     }
 
     @Override
@@ -111,14 +148,11 @@ public class CliSkill extends AbsSkill {
 
     @Override
     public String getInstruction(Prompt prompt) {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append("#### CLI 环境状态\n");
         String currentTime = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)"));
-        sb.append("- **当前时间**: ").append(currentTime).append("\n");
-        sb.append("- **终端类型**: ").append(shellMode).append("\n\n");
-
-        return sb.toString();
+        return "#### CLI 环境状态\n" +
+                "- **当前时间**: " + currentTime + "\n" +
+                "- **终端类型**: " + shellMode + "\n" +
+                "- **逻辑路径支持**: 已挂载 " + skillManager.getPoolMap().keySet() + "\n\n";
     }
 
     // --- 1. 执行命令 ---
@@ -131,8 +165,8 @@ public class CliSkill extends AbsSkill {
     public String run_terminal_command(@Param(value = "command", description = "要执行的指令。") String command,
                                        String __workDir) {
         Path rootPath = getRootPath(__workDir);
-
-        return executor.executeCode(rootPath, command, shellCmd, extension, new HashMap<>(), null);
+        String finalCommand = translateCommandPaths(command);
+        return executor.executeCode(rootPath, finalCommand, shellCmd, extension, new HashMap<>(), null);
     }
 
     // --- 2. 发现文件 ---
@@ -143,7 +177,7 @@ public class CliSkill extends AbsSkill {
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
 
-        Path target = resolvePathExtended(rootPath, path);
+        Path target = resolveSafePath(rootPath, path, false);
         if (!Files.exists(target)) return "错误：路径不存在";
 
         if (Boolean.TRUE.equals(recursive)) {
@@ -165,7 +199,7 @@ public class CliSkill extends AbsSkill {
                            String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
 
-        Path target = resolvePathExtended(rootPath, path);
+        Path target = resolveSafePath(rootPath, path, false);
         if (!Files.exists(target)) return "错误：文件不存在";
 
         long fileSize = Files.size(target);
@@ -197,8 +231,8 @@ public class CliSkill extends AbsSkill {
                               @Param(value = "content", description = "完整文本内容。") String content,
                               String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
+        Path target = resolveSafePath(rootPath, path, true);
 
-        Path target = resolvePath(rootPath, path);
         if (Files.exists(target)) {
             undoHistory.put(path, new String(Files.readAllBytes(target), fileCharset));
         }
@@ -215,7 +249,7 @@ public class CliSkill extends AbsSkill {
                                    String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
 
-        Path target = resolvePath(rootPath, path);
+        Path target = resolveSafePath(rootPath, path, true);
         String content = new String(Files.readAllBytes(target), fileCharset);
 
         String finalOld = oldStr, finalNew = newStr;
@@ -238,10 +272,11 @@ public class CliSkill extends AbsSkill {
     public String undoEdit(@Param(value = "path", description = "文件相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                            String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
+        Path target = resolveSafePath(rootPath, path, true);
 
         String history = undoHistory.remove(path);
         if (history == null) return "错误：该文件无撤销记录。";
-        Files.write(resolvePath(rootPath, path), history.getBytes(fileCharset));
+        Files.write(target, history.getBytes(fileCharset));
         return "文件内容已恢复。";
     }
 
@@ -251,8 +286,8 @@ public class CliSkill extends AbsSkill {
                              @Param(value = "path", description = "目录相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
+        Path target = resolveSafePath(rootPath, path, false);
 
-        Path target = resolvePathExtended(rootPath, path);
         StringBuilder sb = new StringBuilder();
 
         Files.walkFileTree(target, new SimpleFileVisitor<Path>() {
@@ -270,8 +305,7 @@ public class CliSkill extends AbsSkill {
                         lineNum++;
                         String line = scanner.nextLine();
                         if (line.contains(query)) {
-                            String rel = target.relativize(file).toString().replace("\\", "/");
-                            String displayPath = rootPath.relativize(file).toString().replace("\\", "/");
+                            String displayPath = formatDisplayPath(rootPath, path, target, file);
                             sb.append(displayPath).append(":").append(lineNum).append(": ").append(line.trim()).append("\n");
                         }
                         if (sb.length() > 8000) return FileVisitResult.TERMINATE;
@@ -289,8 +323,8 @@ public class CliSkill extends AbsSkill {
                              @Param(value = "path", description = "目录相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
+        Path target = resolveSafePath(rootPath, path, false);
 
-        Path target = resolvePathExtended(rootPath, path);
         final PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
         final String logicPrefix = (path != null && path.startsWith("@")) ? path.split("[/\\\\]")[0] : null;
         List<String> results = new ArrayList<>();
@@ -304,9 +338,7 @@ public class CliSkill extends AbsSkill {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 if (!isIgnored(rootPath, file) && matcher.matches(target.relativize(file))) {
-                    String rel = target.relativize(file).toString().replace("\\", "/");
-                    String displayPath = (logicPrefix != null) ? logicPrefix + "/" + rel : rootPath.relativize(file).toString().replace("\\", "/");
-                    results.add("[FILE] " + displayPath);
+                    results.add("[FILE] " + formatDisplayPath(rootPath, path, target, file));
                 }
                 return results.size() >= 500 ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
             }
@@ -344,26 +376,20 @@ public class CliSkill extends AbsSkill {
         }
     }
 
-    private String flatListLogic(Path rootPath, Path target, String path, boolean showHidden) throws IOException {
-        final String logicPrefix = (path != null && path.startsWith("@")) ? path.split("[/\\\\]")[0] : null;
+    private String flatListLogic(Path rootPath, Path target, String inputPath, boolean showHidden) throws IOException {
         try (Stream<Path> stream = Files.list(target)) {
             List<String> lines = stream
                     .filter(p -> !isIgnored(rootPath, p))
                     .filter(p -> showHidden || !p.getFileName().toString().startsWith("."))
                     .map(p -> {
-                        try {
-                            BasicFileAttributes attrs = Files.readAttributes(p, BasicFileAttributes.class);
-                            boolean isDir = attrs.isDirectory();
-                            String rel = target.relativize(p).toString().replace("\\", "/");
-                            String logicPath = (logicPrefix != null) ? logicPrefix + "/" + rel : rootPath.relativize(p).toString().replace("\\", "/");
-                            return (isDir ? "[DIR] " : "[FILE] ") + logicPath + (isDir ? "/" : "");
-                        } catch (IOException e) {
-                            return "[ERROR] " + p.getFileName();
-                        }
+                        boolean isDir = Files.isDirectory(p);
+                        String displayPath = formatDisplayPath(rootPath, inputPath, target, p);
+                        return (isDir ? "[DIR] " : "[FILE] ") + displayPath + (isDir ? "/" : "");
                     }).sorted().collect(Collectors.toList());
             return lines.isEmpty() ? "(目录为空)" : String.join("\n", lines);
         }
     }
+
 
     private boolean isIgnored(Path rootPath, Path path) {
         String name = path.getFileName().toString();
@@ -376,11 +402,6 @@ public class CliSkill extends AbsSkill {
         } catch (Exception ignored) {
         }
         return false;
-    }
-
-    private Path resolvePathExtended(Path rootPath, String pStr) {
-        if (pStr == null || pStr.isEmpty() || ".".equals(pStr)) return rootPath;
-        return resolvePath(rootPath, pStr);
     }
 
     private Path resolvePath(Path rootPath, String pathStr) {

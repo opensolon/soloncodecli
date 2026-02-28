@@ -5,15 +5,11 @@ import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.annotation.Param;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,16 +22,16 @@ import java.util.stream.Stream;
  * 3. SEARCH: 数量 > searchThreshold，强制搜索。
  */
 public class SkillDiscoverySkill extends AbsSkill {
-    private static final Logger LOG = LoggerFactory.getLogger(SkillDiscoverySkill.class);
-
-    private final Map<String, Path> skillPoolMap = new ConcurrentHashMap<>();
-    private final Map<String, SkillDir> skillMap = new ConcurrentHashMap<>();
-
+    private final SkillManager skillManager;
     private int dynamicThreshold = 8; // 超过此值，不再平铺注入所有 SKILL.md
     private int searchThreshold = 80;  // 超过此值，不再展示摘要清单，进入强制搜索
 
-    public Map<String, SkillDir> getSkillMap() {
-        return skillMap;
+    public SkillDiscoverySkill(SkillManager skillManager) {
+        this.skillManager = skillManager;
+    }
+
+    public SkillManager getSkillManager() {
+        return skillManager;
     }
 
     @Override
@@ -45,20 +41,21 @@ public class SkillDiscoverySkill extends AbsSkill {
 
     @Override
     public String getInstruction(Prompt prompt) {
-        if (skillPoolMap.isEmpty()) return null;
+        Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
+        if (skillMap.isEmpty()) return null;
 
         int total = skillMap.size();
         StringBuilder sb = new StringBuilder("\n#### 专家技能库执行规约 (当前可用技能: " + total + ")\n");
 
         if (total <= dynamicThreshold && total > 0) {
             sb.append("已加载以下专家技能，其内容即为执行标准，请严格遵循：\n");
-            for (SkillDir skill : skillMap.values()) {
+            for (SkillManager.SkillDir skill : skillMap.values()) {
                 sb.append(renderSkillXml(skill, false));
             }
         } else if (total <= searchThreshold) {
             sb.append("检测到多个专家技能。在执行相关领域动作前，必须先调用 `explain_skill` 加载具体技能规约：\n");
             sb.append("<available_skills>\n");
-            for (SkillDir skill : skillMap.values()) {
+            for (SkillManager.SkillDir skill : skillMap.values()) {
                 sb.append("  <skill name=\"").append(skill.aliasPath).append("\">")
                         .append(skill.description).append("</skill>\n");
             }
@@ -75,7 +72,8 @@ public class SkillDiscoverySkill extends AbsSkill {
 
     @Override
     public Collection<FunctionTool> getTools(Prompt prompt) {
-        if (skillPoolMap.isEmpty()) return null;
+        Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
+        if (skillMap.isEmpty()) return null;
 
         int total = skillMap.size();
         if (total <= dynamicThreshold) {
@@ -89,10 +87,11 @@ public class SkillDiscoverySkill extends AbsSkill {
 
     @ToolMapping(name = "list_skills", description = "列出所有已挂载专家技能池中的可用清单。")
     public String listSkills() {
+        Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         if (skillMap.isEmpty()) return "当前没有可用的专家技能。";
 
         StringBuilder sb = new StringBuilder("可用专家技能列表：\n");
-        for (SkillDir s : skillMap.values()) {
+        for (SkillManager.SkillDir s : skillMap.values()) {
             sb.append("- ").append(s.aliasPath).append(": ").append(s.description).append("\n");
         }
         return sb.toString();
@@ -100,9 +99,10 @@ public class SkillDiscoverySkill extends AbsSkill {
 
     @ToolMapping(name = "search_skills", description = "在所有专家技能池中搜索关键字。支持空格分隔多个词。")
     public String searchSkills(@Param("query") String query) {
+        Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         String[] keys = query.toLowerCase().split("\\s+");
 
-        List<SkillDir> matches = skillMap.values().stream()
+        List<SkillManager.SkillDir> matches = skillMap.values().stream()
                 .filter(s -> Arrays.stream(keys).anyMatch(k ->
                         s.aliasPath.toLowerCase().contains(k) ||
                                 s.description.toLowerCase().contains(k)))
@@ -112,7 +112,7 @@ public class SkillDiscoverySkill extends AbsSkill {
         if (matches.isEmpty()) return "未找到匹配专家技能。";
 
         StringBuilder sb = new StringBuilder("<search_results>\n");
-        for (SkillDir s : matches) {
+        for (SkillManager.SkillDir s : matches) {
             sb.append("  <skill path=\"").append(s.aliasPath).append("\">")
                     .append(s.description).append("</skill>\n");
         }
@@ -122,8 +122,9 @@ public class SkillDiscoverySkill extends AbsSkill {
 
     @ToolMapping(name = "explain_skill", description = "加载特定专家技能的完整 SKILL.md 规约及其文件参考。")
     public String explainSkill(@Param("path") String path, String __workDir) throws IOException {
+        Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         // 1. 优先从内存 Map 查找逻辑路径
-        SkillDir cachedSkill = skillMap.get(path);
+        SkillManager.SkillDir cachedSkill = skillMap.get(path);
         if (cachedSkill != null) {
             return renderSkillXml(cachedSkill, true);
         }
@@ -132,19 +133,18 @@ public class SkillDiscoverySkill extends AbsSkill {
         Path target = resolvePathExtended(__workDir, path);
         if (!isSkillDir(target)) return "Error: 路径 " + path + " 不是有效的专家技能目录 (缺少 SKILL.md)";
 
-        return renderSkillXml(new SkillDir(path, target, null), true);
+        return renderSkillXml(new SkillManager.SkillDir(path, target, null), true);
     }
 
     @ToolMapping(name = "refresh_skills", description = "重新扫描所有专家技能池，更新专家技能列表。")
     public String refreshSkills() {
-        skillMap.clear();
-        skillPoolMap.forEach(this::scanAndCache);
-        return "专家技能库已刷新，当前可用专家技能数：" + skillMap.size();
+        skillManager.refresh();
+        return "专家技能库已刷新，当前可用专家技能数：" + skillManager.getSkillMap().size();
     }
 
     // --- 核心渲染与辅助逻辑 ---
 
-    private String renderSkillXml(SkillDir skill, boolean includeFiles) {
+    private String renderSkillXml(SkillManager.SkillDir skill, boolean includeFiles) {
         Path md = skill.realPath.resolve("SKILL.md");
         if (!Files.exists(md)) md = skill.realPath.resolve("skill.md");
 
@@ -179,126 +179,6 @@ public class SkillDiscoverySkill extends AbsSkill {
     }
 
     private Path resolvePathExtended(String workDir, String pStr) {
-        if (pStr.startsWith("@")) {
-            for (Map.Entry<String, Path> e : skillPoolMap.entrySet()) {
-                if (pStr.startsWith(e.getKey())) {
-                    String sub = pStr.substring(e.getKey().length()).replaceFirst("^[/\\\\]", "");
-                    return e.getValue().resolve(sub).normalize();
-                }
-            }
-        }
-        return Paths.get(workDir).resolve(pStr).toAbsolutePath().normalize();
-    }
-
-    public SkillDiscoverySkill skillPool(String alias, String dir) {
-        if (dir != null) {
-            String key = alias.startsWith("@") ? alias : "@" + alias;
-            Path root = Paths.get(dir).toAbsolutePath().normalize();
-            skillPoolMap.put(key, root);
-            scanAndCache(key, root);
-        }
-        return this;
-    }
-
-    private void scanAndCache(String alias, Path root) {
-        try {
-            Files.walkFileTree(root, EnumSet.noneOf(FileVisitOption.class), 3, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    if (isSkillDir(dir)) {
-                        String rel = root.relativize(dir).toString().replace("\\", "/");
-                        String aliasPath = alias + (rel.isEmpty() ? "" : "/" + rel);
-                        skillMap.put(aliasPath, new SkillDir(aliasPath, dir, parseDescription(dir)));
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
-                    if (dir.getFileName().toString().startsWith(".")) return FileVisitResult.SKIP_SUBTREE;
-                    return FileVisitResult.CONTINUE;
-                }
-            });
-        } catch (IOException e) {
-            LOG.error("Scan skill pool failed: {}", root, e);
-        }
-    }
-
-    private String parseDescription(Path dir) {
-        Path md = dir.resolve("SKILL.md");
-        if (!Files.exists(md)) md = dir.resolve("skill.md");
-
-        try (Stream<String> lines = Files.lines(md, StandardCharsets.UTF_8)) {
-            List<String> allLines = lines.map(String::trim).collect(Collectors.toList());
-
-            if (allLines.isEmpty()) return "专家技能规约。";
-
-            // 检查是否包含 YAML Front Matter (以 --- 开头)
-            if (allLines.get(0).equals("---")) {
-                for (int i = 1; i < allLines.size(); i++) {
-                    String line = allLines.get(i);
-                    if (line.equals("---")) break; // YAML 结束
-
-                    // 寻找 description 字段
-                    if (line.toLowerCase().startsWith("description:")) {
-                        String desc = line.substring(line.indexOf(":") + 1).trim();
-                        // 去掉两端的引号
-                        if (desc.startsWith("\"") && desc.endsWith("\"")) {
-                            desc = desc.substring(1, desc.length() - 1);
-                        }
-                        return formatDesc(desc);
-                    }
-                }
-            }
-
-            // 策略 2：如果没有 YAML 或没找到 description，寻找第一个一级标题 (#)
-            // 然后取其后的第一个非空、非引用、非代码块的段落
-            boolean foundMainTitle = false;
-            for (String line : allLines) {
-                if (line.startsWith("# ")) {
-                    foundMainTitle = true;
-                    continue;
-                }
-                if (foundMainTitle && !line.isEmpty() && !line.startsWith("#")
-                        && !line.startsWith("`") && !line.startsWith(">")) {
-                    return formatDesc(line);
-                }
-            }
-
-            // 策略 3：兜底逻辑
-            return allLines.stream()
-                    .filter(l -> !l.isEmpty() && !l.startsWith("-") && !l.startsWith("#"))
-                    .findFirst()
-                    .map(this::formatDesc)
-                    .orElse("专业领域专家规约。");
-
-        } catch (Exception e) {
-            return "专家技能规约。";
-        }
-    }
-
-    private String formatDesc(String desc) {
-        // 增加长度到 150，确保 LLM 能看到足够的语义信息
-        return desc.length() > 150 ? desc.substring(0, 147) + "..." : desc;
-    }
-
-    public static class SkillDir {
-        final String aliasPath;
-        final Path realPath;
-        final String description;
-
-        SkillDir(String aliasPath, Path realPath, String description) {
-            this.aliasPath = aliasPath;
-            this.realPath = realPath;
-            this.description = description;
-        }
-
-        public String getAliasPath() {
-            return aliasPath;
-        }
-
-        public Path getRealPath() {
-            return realPath;
-        }
-
-        public String getDescription() {
-            return description;
-        }
+        return skillManager.resolve(Paths.get(workDir), pStr);
     }
 }
