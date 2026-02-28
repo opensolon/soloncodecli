@@ -53,5 +53,7 @@ public class Config {
 
     public Map<String, McpServerParameters> mcpServers;
     public ChatConfig chatModel;
+    @Deprecated
     public Map<String, String> mountPool;
+    public Map<String, String> skillPools;
 }

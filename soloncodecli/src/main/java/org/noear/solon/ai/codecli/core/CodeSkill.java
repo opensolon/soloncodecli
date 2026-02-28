@@ -21,18 +21,12 @@ import java.util.stream.Stream;
  * @author noear
  * @since 3.9.4
  */
-public class InitSkill extends AbsSkill {
-    private static final Logger LOG = LoggerFactory.getLogger(InitSkill.class);
+public class CodeSkill extends AbsSkill {
+    private static final Logger LOG = LoggerFactory.getLogger(CodeSkill.class);
     private final Path rootPath;
-    private String cachedMsg;
 
-    public InitSkill(String workDir) {
+    public CodeSkill(String workDir) {
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
-    }
-
-    @Override
-    public String name() {
-        return "guiding_skill";
     }
 
     @Override
@@ -42,10 +36,6 @@ public class InitSkill extends AbsSkill {
 
     @Override
     public boolean isSupported(Prompt prompt) {
-        return true;
-    }
-
-    private boolean isCode(Prompt prompt) {
         if (rootExists("CLAUDE.md")) {
             return true;
         }
@@ -63,38 +53,21 @@ public class InitSkill extends AbsSkill {
     public String getInstruction(Prompt prompt) {
         StringBuilder buf = new StringBuilder();
 
-        if (isCode(prompt)) {
-            cachedMsg = init();
+       String msg = init();
 
-            buf.append("\n#### 核心工程规约 (Core Engineering Protocol)\n");
-            buf.append("> Project Context: ").append(cachedMsg).append("\n\n");
+        buf.append("\n#### 核心工程规约 (Core Engineering Protocol)\n");
+        buf.append("> Project Context: ").append(msg).append("\n\n");
 
-            buf.append("为了确保工程质量，要严格执行以下操作：\n")
-                    .append("1. **动作前导**: 在开始任何任务前，先读取根目录的 `CLAUDE.md` 以获取构建和测试指令。\n")
-                    .append("2. **验证驱动**: 修改代码后，根据 `CLAUDE.md` 中的指令运行测试，严禁未验证提交。\n")
-                    .append("3. **路径规范**: 严禁使用 `./` 前缀。使用相对于当前工作目录的纯净相对路径。\n");
-        }
-
-        buf.append("#### 任务状态机管理 (Task State Machine)\n" +
-                "- **任务管理**：面对复杂任务（如 > 3 步的任务），要在根目录维护 `TODO.md`。规范：\n" +
-                "  - 初始任务：收到指令后，先在 `TODO.md` 中列出所有逻辑步骤。\n" +
-                "  - 状态追踪：使用 [ ] 表示待办，[x] 表示已完成。每完成一步必须物理更新文件。\n" +
-                "  - 恢复上下文：任何时候开始工作前（包括每一轮思考开始），要先读取 `TODO.md` 以确认进度。如果是新任务，要先初始化 `TODO.md`。\n" +
-                "- **任务切换**：若用户中途改变任务方向，要第一时间清空或重构 `TODO.md` 中的内容，以确保后续步骤与新目标一致。\n");
-
-        if (rootExists("TODO.md")) {
-            buf.append("- **进度对齐**: 已检测到 `TODO.md`。请先读取它以恢复之前的任务上下文。\n");
-        }
+        buf.append("为了确保工程质量，要严格执行以下操作：\n")
+                .append("1. **动作前导**: 在开始任何任务前，先读取根目录的 `CLAUDE.md` 以获取构建和测试指令。\n")
+                .append("2. **验证驱动**: 修改代码后，根据 `CLAUDE.md` 中的指令运行测试，严禁未验证提交。\n")
+                .append("3. **路径规范**: 严禁使用 `./` 前缀。使用相对于当前工作目录的纯净相对路径。\n");
 
         return buf.toString();
     }
 
     public String refresh() {
-        if (isCode(null)) {
-            cachedMsg = init();
-        }
-
-        return cachedMsg;
+       return init();
     }
 
     public String init() {

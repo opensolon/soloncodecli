@@ -105,7 +105,13 @@ public class App {
 
         if (Assert.isNotEmpty(config.mountPool)) {
             config.mountPool.forEach((alias, dir) -> {
-                codeAgent.mountPool(alias, dir);
+                codeAgent.skillPool(alias, dir);
+            });
+        }
+
+        if (Assert.isNotEmpty(config.skillPools)) {
+            config.skillPools.forEach((alias, dir) -> {
+                codeAgent.skillPool(alias, dir);
             });
         }
 

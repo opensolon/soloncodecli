@@ -72,7 +72,6 @@ public class AcpLink implements Runnable{
                     // 将 ACP 的 Prompt 转发给 Solon ReActAgent
                     return codeAgent.stream(request.sessionId(), userInput)
                             .concatMap(chunk -> {
-
                                 // --- 规划阶段 ---
                                 if (chunk instanceof PlanChunk) {
                                     return acpContext.sendUpdate(sessionId, new AcpSchema.AgentThoughtChunk(
