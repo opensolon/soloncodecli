@@ -34,6 +34,8 @@ import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import reactor.core.publisher.Flux;
+
+import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -162,10 +164,10 @@ public class CodeAgent {
                         .build());
             }
 
-            SkillDiscoverySkill skillDiscoverySkill = new SkillDiscoverySkill();
+            SkillManager skillManager = new SkillManager();
             if(Assert.isNotEmpty(skillPools)) {
                 for (Map.Entry<String, String> entry : skillPools.entrySet()) {
-                    skillDiscoverySkill.skillPool(entry.getKey(), entry.getValue());
+                    skillManager.registerPool(entry.getKey(), entry.getValue());
                 }
             }
 
@@ -173,15 +175,15 @@ public class CodeAgent {
             agentBuilder.defaultToolAdd(WebsearchTool.getInstance());
             agentBuilder.defaultToolAdd(CodeSearchTool.getInstance());
             agentBuilder.defaultToolAdd(new ApplyPatchTool());
-            agentBuilder.defaultSkillAdd(new CliSkill());
+            agentBuilder.defaultSkillAdd(new CliSkill(skillManager));
+            agentBuilder.defaultSkillAdd(new SkillDiscoverySkill(skillManager));
             agentBuilder.defaultSkillAdd(new TodoSkill());
-            agentBuilder.defaultSkillAdd(skillDiscoverySkill);
 
             //上下文摘要
-//            SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(30,
-//                    new HierarchicalSummarizationStrategy(chatModel));
+            SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(30,
+                    new HierarchicalSummarizationStrategy(chatModel));
 
-            //agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
+            agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
 
             if (enableHitl) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()

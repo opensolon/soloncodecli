@@ -94,53 +94,6 @@ public class CliSkill extends AbsSkill {
         }
     }
 
-    private Path getRootPath(String __workDir) {
-        String path = (__workDir != null) ? __workDir : workDirDef;
-        if (path == null) throw new IllegalStateException("Working directory is not set.");
-        return Paths.get(path).toAbsolutePath().normalize();
-    }
-
-    private Path resolveSafePath(Path rootPath, String pStr, boolean writeMode) {
-        if (Assert.isEmpty(pStr) || ".".equals(pStr)) {
-            return rootPath;
-        }
-
-        Path target = skillManager.resolve(rootPath, pStr);
-
-        if (pStr.startsWith("@")) {
-            String alias = pStr.split("[/\\\\]")[0];
-            boolean inPool = skillManager.getPoolMap().containsKey(alias);
-            if (!inPool) throw new SecurityException("权限拒绝：未知的技能池路径 " + pStr);
-
-            if (writeMode) {
-                LOG.warn("Attempt to write to skill pool path: {}", pStr);
-            }
-        } else {
-            if (!target.startsWith(rootPath)) {
-                throw new SecurityException("权限拒绝：路径越界。");
-            }
-        }
-        return target;
-    }
-
-    private String formatDisplayPath(Path rootPath, String inputPath, Path targetDir, Path file) {
-        if (inputPath != null && inputPath.startsWith("@")) {
-            String prefix = inputPath.split("[/\\\\]")[0];
-            return prefix + "/" + targetDir.relativize(file).toString().replace("\\", "/");
-        }
-        return rootPath.relativize(file).toString().replace("\\", "/");
-    }
-
-    private String translateCommandPaths(String command) {
-        String result = command;
-        for (Map.Entry<String, Path> entry : skillManager.getPoolMap().entrySet()) {
-            if (result.contains(entry.getKey())) {
-                result = result.replace(entry.getKey(), entry.getValue().toString());
-            }
-        }
-        return result;
-    }
-
     @Override
     public String description() {
         return "提供终端交互、文件发现、分页读取、全文搜索及精准编辑能力。";
@@ -158,7 +111,7 @@ public class CliSkill extends AbsSkill {
     // --- 1. 执行命令 ---
     @ToolMapping(
             name = "run_terminal_command",
-            description = "在 shell 中执行指令。严禁使用绝对路径。\n" +
+            description = "在 shell 中执行指令。支持逻辑路径（如 @pool）。\n" +
                     "必须首先使用 SkillDiscoverySkill 寻找匹配的“专家技能”。" +
                     "严禁在未确认专家技能规约的情况下，直接通过此命令修改业务逻辑或执行复杂流程。"
     )
@@ -171,7 +124,7 @@ public class CliSkill extends AbsSkill {
 
     // --- 2. 发现文件 ---
     @ToolMapping(name = "list_files", description = "列出目录内容。支持递归 Tree 结构展示。")
-    public String list_files(@Param(value = "path", description = "目录相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    public String list_files(@Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              @Param(value = "recursive", required = false, description = "是否递归展示") Boolean recursive,
                              @Param(value = "show_hidden", required = false, description = "是否显示隐藏文件") Boolean showHidden,
                              String __workDir) throws IOException {
@@ -193,7 +146,7 @@ public class CliSkill extends AbsSkill {
 
     // --- 3. 读取内容 ---
     @ToolMapping(name = "read_file", description = "读取文件内容。修改文件前必须先通过此工具确认最新的文本内容、缩进和换行符。支持大文件分页。")
-    public String readFile(@Param(value = "path", description = "文件相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    public String readFile(@Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                            @Param(value = "start_line", required = false, description = "起始行 (从1开始)。") Integer startLine,
                            @Param(value = "end_line", required = false, description = "结束行。") Integer endLine,
                            String __workDir) throws IOException {
@@ -227,7 +180,7 @@ public class CliSkill extends AbsSkill {
 
     // --- 4. 写入与编辑 ---
     @ToolMapping(name = "write_to_file", description = "创建新文件或覆盖现有文件。")
-    public String writeToFile(@Param(value = "path", description = "文件相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    public String writeToFile(@Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                               @Param(value = "content", description = "完整文本内容。") String content,
                               String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
@@ -243,7 +196,7 @@ public class CliSkill extends AbsSkill {
     }
 
     @ToolMapping(name = "str_replace_editor", description = "精准文本替换。")
-    public String strReplaceEditor(@Param(value = "path", description = "文件相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    public String strReplaceEditor(@Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                                    @Param(value = "old_str", description = "待替换的唯一文本块。必须唯一且包含精确缩进。") String oldStr,
                                    @Param(value = "new_str", description = "替换后的新内容。") String newStr,
                                    String __workDir) throws IOException {
@@ -269,7 +222,7 @@ public class CliSkill extends AbsSkill {
     }
 
     @ToolMapping(name = "undo_edit", description = "撤销最后一次对特定文件的 write_to_file 或 str_replace_editor 操作。")
-    public String undoEdit(@Param(value = "path", description = "文件相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    public String undoEdit(@Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                            String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
         Path target = resolveSafePath(rootPath, path, true);
@@ -283,7 +236,7 @@ public class CliSkill extends AbsSkill {
     // --- 5. 搜索工具 ---
     @ToolMapping(name = "grep_search", description = "递归搜索内容。返回 '路径:行号:内容'。在不确定文件位置时必须先执行搜索。")
     public String grepSearch(@Param(value = "query", description = "关键字。") String query,
-                             @Param(value = "path", description = "目录相对路径。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+                             @Param(value = "path", description = "相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
         Path target = resolveSafePath(rootPath, path, false);
@@ -349,6 +302,55 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 内部逻辑逻辑 ---
+
+
+
+    private Path getRootPath(String __workDir) {
+        String path = (__workDir != null) ? __workDir : workDirDef;
+        if (path == null) throw new IllegalStateException("Working directory is not set.");
+        return Paths.get(path).toAbsolutePath().normalize();
+    }
+
+    private Path resolveSafePath(Path rootPath, String pStr, boolean writeMode) {
+        if (Assert.isEmpty(pStr) || ".".equals(pStr)) {
+            return rootPath;
+        }
+
+        Path target = skillManager.resolve(rootPath, pStr);
+
+        if (pStr.startsWith("@")) {
+            String alias = pStr.split("[/\\\\]")[0];
+            boolean inPool = skillManager.getPoolMap().containsKey(alias);
+            if (!inPool) throw new SecurityException("权限拒绝：未知的技能池路径 " + pStr);
+
+            if (writeMode) {
+                LOG.warn("Attempt to write to skill pool path: {}", pStr);
+            }
+        } else {
+            if (!target.startsWith(rootPath)) {
+                throw new SecurityException("权限拒绝：路径越界。");
+            }
+        }
+        return target;
+    }
+
+    private String formatDisplayPath(Path rootPath, String inputPath, Path targetDir, Path file) {
+        if (inputPath != null && inputPath.startsWith("@")) {
+            String prefix = inputPath.split("[/\\\\]")[0];
+            return prefix + "/" + targetDir.relativize(file).toString().replace("\\", "/");
+        }
+        return rootPath.relativize(file).toString().replace("\\", "/");
+    }
+
+    private String translateCommandPaths(String command) {
+        String result = command;
+        for (Map.Entry<String, Path> entry : skillManager.getPoolMap().entrySet()) {
+            if (result.contains(entry.getKey())) {
+                result = result.replace(entry.getKey(), entry.getValue().toString());
+            }
+        }
+        return result;
+    }
 
     private void generateTreeInternal(Path rootPath, Path current, int depth, int maxDepth, String indent, StringBuilder sb, boolean showHidden) throws IOException {
         if (depth >= maxDepth) return;

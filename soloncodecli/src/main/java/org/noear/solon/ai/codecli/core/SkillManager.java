@@ -30,6 +30,10 @@ public class SkillManager {
         scanAndCache(key, rootPath);
     }
 
+    public void registerPool(String alias, String  dir){
+        registerPool(alias, Paths.get(dir));
+    }
+
     /**
      * 将逻辑路径解析为物理路径
      */
@@ -74,6 +78,18 @@ public class SkillManager {
             this.aliasPath = aliasPath;
             this.realPath = realPath;
             this.description = description;
+        }
+
+        public String getAliasPath() {
+            return aliasPath;
+        }
+
+        public Path getRealPath() {
+            return realPath;
+        }
+
+        public String getDescription() {
+            return description;
         }
     }
 
