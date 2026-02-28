@@ -144,11 +144,8 @@ public class CodeAgent {
     }
 
     public LuceneSkill getLuceneSkill(AgentSession session) {
-        String effectiveWorkDir = (String) session.attrs().getOrDefault("context:cwd", this.workDir);
-        String boxId = session.getSessionId();
-
         return (LuceneSkill) session.attrs().computeIfAbsent("LuceneSkill", x -> {
-            return new LuceneSkill(effectiveWorkDir);
+            return new LuceneSkill();
         });
     }
 
@@ -255,7 +252,7 @@ public class CodeAgent {
 
     public String init(AgentSession session) {
         String code = getInitSkill(session).refresh();
-        String search = getLuceneSkill(session).refreshSearchIndex();
+        String search = getLuceneSkill(session).refreshSearchIndex(workDir);
 
         if (Assert.isNotEmpty(code)) {
             return search + "\n" + code;
