@@ -115,7 +115,7 @@ public class CodeAgent {
     }
 
     public String getVersion() {
-        return "v0.0.14";
+        return "v0.0.15";
     }
 
     public String getWorkDir() {
@@ -159,9 +159,9 @@ public class CodeAgent {
                         .instruction(instruction)
                         .build());
             } else {
-                agentBuilder.systemPrompt(CodeSystemPrompt.builder()
-                        .instruction("你是一个超级智能体，功能强大，办事简洁高效。")
-                        .build());
+//                agentBuilder.systemPrompt(CodeSystemPrompt.builder()
+//                        .instruction("你是一个超级智能体，功能强大，办事简洁高效（禁止长篇大论）。")
+//                        .build());
             }
 
             SkillManager skillManager = new SkillManager();

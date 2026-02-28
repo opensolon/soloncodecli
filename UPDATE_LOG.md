@@ -1,4 +1,10 @@
 
+### v0.0.15
+
+* 添加 skillPools 配置替代 mountPool 配置（仍可用）
+* 优化 CliSkill 拆分为：CliSkill + SkillDiscoverySkill
+* 优化 简化系统提示词，拆散到各工具里
+
 ### v0.0.14
 
 * 添加 mcpServers 配置支持（支持 mcp 配置）
