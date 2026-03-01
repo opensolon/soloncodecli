@@ -1,5 +1,5 @@
 
-## 关于
+## 一、关于
 
 Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端助手。
 
@@ -20,7 +20,7 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 * ACP 协议：支持 Agent Context Protocol，可作为插件接入各类现代 IDE。
 
 
-## 快速开始
+## 二、快速开始
 
 ### 1、修改配置（运行前）
 
@@ -37,7 +37,22 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 
 ### 3、补充：扩展技能 (Skills) 下载
 
-
 * https://github.com/zrt-ai-lab/opencode-skills
 * https://github.com/openclaw/skills
 * https://github.com/ComposioHQ/awesome-claude-skills
+
+
+## 三、后续补充说明
+
+刚开始不用管这块内容
+
+### 关于 `AGENTS.md` 的存放位置：
+
+* 放在工作区根目录下，表示工作区内有效
+* 放在程序目录下，表示默认（工作区内没有时，会被启用）
+
+### 关于 `.soloncode` 目录：
+
+* 智能体启动后，工作区根目录会自动创建 `.soloncode` 目录（也可以提前创建）
+* `.soloncode/sessoins` 存放会话记录（自动）
+* `.soloncode/skills` 存放工作区内技能（手动），技能可以放在此处，也可以外部挂载
