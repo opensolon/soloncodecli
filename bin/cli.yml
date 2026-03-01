@@ -28,7 +28,7 @@ solon.code.cli:
   chatModel: # llm 配置（参考 solon ai chatmodel 配置）
     apiUrl: "https://ai.gitee.com/v1/chat/completions"
     apiKey: "******"
-    model: "GLM-5"
+    model: "Kimi-K2.5"
     userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; SolonCode/1.0; +https://solon.noear.org/)"
 #    defaultOptions:
 #      enable_thinking: false #不同模型可能不同
