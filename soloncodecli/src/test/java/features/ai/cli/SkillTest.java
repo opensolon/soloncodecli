@@ -24,7 +24,7 @@ public class SkillTest {
         PoolManager skillManager = new PoolManager();
         if(Assert.isNotEmpty(config.skillPools)) {
             for (Map.Entry<String, String> entry : config.skillPools.entrySet()) {
-                skillManager.registerPool(entry.getKey(), entry.getValue());
+                skillManager.register(entry.getKey(), entry.getValue());
             }
         }
 
