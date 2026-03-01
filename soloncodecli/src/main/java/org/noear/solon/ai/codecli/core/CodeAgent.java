@@ -114,7 +114,7 @@ public class CodeAgent {
     }
 
     public String getVersion() {
-        return "v0.0.15-M1";
+        return "v0.0.15-M2";
     }
 
     public String getWorkDir() {
@@ -151,7 +151,7 @@ public class CodeAgent {
             }
 
             ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel)
-                    .role("你的昵称叫 " + nickname + "。");
+                    .role("你的昵称叫 " + nickname);
 
             if (Assert.isNotEmpty(instruction)) {
                 agentBuilder.systemPrompt(CodeSystemPrompt.builder()
