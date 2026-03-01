@@ -27,17 +27,29 @@ public class PoolManager {
     private final Map<String, SkillDir> skillMap = new ConcurrentHashMap<>();
 
     /**
-     * 注册技能池并扫描
+     * 注册池（并扫描）
      */
-    public void registerPool(String alias, Path root) {
+    public PoolManager register(String alias, Path dir) {
         String key = alias.startsWith("@") ? alias : "@" + alias;
-        Path rootPath = root.toAbsolutePath().normalize();
+        Path rootPath = dir.toAbsolutePath().normalize();
         poolMap.put(key, rootPath);
         scanAndCache(key, rootPath);
+        return this;
     }
 
-    public void registerPool(String alias, String  dir){
-        registerPool(alias, Paths.get(dir));
+    /**
+     * 注册池（并扫描）
+     */
+    public PoolManager register(String alias, String dir) {
+        return register(alias, Paths.get(dir));
+    }
+
+    /**
+     * 刷新池（重新扫描所有池）
+     */
+    public void refresh() {
+        skillMap.clear();
+        poolMap.forEach(this::scanAndCache);
     }
 
     /**
@@ -57,14 +69,6 @@ public class PoolManager {
 
         String cleanPath = pStr.startsWith("./") ? pStr.substring(2) : pStr;
         return workDir.resolve(cleanPath).normalize();
-    }
-
-    /**
-     * 重新扫描所有池
-     */
-    public void refresh() {
-        skillMap.clear();
-        poolMap.forEach(this::scanAndCache);
     }
 
     public Map<String, SkillDir> getSkillMap() {

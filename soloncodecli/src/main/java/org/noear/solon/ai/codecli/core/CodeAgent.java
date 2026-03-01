@@ -148,10 +148,10 @@ public class CodeAgent {
                         .build());
             }
 
-            PoolManager poolManager = new PoolManager();
+            CliSkillProvider cliSkillProvider = new CliSkillProvider();
             if(Assert.isNotEmpty(skillPools)) {
                 for (Map.Entry<String, String> entry : skillPools.entrySet()) {
-                    poolManager.registerPool(entry.getKey(), entry.getValue());
+                    cliSkillProvider.skillPool(entry.getKey(), entry.getValue());
                 }
             }
 
@@ -159,8 +159,7 @@ public class CodeAgent {
             agentBuilder.defaultToolAdd(WebsearchTool.getInstance());
             agentBuilder.defaultToolAdd(CodeSearchTool.getInstance());
             agentBuilder.defaultToolAdd(new ApplyPatchTool());
-            agentBuilder.defaultSkillAdd(new TerminalSkill(poolManager));
-            agentBuilder.defaultSkillAdd(new ExpertSkill(poolManager));
+            agentBuilder.defaultSkillAdd(cliSkillProvider);
             agentBuilder.defaultSkillAdd(new TodoSkill());
 
             //上下文摘要
