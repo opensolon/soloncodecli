@@ -182,6 +182,7 @@ public class CodeAgent {
             final String agentsMd = getAgentsMd();
 
             if (Assert.isEmpty(agentsMd)) {
+                //无 AGENTS.md 配置
                 agentBuilder.role("你的昵称叫 " + nickname);
 
                 if (Assert.isNotEmpty(instruction)) {
@@ -193,6 +194,7 @@ public class CodeAgent {
                             .build());
                 }
             } else {
+                //有 AGENTS.md 配置
                 agentBuilder.systemPrompt(trace -> agentsMd);
             }
 
