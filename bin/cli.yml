@@ -31,6 +31,7 @@ solon.code.cli:
     model: "GLM-5"
     userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; SolonCode/1.0; +https://solon.noear.org/)"
 #    defaultOptions:
+#      enable_thinking: false #不同模型可能不同
 #      temperature: 0.2
 #      top_p: 0.5
 #      frequency_penalty: 0.5
