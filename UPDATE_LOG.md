@@ -2,7 +2,9 @@
 ### v0.0.15
 
 * 添加 skillPools 配置替代 mountPool 配置（仍可用）
-* 优化 CliSkill 拆分为：CliSkill + SkillDiscoverySkill
+* 添加 TodoSkill（独立出来）
+* 添加 AGENTS.md 配置支持
+* 优化 CliSkill 拆分为：TerminalSkill + ExpertSkill
 * 优化 简化系统提示词，拆散到各工具里
 
 ### v0.0.14
