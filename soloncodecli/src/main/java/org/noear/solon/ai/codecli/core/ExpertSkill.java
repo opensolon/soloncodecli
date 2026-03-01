@@ -14,19 +14,19 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 规约自治网关
+ * 专家技能管理器
  *
  * 支持三阶段模式自动切换：
  * 1. FULL: 数量 <= dynamicThreshold，全量平铺。
  * 2. DYNAMIC: 数量 <= searchThreshold，指令内展示清单。
  * 3. SEARCH: 数量 > searchThreshold，强制搜索。
  */
-public class SkillDiscoverySkill extends AbsSkill {
+public class ExpertSkill extends AbsSkill {
     private final SkillManager skillManager;
     private int dynamicThreshold = 8; // 超过此值，不再平铺注入所有 SKILL.md
     private int searchThreshold = 80;  // 超过此值，不再展示摘要清单，进入强制搜索
 
-    public SkillDiscoverySkill(SkillManager skillManager) {
+    public ExpertSkill(SkillManager skillManager) {
         this.skillManager = skillManager;
     }
 
@@ -55,7 +55,7 @@ public class SkillDiscoverySkill extends AbsSkill {
                 sb.append(renderSkillXml(skill, false));
             }
         } else if (total <= searchThreshold) {
-            sb.append("检测到多个专家技能。在执行相关领域动作前，必须先调用 `explain_skill` 加载具体技能规约：\n");
+            sb.append("检测到多个专家技能。在执行相关领域动作前，必须先调用 `skillread` 加载具体技能规约：\n");
             sb.append("<available_skills>\n");
             for (SkillManager.SkillDir skill : skillMap.values()) {
                 sb.append("  <skill name=\"").append(skill.aliasPath).append("\">")
@@ -64,8 +64,8 @@ public class SkillDiscoverySkill extends AbsSkill {
             sb.append("</available_skills>");
         } else {
             sb.append("专家技能库规模较大。为了确保工程质量，请执行以下检索流程：\n");
-            sb.append("1. **技能检索**：处理特定技术栈前，可以通过 `search_skills` 检索对应的专家技能。\n");
-            sb.append("2. **规约读取**：通过 `explain_skill` 获取技能对应的 SKILL.md 完整规约。\n");
+            sb.append("1. **技能检索**：处理特定技术栈前，可以通过 `skillsearch` 检索对应的专家技能。\n");
+            sb.append("2. **规约读取**：通过 `skillread` 获取技能对应的 SKILL.md 完整规约。\n");
         }
 
         return sb.toString();
@@ -78,16 +78,16 @@ public class SkillDiscoverySkill extends AbsSkill {
 
         int total = skillMap.size();
         if (total <= dynamicThreshold) {
-            return tools.stream().filter(t -> t.name().equals("explain_skill")).collect(Collectors.toList());
+            return tools.stream().filter(t -> t.name().equals("skillread")).collect(Collectors.toList());
         } else if (total <= searchThreshold) {
-            return tools.stream().filter(t -> t.name().equals("explain_skill") || t.name().equals("list_skills")).collect(Collectors.toList());
+            return tools.stream().filter(t -> t.name().equals("skillread") || t.name().equals("skilllist")).collect(Collectors.toList());
         } else {
             return this.tools;
         }
     }
 
-    @ToolMapping(name = "list_skills", description = "列出所有已挂载专家技能池中的可用清单。")
-    public String listSkills() {
+    @ToolMapping(name = "skilllist", description = "列出所有已挂载专家技能池中的可用清单。")
+    public String skilllist() {
         Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         if (skillMap.isEmpty()) return "当前没有可用的专家技能。";
 
@@ -98,8 +98,8 @@ public class SkillDiscoverySkill extends AbsSkill {
         return sb.toString();
     }
 
-    @ToolMapping(name = "search_skills", description = "在所有专家技能池中搜索关键字。支持空格分隔多个词。")
-    public String searchSkills(@Param("query") String query) {
+    @ToolMapping(name = "skillsearch", description = "在所有专家技能池中搜索关键字。支持空格分隔多个词。")
+    public String skillsearch(@Param("query") String query) {
         Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         String[] keys = query.toLowerCase().split("\\s+");
 
@@ -121,8 +121,8 @@ public class SkillDiscoverySkill extends AbsSkill {
         return sb.toString();
     }
 
-    @ToolMapping(name = "explain_skill", description = "加载特定专家技能的完整 SKILL.md 规约及其文件参考。")
-    public String explainSkill(@Param("path") String path, String __workDir) throws IOException {
+    @ToolMapping(name = "skillread", description = "加载特定专家技能的完整 SKILL.md 规约及其文件参考。")
+    public String skillread(@Param("path") String path, String __workDir) throws IOException {
         Map<String, SkillManager.SkillDir> skillMap = skillManager.getSkillMap();
         // 1. 优先从内存 Map 查找逻辑路径
         SkillManager.SkillDir cachedSkill = skillMap.get(path);
@@ -137,8 +137,8 @@ public class SkillDiscoverySkill extends AbsSkill {
         return renderSkillXml(new SkillManager.SkillDir(path, target, null), true);
     }
 
-    @ToolMapping(name = "refresh_skills", description = "重新扫描所有专家技能池，更新专家技能列表。")
-    public String refreshSkills() {
+    @ToolMapping(name = "skillrefresh", description = "重新扫描所有专家技能池，更新专家技能列表。")
+    public String skillrefresh() {
         skillManager.refresh();
         return "专家技能库已刷新，当前可用专家技能数：" + skillManager.getSkillMap().size();
     }

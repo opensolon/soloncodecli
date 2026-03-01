@@ -166,7 +166,7 @@ public class CodeSystemPrompt implements ReActSystemPrompt {
         if (instructionProvider != null || trace.getOptions().getSkillInstruction() != null) {
             sb.append("## 核心任务指令\n");
 
-            sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 SkillDiscoverySkill 检索）\n");
+            sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 ExpertSkill 检索）\n");
 
             // Agent 级指令
             if (instructionProvider != null) {

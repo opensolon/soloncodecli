@@ -35,7 +35,7 @@ public class TodoSkill extends AbsSkill {
         return null;
     }
 
-    @ToolMapping(name = "todo_read", description =
+    @ToolMapping(name = "todoread", description =
             "读取当前会话的任务清单。你应该主动且频繁地使用此工具以确保知晓任务状态。建议场景：\n" +
                     "- 开始新对话时查看历史遗留进度；\n" +
                     "- 在执行多个复杂步骤中途，确认下一步优先级；\n" +
@@ -46,14 +46,14 @@ public class TodoSkill extends AbsSkill {
         Path todoFile = rootPath.resolve("TODO.md");
 
         if (!Files.exists(todoFile)) {
-            return "[] (当前任务清单为空。若任务复杂，请使用 todo_write 初始化计划。)";
+            return "[] (当前任务清单为空。若任务复杂，请使用 `todowrite` 初始化计划。)";
         }
 
         byte[] encoded = Files.readAllBytes(todoFile);
         return new String(encoded, StandardCharsets.UTF_8);
     }
 
-    @ToolMapping(name = "todo_write", description =
+    @ToolMapping(name = "todowrite", description =
             "管理任务列表。必须在处理 3 步以上复杂任务时使用。\n\n" +
                     "## 强制要求：\n" +
                     "1. 收到新指令时立即捕捉为待办项，并根据新信息随时调整清单；\n" +
@@ -63,7 +63,7 @@ public class TodoSkill extends AbsSkill {
                     "<example>\n" +
                     "用户：帮我把项目里的 getCwd 改成 getCurrentWorkingDirectory。\n" +
                     "助手：我先搜索全局出现的次数。发现涉及 8 个文件。我将建立清单以防遗漏。\n" +
-                    "调用 todo_write (todos: \"- [ ] 备份源码\\n- [/] 修改 src/main.java (in_progress)\\n- [ ] 修改 lib/util.java (pending)...\")\n" +
+                    "调用 `todowrite` (todos: \"- [ ] 备份源码\\n- [/] 修改 src/main.java (in_progress)\\n- [ ] 修改 lib/util.java (pending)...\")\n" +
                     "</example>")
     public String todoWrite(
             @Param(value = "todos", description = "更新后的完整 Markdown 列表。") String todosMarkdown,

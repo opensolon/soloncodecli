@@ -35,7 +35,6 @@ import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import reactor.core.publisher.Flux;
 
-import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -175,7 +174,7 @@ public class CodeAgent {
             agentBuilder.defaultToolAdd(CodeSearchTool.getInstance());
             agentBuilder.defaultToolAdd(new ApplyPatchTool());
             agentBuilder.defaultSkillAdd(new CliSkill(skillManager));
-            agentBuilder.defaultSkillAdd(new SkillDiscoverySkill(skillManager));
+            agentBuilder.defaultSkillAdd(new ExpertSkill(skillManager));
             agentBuilder.defaultSkillAdd(new TodoSkill());
 
             //上下文摘要
