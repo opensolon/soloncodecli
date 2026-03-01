@@ -37,11 +37,6 @@ import java.util.stream.Stream;
 
 /**
  * Claude Code 规范对齐的 CLI 基础执行技能
- * * 职责：
- * 1. 终端命令执行 (run_terminal_command)
- * 2. 文件系统深度操作 (list, read, grep, glob)
- * 3. 精准代码编辑 (str_replace_editor, undo)
- * 4. 逻辑路径 (@pool) 的写入安全隔离
  *
  * @author noear
  * @since 3.9.1
@@ -116,15 +111,15 @@ public class CliSkill extends AbsSkill {
                 "- **逻辑路径支持**: 已挂载 " + skillManager.getPoolMap().keySet() + "\n\n" +
                 "#### 执行规约\n" +
                 "- **只读隔离**: 逻辑路径（以 @ 开头）仅支持读取和命令执行，所有写入操作必须使用相对路径。\n" +
-                "- **命令执行**: 在 `run_terminal_command` 中，优先使用环境变量访问工具，例如使用 `" + envExample + "/bin/tool`。\n";
+                "- **命令执行**: 在 `bash` 中，优先使用环境变量访问工具，例如使用 `" + envExample + "/bin/tool`。\n";
     }
 
     // --- 1. 执行命令 ---
     @ToolMapping(
-            name = "run_terminal_command",
+            name = "bash",
             description = "在终端执行 Shell 指令。支持逻辑路径（如 @pool）自动转环境变量。"
     )
-    public String run_terminal_command(@Param(value = "command", description = "要执行的指令。") String command,
+    public String bash(@Param(value = "command", description = "要执行的指令。") String command,
                                        String __workDir) {
         Path rootPath = getRootPath(__workDir);
         Map<String, String> envs = new HashMap<>();
@@ -134,8 +129,8 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 2. 发现文件 ---
-    @ToolMapping(name = "list_files", description = "列出目录内容。支持递归 Tree 结构展示。支持逻辑路径（如 @pool）。")
-    public String list_files(@Param(value = "path", description = "目录相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    @ToolMapping(name = "ls", description = "列出目录内容。支持递归 Tree 结构展示。支持逻辑路径（如 @pool）。")
+    public String ls(@Param(value = "path", description = "目录相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              @Param(value = "recursive", required = false, description = "是否递归展示") Boolean recursive,
                              @Param(value = "show_hidden", required = false, description = "是否显示隐藏文件") Boolean showHidden,
                              String __workDir) throws IOException {
@@ -156,8 +151,8 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 3. 读取内容 ---
-    @ToolMapping(name = "read_file", description = "读取文件内容。修改文件前必须先通过此工具确认最新的文本内容、缩进和换行符。支持大文件分页。支持逻辑路径（如 @pool）。")
-    public String readFile(@Param(value = "path", description = "文件相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    @ToolMapping(name = "read", description = "读取文件内容。修改文件前必须先通过此工具确认最新的文本内容、缩进和换行符。支持大文件分页。支持逻辑路径（如 @pool）。")
+    public String read(@Param(value = "path", description = "文件相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                            @Param(value = "start_line", required = false, description = "起始行 (从1开始)。") Integer startLine,
                            @Param(value = "end_line", required = false, description = "结束行。") Integer endLine,
                            String __workDir) throws IOException {
@@ -190,8 +185,8 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 4. 写入与编辑 ---
-    @ToolMapping(name = "write_to_file", description = "创建新文件或覆盖现有文件。")
-    public String writeToFile(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    @ToolMapping(name = "write", description = "创建新文件或覆盖现有文件。")
+    public String write(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                               @Param(value = "content", description = "完整文本内容。") String content,
                               String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
@@ -206,8 +201,8 @@ public class CliSkill extends AbsSkill {
         return "文件成功写入: " + path;
     }
 
-    @ToolMapping(name = "str_replace_editor", description = "精准文本替换。")
-    public String strReplaceEditor(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    @ToolMapping(name = "edit", description = "精准文本替换。")
+    public String edit(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                                    @Param(value = "old_str", description = "待替换的唯一文本块。必须唯一且包含精确缩进。") String oldStr,
                                    @Param(value = "new_str", description = "替换后的新内容。") String newStr,
                                    String __workDir) throws IOException {
@@ -223,7 +218,7 @@ public class CliSkill extends AbsSkill {
         }
 
         int firstIndex = content.indexOf(finalOld);
-        if (firstIndex == -1) return "错误：找不到文本块。请确保 old_str 的缩进和换行与 read_file 的输出完全一致。";
+        if (firstIndex == -1) return "错误：找不到文本块。请确保 old_str 的缩进和换行与 read 的输出完全一致。";
         if (content.lastIndexOf(finalOld) != firstIndex) return "错误：文本块在文件中不唯一，请增加上下文行。";
 
         undoHistory.put(path, content);
@@ -232,8 +227,8 @@ public class CliSkill extends AbsSkill {
         return "文件成功修改: " + path;
     }
 
-    @ToolMapping(name = "undo_edit", description = "撤销最后一次对特定文件的 write_to_file 或 str_replace_editor 操作。")
-    public String undoEdit(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
+    @ToolMapping(name = "undo", description = "撤销最后一次对特定文件的 write 或 edit 操作。")
+    public String undo(@Param(value = "path", description = "文件相对路径（如 'src'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                            String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
         Path target = resolveSafePath(rootPath, path, true);
@@ -245,8 +240,8 @@ public class CliSkill extends AbsSkill {
     }
 
     // --- 5. 搜索工具 ---
-    @ToolMapping(name = "grep_search", description = "递归搜索内容。返回 '路径:行号:内容'。在不确定文件位置时必须先执行搜索。支持逻辑路径（如 @pool）。")
-    public String grepSearch(@Param(value = "query", description = "关键字。") String query,
+    @ToolMapping(name = "grep", description = "递归搜索内容。返回 '路径:行号:内容'。在不确定文件位置时必须先执行搜索。支持逻辑路径（如 @pool）。")
+    public String grep(@Param(value = "query", description = "关键字。") String query,
                              @Param(value = "path", description = "目录相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
@@ -282,8 +277,8 @@ public class CliSkill extends AbsSkill {
         return sb.length() == 0 ? "未找到结果。" : sb.toString();
     }
 
-    @ToolMapping(name = "glob_search", description = "按通配符模式（如 **/*.java）搜索文件。确定文件范围的最高效工具。支持逻辑路径（如 @pool）。")
-    public String globSearch(@Param(value = "pattern", description = "glob 模式。") String pattern,
+    @ToolMapping(name = "glob", description = "按通配符模式（如 **/*.java）搜索文件。确定文件范围的最高效工具。支持逻辑路径（如 @pool）。")
+    public String glob(@Param(value = "pattern", description = "glob 模式。") String pattern,
                              @Param(value = "path", description = "目录相对路径（如 'src'）或逻辑路径（如 '@pool'）。'.' 表示当前根目录。禁止以 ./ 开头。") String path,
                              String __workDir) throws IOException {
         Path rootPath = getRootPath(__workDir);
