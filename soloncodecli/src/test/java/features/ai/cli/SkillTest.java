@@ -3,7 +3,7 @@ package features.ai.cli;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.Solon;
 import org.noear.solon.ai.codecli.Config;
-import org.noear.solon.ai.codecli.core.SkillDiscoverySkill;
+import org.noear.solon.ai.codecli.core.ExpertSkill;
 import org.noear.solon.ai.codecli.core.SkillManager;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.test.SolonTest;
@@ -28,7 +28,7 @@ public class SkillTest {
             }
         }
 
-        SkillDiscoverySkill discoverySkill = new SkillDiscoverySkill(skillManager);
+        ExpertSkill discoverySkill = new ExpertSkill(skillManager);
 
         //video generation animation
         //AI image video media generation
@@ -39,7 +39,7 @@ public class SkillTest {
         System.out.println(desc);
         assert desc.length() > 30;
 
-        String list = discoverySkill.searchSkills("video generation animation");
+        String list = discoverySkill.skillsearch("video generation animation");
         System.out.println(list);
         assert list.length() > 100;
     }
