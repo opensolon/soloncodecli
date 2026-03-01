@@ -140,11 +140,11 @@ public class CodeAgent {
                     .role("你的昵称叫 " + nickname);
 
             if (Assert.isNotEmpty(instruction)) {
-                agentBuilder.systemPrompt(CodeSystemPrompt.builder()
+                agentBuilder.systemPrompt(SystemPrompt.builder()
                         .instruction(instruction)
                         .build());
             } else {
-                agentBuilder.systemPrompt(CodeSystemPrompt.builder()
+                agentBuilder.systemPrompt(SystemPrompt.builder()
                         .build());
             }
 

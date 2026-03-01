@@ -20,14 +20,14 @@ import java.util.function.Function;
  * @since 3.8.1
  */
 @Preview("3.8.1")
-public class CodeSystemPrompt implements ReActSystemPrompt {
-    private static final Logger log = LoggerFactory.getLogger(CodeSystemPrompt.class);
+public class SystemPrompt implements ReActSystemPrompt {
+    private static final Logger log = LoggerFactory.getLogger(SystemPrompt.class);
 
     private final String roleDesc;
     private final Function<ReActTrace, String> instructionProvider;
 
-    protected CodeSystemPrompt(String roleDesc,
-                               Function<ReActTrace, String> instructionProvider) {
+    protected SystemPrompt(String roleDesc,
+                           Function<ReActTrace, String> instructionProvider) {
         this.roleDesc = roleDesc;
         this.instructionProvider = instructionProvider;
     }
@@ -148,23 +148,15 @@ public class CodeSystemPrompt implements ReActSystemPrompt {
     }
 
     private void appendBusinessInstructions(StringBuilder sb, ReActTrace trace) {
-        if (instructionProvider != null || trace.getOptions().getSkillInstruction() != null) {
-            sb.append("## 核心任务指令\n");
+        sb.append("## 核心任务指令\n");
+        sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 skillsearch 搜索）\n");
 
-            sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 skillsearch 搜索）\n");
-
+        if (instructionProvider != null) {
             // Agent 级指令
-            if (instructionProvider != null) {
-                sb.append(instructionProvider.apply(trace)).append("\n");
-            }
-
-            // Skill 级指令（增加一个子标题，强化感知）
-            if (trace.getOptions().getSkillInstruction() != null) {
-                sb.append("\n## 补充业务准则\n");
-                sb.append(trace.getOptions().getSkillInstruction()).append("\n");
-            }
-            sb.append("\n");
+            sb.append(instructionProvider.apply(trace)).append("\n");
         }
+
+        sb.append("\n");
     }
 
     /**
@@ -203,7 +195,7 @@ public class CodeSystemPrompt implements ReActSystemPrompt {
                 log.debug("Building ReActSystemPromptCn with custom role: {}, custom instruction: {}",
                         roleDesc != null, instructionProvider != null);
             }
-            return new CodeSystemPrompt(roleDesc, instructionProvider);
+            return new SystemPrompt(roleDesc, instructionProvider);
         }
     }
 }
