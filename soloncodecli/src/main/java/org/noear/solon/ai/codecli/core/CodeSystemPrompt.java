@@ -99,9 +99,9 @@ public class CodeSystemPrompt implements ReActSystemPrompt {
     protected String getNaturalInstruction(ReActTrace trace) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("## 操作约束\n")
-                .append("1. **直接调用**：如果需要使用工具，直接输出函数调用即可。\n")
-                .append("2. **严禁伪造**：禁止在正文中模拟或伪造工具的返回结果（Observation）。\n\n");
+//        sb.append("## 操作约束\n")
+//                .append("1. **直接调用**：如果需要使用工具，直接输出函数调用即可。\n")
+//                .append("2. **严禁伪造**：禁止在正文中模拟或伪造工具的返回结果（Observation）。\n\n");
 
         // 业务指令注入
         appendBusinessInstructions(sb, trace);
@@ -165,7 +165,7 @@ public class CodeSystemPrompt implements ReActSystemPrompt {
         if (instructionProvider != null || trace.getOptions().getSkillInstruction() != null) {
             sb.append("## 核心任务指令\n");
 
-            sb.append("优先使用合适的技能解决问题（不确定用什么技能时，先通过 SkillDiscoverySkill 检索）\n");
+            sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 SkillDiscoverySkill 检索）\n");
 
             // Agent 级指令
             if (instructionProvider != null) {
