@@ -148,15 +148,12 @@ public class SystemPrompt implements ReActSystemPrompt {
     }
 
     private void appendBusinessInstructions(StringBuilder sb, ReActTrace trace) {
-        sb.append("## 核心任务指令\n");
-        sb.append("优先使用合适的技能解决问题（不确定用什么技能时，可通过 skillsearch 搜索）\n");
-
         if (instructionProvider != null) {
+            sb.append("## 核心任务指令\n");
             // Agent 级指令
             sb.append(instructionProvider.apply(trace)).append("\n");
+            sb.append("\n");
         }
-
-        sb.append("\n");
     }
 
     /**

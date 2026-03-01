@@ -55,7 +55,7 @@ public class CodeSkill extends AbsSkill {
 
        String msg = init();
 
-        buf.append("\n#### 核心工程规约 (Core Engineering Protocol)\n");
+        buf.append("\n## 核心工程规约 (Core Engineering Protocol)\n");
         buf.append("> Project Context: ").append(msg).append("\n\n");
 
         buf.append("为了确保工程质量，要严格执行以下操作：\n")
