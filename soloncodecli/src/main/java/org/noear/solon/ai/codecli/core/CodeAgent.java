@@ -49,6 +49,8 @@ public class CodeAgent {
     public final static String SESSION_DEFAULT = "cli";
     public final static String SOLONCODE_SESSIONS = "/.soloncode/sessions/";
     public final static String SOLONCODE_SKILLS = "/.soloncode/skills/";
+    public final static String OPENCODE_SKILLS = "/.opencode/skills/";
+    public final static String CLAUDE_SKILLS = "/.claude/skills/";
 
     private final ChatModel chatModel;
     private AgentSessionProvider sessionProvider;
@@ -67,7 +69,7 @@ public class CodeAgent {
     }
 
     public String getVersion() {
-        return "v0.0.15";
+        return "v0.0.16-M1";
     }
 
     public String getWorkDir() {
@@ -175,7 +177,10 @@ public class CodeAgent {
                     cliSkillProvider.skillPool(entry.getKey(), entry.getValue());
                 }
             }
-            cliSkillProvider.skillPool("@local", workDir + CodeAgent.SOLONCODE_SKILLS);
+
+            cliSkillProvider.skillPool("@soloncode_skills", workDir + CodeAgent.SOLONCODE_SKILLS);
+            cliSkillProvider.skillPool("@opencode_skills", workDir + CodeAgent.OPENCODE_SKILLS);
+            cliSkillProvider.skillPool("@claude_skills", workDir + CodeAgent.CLAUDE_SKILLS);
 
             agentBuilder.defaultToolAdd(WebfetchTool.getInstance());
             agentBuilder.defaultToolAdd(WebsearchTool.getInstance());
