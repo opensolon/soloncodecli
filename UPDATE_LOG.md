@@ -1,4 +1,9 @@
 
+
+### v0.0.17
+
+* 优化 CodeSkill 增加三级扫描（之前为二级）
+
 ### v0.0.16
 
 * 添加 自动加载工作区下的 `.opencode/skills` 作为 `@opencode_skills` 只读池

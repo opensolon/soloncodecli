@@ -10,7 +10,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -94,31 +96,42 @@ public class CodeSkill extends AbsSkill {
                 appendNodeCommands(newContent, null);
             }
 
-            try (Stream<Path> stream = Files.list(rootPath)) {
-                List<Path> subDirs = stream.filter(Files::isDirectory)
-                        .filter(p -> !p.getFileName().toString().startsWith("."))
+            try (Stream<Path> stream = Files.walk(rootPath, 3)) {
+                List<Path> allNodes = stream.filter(Files::isDirectory)
+                        .filter(p -> !p.equals(rootPath))
+                        .filter(p -> !isIgnored(p)) // 使用统一的过滤逻辑
                         .collect(Collectors.toList());
 
                 boolean hasSubModulesSection = false;
 
-                for (Path dir : subDirs) {
-                    String name = dir.getFileName().toString();
+                // 存储已经处理过的模块路径，防止重复（比如父子目录都被识别）
+                Set<String> processedPaths = new HashSet<>();
+
+                for (Path dir : allNodes) {
+                    String relativePath = rootPath.relativize(dir).toString().replace("\\", "/");
+
+                    // 如果父目录已经作为模块处理过了，子目录就不再单独列出（Maven 惯例）
+                    if (processedPaths.stream().anyMatch(relativePath::startsWith)) continue;
+
                     boolean isMaven = Files.exists(dir.resolve("pom.xml"));
                     boolean isNode = Files.exists(dir.resolve("package.json"));
 
                     if (isMaven || isNode) {
+                        processedPaths.add(relativePath); // 标记此路径已处理
+
+                        // 判断是否是异构项目（比如 Root 是 Maven，子目录是 Node）
                         boolean isHeterogeneous = (isMaven && !rootHasMaven) || (isNode && !rootHasNode);
 
                         if (isHeterogeneous) {
-                            detectedStacks.add(name + (isMaven ? "(Maven)" : "(Node)"));
-                            if (isMaven) appendMavenCommands(newContent, name);
-                            if (isNode) appendNodeCommands(newContent, name);
+                            detectedStacks.add(relativePath + (isMaven ? "(Maven)" : "(Node)"));
+                            if (isMaven) appendMavenCommands(newContent, relativePath);
+                            if (isNode) appendNodeCommands(newContent, relativePath);
                         } else {
                             if (!hasSubModulesSection) {
                                 newContent.append("### Sub-modules / Sub-projects\n");
                                 hasSubModulesSection = true;
                             }
-                            newContent.append("- ").append(name).append(": ")
+                            newContent.append("- ").append(relativePath).append(": ")
                                     .append(isMaven ? "Maven module" : "Node project")
                                     .append(". Controlled by root project commands.\n");
                         }
@@ -210,18 +223,24 @@ public class CodeSkill extends AbsSkill {
     }
 
     private boolean deepExists(String path) {
-        // 1. 优先检查根目录
-        if (rootExists(path)) {
-            return true;
-        }
-
-        // 2. 检查二级目录 (例如 apps/my-app/pom.xml)
-        try (Stream<Path> stream = Files.list(rootPath)) {
+        try (Stream<Path> stream = Files.walk(rootPath, 3)) {
             return stream.filter(Files::isDirectory)
-                    .filter(p -> !p.getFileName().toString().startsWith(".")) // 排除隐藏目录
+                    .filter(p -> !isIgnored(p)) // 清爽的过滤
                     .anyMatch(dir -> Files.exists(dir.resolve(path)));
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private boolean isIgnored(Path path) {
+        String name = path.getFileName().toString();
+        // 过滤隐藏目录、依赖目录和构建输出目录
+        return name.startsWith(".")
+                || "node_modules".equals(name)
+                || "target".equals(name)
+                || "bin".equals(name)
+                || "venv".equals(name)
+                || "vendor".equals(name)
+                || "build".equals(name);
     }
 }
