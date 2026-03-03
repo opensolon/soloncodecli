@@ -34,7 +34,7 @@ solon.code.cli:
 #      frequency_penalty: 0.5
 #      presence_penalty: 0.4
   skillPools: # 技能池（可以多个）
-    "@shared": "${user.home}/WORK/work_github/solonlab/opencode-skills"
+    "@shared": "/path/to/shared-skills"
 #  mcpServers:
 #    gitee:
 #      url: "http://..."

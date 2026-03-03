@@ -13,6 +13,11 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 * 广泛兼容：支持 Java 8 ~ 25 全环境运行（即便在老旧企业级项目中也能起飞）。
 * 网络能力：自带 Webfetch、Websearch 工具，方便感知网络（基于 `mcp.exa.ai/mcp` 封装）
 * 开源定制：（MIT 开源协议）方便企业基于 Java 生态去定制自己的 Agent
+* 兼容第三方规范：
+    * 支持自动加载 `.opencode/skills` 作为 `@opencode_skills` 只读池
+    * 支持自动加载 `.claude/skills` 作为 `@claude_skills` 只读池
+    * 支持自动加载 `CLAUDE.md` 作为代码项目规范
+
 
 **多态运行支持**
 
@@ -38,12 +43,12 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 
 各模型如果能关闭思考的，建议关闭。节省 token。
 
-## 二、快速开始
+## 二、快速开始（重要！）
 
 ### 1、修改配置（运行前）
 
-* 先修改 cli.yml 的配置。主要修改 chatModel（修改后，就能运行了）
-* 再修改 AGENTS.md （设定自己的智能体，比如性格，风格，专业等...）
+* 先修改 `config.yml` 的配置。主要修改 chatModel（修改后，就能运行了）
+* 再修改 `AGENTS.md` （设定自己的智能体，比如性格，风格，专业等...）
 
 
 ### 2、运行
@@ -60,9 +65,21 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 * https://github.com/ComposioHQ/awesome-claude-skills
 
 
-## 三、后续补充说明
+重要提醒：
 
-刚开始不用管这块内容
+* 如果有跨技能 `.opencode` 或 `.claude` 开头的脚本调用，要放到工作区的规范目录下
+* 如果没有（跨技能），可按普通技能池配置挂载
+
+兼容第三方规范（v0.0.16 后支持）：
+
+* 支持自动加载 `.opencode/skills` 作为 `@opencode_skills` 只读池
+* 支持自动加载 `.claude/skills` 作为 `@claude_skills` 只读池
+
+
+
+## 三、后续补充说明（刚开始不用管这块内容）
+
+
 
 ### 关于 `AGENTS.md` 的存放位置：
 
@@ -73,35 +90,9 @@ Solon Code CLI 是基于 Solon AI 框架构建的高性能、自主式 AI 终端
 
 ### 关于 `.soloncode` 目录：
 
-* 智能体启动后，工作区根目录会自动创建 `.soloncode` 目录（也可以提前创建）
+智能体启动后，工作区根目录会自动创建 `.soloncode` 目录（也可以提前创建）
+
 * `.soloncode/sessoins` 存放会话记录（自动）
 * `.soloncode/skills` 存放工作区内技能（手动），技能可以放在此处，也可以外部挂载
 * `.soloncode/agents` 预留
 
-
-## 四、最近的更新说明：
-
-
-* 添加 skillPools 配置替代 mountPool 配置（仍可用）
-* 添加 TodoSkill（独立出来）
-* 添加 AGENTS.md 配置支持
-* 优化 CliSkill 拆分为：TerminalSkill + ExpertSkill
-* 优化 简化系统提示词，拆散到各工具里
-* 调整 工件包 `SolonCodeCLI.jar` 改为 `soloncode-cli.jar`
-* 调整 系统目录 `.system` 改为 `.soloncode`（后者更有标识性）
-* 调整 配置文件 `cli.yml` 改为 `config.yml`（后都更通用）
-* 调整 配置项 `config/nickname` 取消（由 AGENTS.md 替代，更自由全面）
-* 调整 配置项 `config/instruction` 取消（由 AGENTS.md 替代，更自由全面）
-
-
-关于 `AGENTS.md` 的存放位置：
-
-* 放在工作区根目录下，表示工作区内有效
-* 放在程序目录下，表示默认（工作区内没有时，会被启用）
-
-关于 `.soloncode` 目录：
-
-* 智能体启动后，工作区根目录会自动创建 `.soloncode` 目录（也可以提前创建）
-* `.soloncode/sessoins` 存放会话记录（自动）
-* `.soloncode/skills` 存放工作区内技能（手动），技能可以放在此处，也可以外部挂载
-* `.soloncode/agents` 预留
