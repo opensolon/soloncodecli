@@ -40,6 +40,7 @@ public class CodeProperties {
     public int summaryWindowSize = 15;
 
     public boolean sandboxMode = true;
+    public boolean thinkPrinted = false;
     public boolean hitlEnabled = false;
 
     public boolean cliEnabled = true;

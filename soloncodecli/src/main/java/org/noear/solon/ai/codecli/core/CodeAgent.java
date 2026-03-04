@@ -92,6 +92,10 @@ public class CodeAgent {
         return "v0.0.17";
     }
 
+    public CodeProperties getConfig() {
+        return config;
+    }
+
     public String getWorkDir() {
         return config.workDir;
     }
