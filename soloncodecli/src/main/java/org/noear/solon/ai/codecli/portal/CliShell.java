@@ -264,9 +264,11 @@ public class CliShell implements Runnable {
     }
 
     private void onReasonChunk(ReasonChunk reason, AtomicBoolean isFirstReasonChunk, AtomicBoolean isFirstConversation) {
-        if (!reason.isToolCalls()) {
-            String delta = clearThink(reason.getContent());
-            onReasonChunkDo(delta, isFirstReasonChunk, isFirstConversation);
+        if (!reason.isToolCalls() && reason.hasContent()) {
+            if (!reason.getMessage().isThinking()) {
+                String delta = clearThink(reason.getContent());
+                onReasonChunkDo(delta, isFirstReasonChunk, isFirstConversation);
+            }
         }
     }
 
