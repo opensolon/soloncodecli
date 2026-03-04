@@ -22,16 +22,16 @@ import java.util.stream.Stream;
  * 3. SEARCH: 数量 > searchThreshold，强制搜索。
  */
 public class ExpertSkill extends AbsSkill {
-    private final PoolManager skillManager;
+    private final PoolManager poolManager;
     private int dynamicThreshold = 8; // 超过此值，不再平铺注入所有 SKILL.md
     private int searchThreshold = 80;  // 超过此值，不再展示摘要清单，进入强制搜索
 
-    public ExpertSkill(PoolManager skillManager) {
-        this.skillManager = skillManager;
+    public ExpertSkill(PoolManager poolManager) {
+        this.poolManager = poolManager;
     }
 
     public PoolManager getSkillManager() {
-        return skillManager;
+        return poolManager;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class ExpertSkill extends AbsSkill {
 
     @Override
     public String getInstruction(Prompt prompt) {
-        Map<String, PoolManager.SkillDir> skillMap = skillManager.getSkillMap();
+        Map<String, PoolManager.SkillDir> skillMap = poolManager.getSkillMap();
         if (skillMap.isEmpty()) return null;
 
         int total = skillMap.size();
@@ -75,7 +75,7 @@ public class ExpertSkill extends AbsSkill {
 
     @Override
     public Collection<FunctionTool> getTools(Prompt prompt) {
-        Map<String, PoolManager.SkillDir> skillMap = skillManager.getSkillMap();
+        Map<String, PoolManager.SkillDir> skillMap = poolManager.getSkillMap();
         if (skillMap.isEmpty()) return null;
 
         int total = skillMap.size();
@@ -90,7 +90,7 @@ public class ExpertSkill extends AbsSkill {
 
     @ToolMapping(name = "skilllist", description = "列出所有已挂载专家技能池中的可用清单。")
     public String skilllist() {
-        Map<String, PoolManager.SkillDir> skillMap = skillManager.getSkillMap();
+        Map<String, PoolManager.SkillDir> skillMap = poolManager.getSkillMap();
         if (skillMap.isEmpty()) return "当前没有可用的专家技能。";
 
         StringBuilder sb = new StringBuilder("可用专家技能列表：\n");
@@ -102,7 +102,7 @@ public class ExpertSkill extends AbsSkill {
 
     @ToolMapping(name = "skillsearch", description = "在所有专家技能池中搜索关键字。支持空格分隔多个词。")
     public String skillsearch(@Param("query") String query) {
-        Map<String, PoolManager.SkillDir> skillMap = skillManager.getSkillMap();
+        Map<String, PoolManager.SkillDir> skillMap = poolManager.getSkillMap();
         String[] keys = query.toLowerCase().split("\\s+");
 
         List<PoolManager.SkillDir> matches = skillMap.values().stream()
@@ -125,7 +125,7 @@ public class ExpertSkill extends AbsSkill {
 
     @ToolMapping(name = "skillread", description = "读取技能详细说明书。当需要确认具体工具参数或规约细节时使用。")
     public String skillread(@Param("path") String path, String __workDir) throws IOException {
-        Map<String, PoolManager.SkillDir> skillMap = skillManager.getSkillMap();
+        Map<String, PoolManager.SkillDir> skillMap = poolManager.getSkillMap();
         // 1. 优先从内存 Map 查找逻辑路径
         PoolManager.SkillDir cachedSkill = skillMap.get(path);
         if (cachedSkill != null) {
@@ -141,8 +141,8 @@ public class ExpertSkill extends AbsSkill {
 
     @ToolMapping(name = "skillrefresh", description = "重新扫描所有专家技能池，更新专家技能列表。")
     public String skillrefresh() {
-        skillManager.refresh();
-        return "专家技能库已刷新，当前可用专家技能数：" + skillManager.getSkillMap().size();
+        poolManager.refresh();
+        return "专家技能库已刷新，当前可用专家技能数：" + poolManager.getSkillMap().size();
     }
 
     // --- 核心渲染与辅助逻辑 ---
@@ -209,6 +209,6 @@ public class ExpertSkill extends AbsSkill {
     }
 
     private Path resolvePathExtended(String workDir, String pStr) {
-        return skillManager.resolve(Paths.get(workDir), pStr);
+        return poolManager.resolve(Paths.get(workDir), pStr);
     }
 }

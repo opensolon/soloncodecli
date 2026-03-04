@@ -41,7 +41,7 @@ public class TerminalSkill extends AbsSkill {
 
     //沙盒模式：只能访问相对咱径或逻辑路径；（否则为）开放模式：可以访问绝对路径
     private boolean sandboxMode = true;
-    private final PoolManager skillManager; // 引入技能管理器
+    private final PoolManager poolManager; // 引入技能管理器
 
     private final String pythonCmd;
     private final String nodeCmd;
@@ -59,13 +59,13 @@ public class TerminalSkill extends AbsSkill {
         this.sandboxMode = sandboxMode;
     }
 
-    public TerminalSkill(PoolManager skillManager) {
-        this(null, skillManager);
+    public TerminalSkill(PoolManager poolManager) {
+        this(null, poolManager);
     }
 
-    public TerminalSkill(String workDir, PoolManager skillManager) {
+    public TerminalSkill(String workDir, PoolManager poolManager) {
         this.workDirDef = workDir;
-        this.skillManager = skillManager;
+        this.poolManager = poolManager;
 
         boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
 
@@ -110,20 +110,35 @@ public class TerminalSkill extends AbsSkill {
     @Override
     public String getInstruction(Prompt prompt) {
         String currentTime = ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss (z)"));
-        return "## Terminal 环境状态\n" +
-                "- **当前时间**: " + currentTime + "\n" +
-                "- **终端类型**: " + shellMode + "\n" +
-                "- **执行环境**: \n" +
-                "  - Python 命令: `" + pythonCmd + "` (系统已预置变量 `$PYTHON`)\n" +
-                "  - Node.js 命令: `" + nodeCmd + "` (系统已预置变量 `$NODE`)\n" +
-                "- **环境变量**: 挂载池已注入变量（如 @pool1 映射为 " + envExample + "）。\n" +
-                "- **路径规则**: \n" +
-                "  - **工作区(Workspace)**: 你的主目录，支持读写。使用相对路径（如 `src/app.java`）。\n" +
-                "  - **挂载池(Pools)**: 以 `@` 开头的逻辑路径（如 " + skillManager.getPoolMap().keySet() + "）为**只读**资源，严禁写入。\n" +
-                "## 执行规约\n" +
-                "- **只读隔离**: 逻辑路径（以 @ 开头）仅支持读取和命令执行，所有写入操作使用相对路径。\n" +
-                "- **命令执行**: 在 `bash` 中，优先使用环境变量访问工具，例如使用 `" + envExample + "/bin/tool`。\n";
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("## Terminal 环境状态\n");
+        sb.append("- **当前时间**: ").append(currentTime).append("\n");
+        sb.append("- **沙盒模式**: ").append((sandboxMode ? "开启 (受限)" : "关闭 (开放)")).append("\n");
+        sb.append("- **终端类型**: ").append(shellMode).append("\n");
+
+        sb.append("- **执行环境**: \n");
+        sb.append("  - Python 命令: `").append(pythonCmd).append("` (系统已预置变量 `$PYTHON`)\n");
+        sb.append("  - Node.js 命令: `").append(nodeCmd).append("` (系统已预置变量 `$NODE`)\n");
+
+        sb.append("- **环境变量**: 挂载池已注入变量（如 @pool1 映射为 ").append(envExample).append("）。\n");
+
+        sb.append("- **路径规则**: \n");
+        sb.append("  - **工作区(Workspace)**: 你的主目录，支持读写。使用相对路径（如 `src/app.java`）。\n");
+        sb.append("  - **挂载池(Pools)**: 以 `@` 开头的逻辑路径（如 ").append(poolManager.getPoolMap().keySet()).append("）为**只读**资源，严禁写入。\n");
+        if (sandboxMode) {
+            sb.append("  - **沙盒模式**: 仅支持相对路径（相对于 Workspace）或逻辑路径(@pool)。严禁访绝对路径。\n");
+        } else {
+            sb.append("  - **开放模式**: 支持绝对路径（如 `/etc/hosts` 或 `C:\\Windows`）和相对路径。\n");
+        }
+
+        sb.append("## 执行规约\n");
+        sb.append("- **只读隔离**: 逻辑路径（以 @ 开头）仅支持读取和命令执行，所有写入操作使用相对路径。\n");
+        sb.append("- **命令执行**: 在 `bash` 中，优先使用环境变量访问工具，例如使用 `" + envExample + "/bin/tool`。\n");
+
+        return sb.toString();
     }
+
 
     // --- 1. 执行命令 ---
     @ToolMapping(
@@ -340,11 +355,11 @@ public class TerminalSkill extends AbsSkill {
             return rootPath;
         }
 
-        Path target = skillManager.resolve(rootPath, pStr);
-
+        // 1. 如果是逻辑路径（@开头），走 skillManager 逻辑
         if (pStr.startsWith("@")) {
+            Path target = poolManager.resolve(rootPath, pStr);
             String alias = pStr.split("[/\\\\]")[0];
-            boolean inPool = skillManager.getPoolMap().containsKey(alias);
+            boolean inPool = poolManager.getPoolMap().containsKey(alias);
 
             if (!inPool) {
                 throw new SecurityException("权限拒绝：未知的技能池路径 " + pStr);
@@ -353,10 +368,28 @@ public class TerminalSkill extends AbsSkill {
             if (writeMode) {
                 throw new SecurityException("权限拒绝：路径 " + pStr + " 属于只读挂载池，禁止写入。请将结果写入工作区的相对路径。");
             }
-        } else {
-            if (!target.startsWith(rootPath)) {
-                throw new SecurityException("权限拒绝：路径越界。");
+
+            return target;
+        }
+
+        // 2. 处理物理路径
+        Path p = Paths.get(pStr);
+        Path target;
+
+        if (p.isAbsolute()) {
+            // 【开放模式】直接使用绝对路径
+            if (sandboxMode) {
+                throw new SecurityException("权限拒绝：沙盒模式下禁止使用绝对路径。");
             }
+            target = p.normalize();
+        } else {
+            // 相对路径
+            target = rootPath.resolve(pStr).normalize();
+        }
+
+        // 3. 越界检查只在沙盒模式下强制执行
+        if (sandboxMode && !target.startsWith(rootPath)) {
+            throw new SecurityException("权限拒绝：路径越界（沙盒模式已开启）。");
         }
 
         return target;
@@ -367,12 +400,23 @@ public class TerminalSkill extends AbsSkill {
             String prefix = inputPath.split("[/\\\\]")[0];
             return prefix + "/" + targetDir.relativize(file).toString().replace("\\", "/");
         }
-        return rootPath.relativize(file).toString().replace("\\", "/");
+
+
+        // 开放模式下，如果文件不在 rootPath 内部，返回绝对路径字符串
+        if (!sandboxMode && !file.startsWith(rootPath)) {
+            return file.toAbsolutePath().toString().replace("\\", "/");
+        }
+
+        try {
+            return rootPath.relativize(file).toString().replace("\\", "/");
+        } catch (IllegalArgumentException e) {
+            return file.toAbsolutePath().toString().replace("\\", "/");
+        }
     }
 
     private String translateCommandToEnv(String command, Map<String, String> envs) {
         String result = command;
-        for (Map.Entry<String, Path> entry : skillManager.getPoolMap().entrySet()) {
+        for (Map.Entry<String, Path> entry : poolManager.getPoolMap().entrySet()) {
             String alias = entry.getKey(); // 例如 @pool1
             String envKey = alias.substring(1).toUpperCase(); // POOL1
 
