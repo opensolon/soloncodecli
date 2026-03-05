@@ -11,6 +11,8 @@ import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.codecli.core.subagent.SubAgentManager;
+import org.noear.solon.ai.codecli.core.tool.SubAgentTool;
 import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
@@ -49,8 +51,11 @@ public class CodeAgent {
     public final static String SESSION_DEFAULT = "cli";
     public final static String SOLONCODE_SESSIONS = "/.soloncode/sessions/";
     public final static String SOLONCODE_SKILLS = "/.soloncode/skills/";
+    public final static String SOLONCODE_AGENTS = "/.soloncode/agents/";
     public final static String OPENCODE_SKILLS = "/.opencode/skills/";
+    public final static String OPENCODE_AGENTS = "/.opencode/agents/";
     public final static String CLAUDE_SKILLS = "/.claude/skills/";
+    public final static String CLAUDE_AGENTS = "/.claude/agents/";
 
     private final ChatModel chatModel;
     private final AgentSessionProvider sessionProvider;
@@ -59,6 +64,7 @@ public class CodeAgent {
     private final Map<String, String> skillPools = new LinkedHashMap<>();
     private final McpProviders mcpProviders;
     private Consumer<ReActAgent.Builder> configurator;
+    private SubAgentManager subAgentManager;
 
     public CodeAgent(ChatModel chatModel, AgentSessionProvider sessionProvider, CodeProperties config) {
         this.chatModel = chatModel;
@@ -110,6 +116,13 @@ public class CodeAgent {
     public CodeAgent config(Consumer<ReActAgent.Builder> configurator) {
         this.configurator = configurator;
         return this;
+    }
+
+    /**
+     * 获取子代理管理器
+     */
+    public SubAgentManager getSubAgentManager() {
+        return subAgentManager;
     }
 
     private ReActAgent reActAgent;
@@ -197,6 +210,29 @@ public class CodeAgent {
             agentBuilder.defaultSkillAdd(cliSkillProvider);
             agentBuilder.defaultSkillAdd(new TodoSkill());
 
+            // 添加子代理工具
+            if (config.subAgentEnabled) {
+                subAgentManager = new SubAgentManager(
+                        sessionProvider,
+                        config.workDir,
+                        cliSkillProvider.getPoolManager(),
+                        this,
+                        chatModel
+                );
+
+                // 注册自定义 agents 池（类似 skillPool）
+                // 注册 soloncode agents
+                subAgentManager.agentPool("@soloncode_agents", config.workDir + CodeAgent.SOLONCODE_AGENTS);
+                // 注册 opencode agents
+                subAgentManager.agentPool("@opencode_agents",config.workDir +  CodeAgent.OPENCODE_AGENTS);
+                // 注册 claude agents
+                subAgentManager.agentPool("@claude_agents",config.workDir +  CodeAgent.CLAUDE_AGENTS);
+
+                // SubAgentTool 会通过 @ToolMapping 自动注册为工具
+                agentBuilder.defaultToolAdd(new SubAgentTool(subAgentManager));
+                LOG.info("子代理功能已启用");
+            }
+
             //上下文摘要
             SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(
                     config.summaryWindowSize,
@@ -204,9 +240,11 @@ public class CodeAgent {
 
             agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
 
+            // HITL 交互干预（优先使用实例字段，否则使用配置）
             if (config.hitlEnabled) {
                 agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
                         .onTool("bash", new HitlStrategy()));
+                LOG.info("HITL 交互干预已启用");
             }
 
             // 添加步数

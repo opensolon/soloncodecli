@@ -75,8 +75,13 @@ public class App {
                 new FileAgentSession(key, config.workDir + CodeAgent.SOLONCODE_SESSIONS + key));
 
         File skillsDir = new File(config.workDir + CodeAgent.SOLONCODE_SKILLS);
-        if(skillsDir.exists() == false){
+        if(!skillsDir.exists()){
             skillsDir.mkdirs();
+        }
+
+        File agentsDir = new File(config.workDir + CodeAgent.SOLONCODE_AGENTS);
+        if(!agentsDir.exists()){
+            agentsDir.mkdirs();
         }
 
 
