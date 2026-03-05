@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import reactor.core.scheduler.Schedulers;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -24,7 +23,7 @@ public class BotGate {
     private static final Logger log = LoggerFactory.getLogger(BotGate.class);
 
     private final CodeAgent codeAgent;
-    private final ChannelRegistry channelRegistry;
+    private final BotChannelRegistry channelRegistry;
 
     // 关键：维护 Session 级别的 HITL 任务状态
     private final Map<String, HITLTask> pendingHitlTasks = new ConcurrentHashMap<>();
@@ -38,7 +37,7 @@ public class BotGate {
     
     public BotGate(CodeAgent codeAgent, String sessionStorePath) {
         this.codeAgent = codeAgent;
-        this.channelRegistry = new ChannelRegistry();
+        this.channelRegistry = new BotChannelRegistry();
         this.authManager = new AuthManager();
         initializeBuiltinChannels();
     }
@@ -49,8 +48,8 @@ public class BotGate {
     private void initializeBuiltinChannels() {
         // 注册 Web 通道描述符
         channelRegistry.registerDescriptor(
-            new ChannelRegistry.ChannelDescriptor(
-                ChannelRegistry.ChannelTypes.WEB,
+            new BotChannelRegistry.ChannelDescriptor(
+                BotChannelRegistry.ChannelTypes.WEB,
                 "Web Channel",
                 "HTTP/WebSocket based channel for web applications"
             )
@@ -65,7 +64,7 @@ public class BotGate {
     /**
      * 注册通道工厂
      */
-    public BotGate registerChannelFactory(String channelType, ChannelRegistry.ChannelFactory factory) {
+    public BotGate registerChannelFactory(String channelType, BotChannelRegistry.ChannelFactory factory) {
         channelRegistry.registerFactory(channelType, factory);
         return this;
     }
@@ -241,7 +240,7 @@ public class BotGate {
     /**
      * 获取通道注册表
      */
-    public ChannelRegistry getChannelRegistry() {
+    public BotChannelRegistry getChannelRegistry() {
         return channelRegistry;
     }
 

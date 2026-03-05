@@ -74,32 +74,53 @@ public class WebGate implements Handler {
                         .map(chunk -> {
                             if (chunk.hasContent()) {
                                 if (chunk instanceof ReasonChunk) {
-                                    return ONode.serialize(new Chunk("reason", chunk.getContent()));
+                                    ReasonChunk reason = (ReasonChunk) chunk;
+
+                                    if (!reason.isToolCalls() && reason.hasContent()) {
+                                        return new ONode().set("type", "reason")
+                                                .set("text", chunk.getContent())
+                                                .toJson();
+                                    }
                                 } else if (chunk instanceof ActionChunk) {
-                                    return ONode.serialize(new Chunk("action", chunk.getContent()));
+                                    ActionChunk action = (ActionChunk) chunk;
+                                    ONode oNode = new ONode().set("type", "action")
+                                            .set("text", chunk.getContent());
+
+                                    if (Assert.isNotEmpty(action.getToolName())) {
+                                        oNode.set("toolName", action.getToolName());
+                                        oNode.set("args", action.getArgs());
+                                    }
+
+                                    return oNode.toJson();
                                 } else if (chunk instanceof ReActChunk) {
-                                    return ONode.serialize(new Chunk("agent", chunk.getContent()));
+                                    ReActChunk react = (ReActChunk) chunk;
+
+                                    if (react.isNormal() == false) {
+                                        return new ONode().set("type", "reason")
+                                                .set("text", chunk.getContent())
+                                                .toJson();
+                                    }
+
+                                    return new ONode().set("type", "agent")
+                                            .set("text", chunk.getContent())
+                                            .toJson();
                                 }
                             }
 
                             return "";
                         })
                         .filter(Assert::isNotEmpty)
-                        .onErrorResume(e -> Flux.just(ONode.serialize(new Chunk("error", e.getMessage()))))
+                        .onErrorResume(e -> {
+                            String message = new ONode().set("type", "error")
+                                    .set("text", e.getMessage())
+                                    .toJson();
+
+                            return Flux.just(message);
+                        })
                         .concatWithValues("[DONE]");
 
                 ctx.returnValue(stringFlux);
             }
-        }
-    }
-
-    public static class Chunk implements Serializable {
-        public final String type;
-        public final String text;
-
-        public Chunk(String type, String text) {
-            this.type = type;
-            this.text = text;
         }
     }
 }

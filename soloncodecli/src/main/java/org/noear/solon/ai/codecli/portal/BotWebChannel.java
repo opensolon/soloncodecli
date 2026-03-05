@@ -2,12 +2,9 @@ package org.noear.solon.ai.codecli.portal;
 
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.react.ReActChunk;
-import org.noear.solon.ai.agent.react.task.ActionChunk;
-import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.codecli.core.CodeAgent;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.Handler;
-import org.noear.solon.core.util.MimeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,8 +17,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * Web 通道实现 (基于 Solon 框架)
  * 提供 HTTP API 和 WebSocket 支持
  */
-public class WebChannel implements BotChannel, Handler {
-    private static final Logger logger = LoggerFactory.getLogger(WebChannel.class);
+public class BotWebChannel implements BotChannel, Handler {
+    private static final Logger logger = LoggerFactory.getLogger(BotWebChannel.class);
 
     private final String channelId;
     private final int port;
@@ -29,7 +26,7 @@ public class WebChannel implements BotChannel, Handler {
     private final Map<String, String> messageStore = new ConcurrentHashMap<>();
     private boolean isRunning = false;
 
-    public WebChannel(String channelId, int port, CodeAgent codeAgent) {
+    public BotWebChannel(String channelId, int port, CodeAgent codeAgent) {
         this.channelId = channelId;
         this.port = port;
         this.codeAgent = codeAgent;

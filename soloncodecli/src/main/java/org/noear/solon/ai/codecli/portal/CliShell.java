@@ -252,14 +252,14 @@ public class CliShell implements Runnable {
         }
     }
 
-    private void onFinalChunk(ReActChunk reAct, AtomicBoolean isFirstReasonChunk, AtomicBoolean isFirstConversation) {
-        if (reAct.isNormal() == false) {
-            String delta = clearThink(reAct.getContent());
+    private void onFinalChunk(ReActChunk react, AtomicBoolean isFirstReasonChunk, AtomicBoolean isFirstConversation) {
+        if (react.isNormal() == false) {
+            String delta = clearThink(react.getContent());
             onReasonChunkDo(delta, isFirstReasonChunk, isFirstConversation);
         }
 
-        if (reAct.getTrace().getMetrics() != null) {
-            terminal.writer().println(DIM + " (" + reAct.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
+        if (react.getTrace().getMetrics() != null) {
+            terminal.writer().println(DIM + " (" + react.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
         }
     }
 
@@ -404,7 +404,7 @@ public class CliShell implements Runnable {
         // 连带版本号，紧凑排列
         terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + codeAgent.getVersion() + RESET);
         terminal.writer().println(DIM + path + RESET);
-        terminal.writer().print(DIM + "Tips: " + RESET + "Enter" + DIM + " to stop output. Commands: " +
+        terminal.writer().print(DIM + "Tips: " + RESET + "(Enter)" + DIM + " to interrupt output. Commands: " +
                 RESET + "'exit'" + DIM + " to quit, " +
                 RESET + "'init'" + DIM + " to refresh, " +
                 RESET + "'clear'" + DIM + " to reset" + RESET);

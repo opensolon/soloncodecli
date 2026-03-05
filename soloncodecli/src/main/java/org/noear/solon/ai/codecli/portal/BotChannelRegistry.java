@@ -9,8 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * 通道注册表（插件化架构核心）
  * 实现动态通道注册、发现和管理
  */
-public class ChannelRegistry {
-    private static final Logger log = LoggerFactory.getLogger(ChannelRegistry.class);
+public class BotChannelRegistry {
+    private static final Logger log = LoggerFactory.getLogger(BotChannelRegistry.class);
     
     private final Map<String, BotChannel> channels = new ConcurrentHashMap<>();
     private final Map<String, ChannelDescriptor> descriptors = new ConcurrentHashMap<>();
