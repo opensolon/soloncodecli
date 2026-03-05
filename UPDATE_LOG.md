@@ -1,7 +1,7 @@
 
 ### v0.0.18
 
-* 添加 anthropic 接口支持
+* 添加 anthropic 接口兼容支持
 * 优化 与 api.minimax.io 平台接口的兼容性
 
 ### v0.0.17
