@@ -234,6 +234,32 @@ config.setMaxSteps(20);  // 设置最大步数
 config.setDescription("自定义描述");
 ```
 
+### 注册自定义 AgentPool
+
+可以注册自定义的 agentPool，让系统从多个目录发现子代理：
+
+```java
+// 获取 SubAgentManager
+SubAgentManager manager = codeAgent.getSubAgentManager();
+
+// 注册自定义 agent 池
+manager.agentPool("@my_agents", "/path/to/my/agents");
+manager.agentPool("@shared_agents", "./shared/agents");
+
+// 系统默认已注册以下池：
+// - @soloncode_agents -> .soloncode/agents/
+// - @opencode_agents  -> .opencode/agents/
+// - @claude_agents     -> .claude/agents/
+```
+
+**AgentPool 搜索优先级：**
+1. 自定义注册的 agentPool（按注册顺序）
+2. `.opencode/agents/`
+3. `.claude/agents/`
+4. `.soloncode/agents/`（默认池）
+
+当创建子代理时，系统会按优先级搜索提示词文件。
+
 ## 工具列表
 
 SubAgent 系统提供以下工具：
@@ -241,7 +267,56 @@ SubAgent 系统提供以下工具：
 | 工具名 | 描述 |
 |--------|------|
 | `subagent` | 启动指定类型的子代理执行任务 |
-| `subagent_list` | 列出所有可用的子代理及其描述 |
+| `subagent_list` | 列出所有可用的子代理（包括预定义和自定义代理） |
+
+### subagent_list 工具详解
+
+`subagent_list` 工具会扫描所有已注册的 agentPools，动态发现并列出所有可用的子代理：
+
+**输出格式：**
+```
+可用的子代理：
+
+【预定义子代理】
+- **explore** (EXPLORE): 快速探索代码库...
+- **plan** (PLAN): 设计实现方案...
+- **bash** (BASH): 执行命令...
+- **general-purpose** (GENERAL_PURPOSE): 通用代理...
+
+【自定义子代理】
+- **performance-tester** (来自 @soloncode_agents): 性能测试专家...
+- **my-custom-agent** (来自 @opencode_agents): 我的自定义代理...
+
+提示：可以通过 .soloncode/agents/ 目录添加自定义子代理
+```
+
+**特性：**
+- 自动去重：如果自定义代理与预定义代理同名，只显示预定义版本
+- 显示来源：标注每个自定义代理来自哪个 agentPool
+- 描述提取：从 MD 文件的第一行提取描述信息
+- 支持多池：扫描所有已注册的 agentPools 目录
+
+## 配置文件位置
+
+SubAgent 的提示词文件存储在项目根目录的 `.soloncode/agents/` 目录下：
+
+```
+项目根目录/
+├── .soloncode/              ← SolonCode 系统目录
+│   ├── agents/               ← SubAgent 提示词文件
+│   │   ├── explore.md        # 探索代理
+│   │   ├── plan.md           # 计划代理
+│   │   ├── bash.md           # Bash代理
+│   │   ├── general-purpose.md # 通用代理
+│   │   └── *.md              # 用户自定义代理
+│   ├── sessions/             ← 会话历史
+│   └── skills/               ← 技能文件
+├── work/                     ← 工作目录
+├── AGENTS.md                 ← 主 Agent 配置
+└── config.yml                ← 全局配置
+```
+
+用户可以编辑 `.soloncode/agents/` 下的 MD 文件来自定义 SubAgent 的行为，修改后重启即可生效。
 
 ## 与 Claude Code 的兼容性
 

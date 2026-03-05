@@ -30,8 +30,6 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -45,7 +43,6 @@ public abstract class AbstractSubAgent implements SubAgent {
 
     protected final SubAgentConfig config;
     protected final AgentSessionProvider sessionProvider;
-    protected final Map<String, AgentSession> sessionStore = new ConcurrentHashMap<>();
     protected ReActAgent agent;
 
     public AbstractSubAgent(SubAgentConfig config, AgentSessionProvider sessionProvider) {
@@ -83,24 +80,24 @@ public abstract class AbstractSubAgent implements SubAgent {
             }
 
             this.agent = builder.build();
-            LOG.info("SubAgent '{}' 初始化完成", getType().getCode());
+            LOG.info("SubAgent '{}' 初始化完成", config.getCode());
         }
     }
 
     /**
-     * 构建系统提示词（优先从 work/agents 读取，否则使用内置提示词）
+     * 构建系统提示词（优先从 agents 池读取，否则使用内置提示词）
      */
     protected String buildSystemPrompt() {
-        // 1. 尝试从 work/agents 读取自定义提示词
+        // 1. 尝试从自定义文件读取提示词（如果存在）
         String customPrompt = readCustomPrompt();
         if (customPrompt != null) {
-            LOG.info("SubAgent '{}' 使用自定义提示词: {}", getType().getCode(), getPromptFilePath());
+            LOG.info("SubAgent '{}' 使用自定义提示词", config.getCode());
             return customPrompt;
         }
 
         // 2. 使用内置提示词
         String defaultPrompt = getDefaultSystemPrompt();
-        LOG.debug("SubAgent '{}' 使用内置提示词", getType().getCode());
+        LOG.debug("SubAgent '{}' 使用内置提示词", config.getCode());
         return defaultPrompt;
     }
 
@@ -110,66 +107,63 @@ public abstract class AbstractSubAgent implements SubAgent {
     protected abstract String getDefaultSystemPrompt();
 
     /**
-     * 导出提示词到 work/agents 目录
+     * 导出提示词到默认目录
      */
     public void exportSystemPrompt(String workDir) {
         try {
-            String promptDir = workDir + File.separator + "agents";
+            String promptDir = ".soloncode" + File.separator + "agents";
             File dir = new File(promptDir);
             if (!dir.exists()) {
                 dir.mkdirs();
             }
 
-            String promptFile = getPromptFilePath(workDir);
+            String promptFile = promptDir + File.separator + config.getCode() + ".md";
             File file = new File(promptFile);
 
             // 只在不存在的时才导出，避免覆盖用户自定义的提示词
             if (!file.exists()) {
                 String content = getDefaultSystemPrompt();
                 Files.write(Paths.get(promptFile), content.getBytes(StandardCharsets.UTF_8));
-                LOG.info("SubAgent '{}' 提示词已导出到: {}", getType().getCode(), promptFile);
+                LOG.info("SubAgent '{}' 提示词已导出到: {}", config.getCode(), promptFile);
             } else {
-                LOG.debug("SubAgent '{}' 提示词文件已存在，跳过导出: {}", getType().getCode(), promptFile);
+                LOG.debug("SubAgent '{}' 提示词文件已存在，跳过导出: {}", config.getCode(), promptFile);
             }
         } catch (Throwable e) {
-            LOG.warn("SubAgent '{}' 提示词导出失败: {}", getType().getCode(), e.getMessage());
+            LOG.warn("SubAgent '{}' 提示词导出失败: {}", config.getCode(), e.getMessage());
         }
     }
 
     /**
-     * 从 work/agents 读取自定义提示词
+     * 从文件系统读取自定义提示词
      */
     private String readCustomPrompt() {
         try {
-            String promptFile = getPromptFilePath(config.getWorkDir());
-            File file = new File(promptFile);
+            // 尝试多个位置
+            String[] locations = {
+                ".soloncode/agents/" + config.getCode() + ".md",  // 项目根目录
+                ".soloncode/agents/" + config.getCode() + ".md",  // 相对路径
+                config.getWorkDir() + "/.soloncode/agents/" + config.getCode() + ".md"  // work 目录下
+            };
 
-            if (file.exists() && file.isFile()) {
-                byte[] bytes = Files.readAllBytes(Paths.get(promptFile));
-                return new String(bytes, StandardCharsets.UTF_8);
+            for (String location : locations) {
+                File file = new File(location);
+                if (file.exists() && file.isFile()) {
+                    byte[] bytes = Files.readAllBytes(Paths.get(location));
+                    LOG.info("从 {} 读取 SubAgent '{}' 提示词", location, config.getCode());
+                    return new String(bytes, StandardCharsets.UTF_8);
+                }
             }
+
+            LOG.debug("未找到 SubAgent '{}' 的自定义提示词文件", config.getCode());
         } catch (Throwable e) {
-            LOG.warn("读取 SubAgent '{}' 自定义提示词失败: {}", getType().getCode(), e.getMessage());
+            LOG.warn("读取 SubAgent '{}' 自定义提示词失败: {}", config.getCode(), e.getMessage());
         }
         return null;
     }
 
     /**
-     * 获取提示词文件路径
+     * 获取会话
      */
-    private String getPromptFilePath() {
-        return getPromptFilePath(config.getWorkDir());
-    }
-
-    /**
-     * 获取提示词文件路径
-     */
-    private String getPromptFilePath(String workDir) {
-        if (workDir == null) {
-            workDir = ".";
-        }
-        return workDir + File.separator + "agents" + File.separator + getType().getCode() + ".md";
-    }
 
     /**
      * 获取会话
@@ -184,7 +178,7 @@ public abstract class AbstractSubAgent implements SubAgent {
             throw new IllegalStateException("SubAgent 尚未初始化");
         }
 
-        String sessionId = "subagent_" + getType().getCode();
+        String sessionId = "subagent_" + config.getCode();
         AgentSession session = getSession(sessionId);
 
         return agent.prompt(prompt)
@@ -198,7 +192,7 @@ public abstract class AbstractSubAgent implements SubAgent {
             return Flux.error(new IllegalStateException("SubAgent 尚未初始化"));
         }
 
-        String sessionId = "subagent_" + getType().getCode();
+        String sessionId = "subagent_" + config.getCode();
         AgentSession session = getSession(sessionId);
 
         return agent.prompt(prompt)

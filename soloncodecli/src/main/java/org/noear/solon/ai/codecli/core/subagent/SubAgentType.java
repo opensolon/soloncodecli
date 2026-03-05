@@ -43,14 +43,14 @@ public enum SubAgentType {
     BASH("bash", "命令代理，专门执行 git 操作、命令行任务和终端操作"),
 
     /**
-     * 状态栏配置代理 - 配置状态栏设置
-     */
-    STATUSLINE_SETUP("statusline-setup", "状态栏配置代理，用于配置用户的状态栏设置"),
-
-    /**
      * solon Code 指南代理 - 回答 solon Code 相关问题
      */
-    SOLON_CODE_GUIDE("solon-code-guide", "Solon Code 指南代理，专门回答关于 Solon Code、Solon Agent SDK 和 Solon API 的问题");
+    SOLON_CODE_GUIDE("solon-code-guide", "Solon Code 指南代理，专门回答关于 Solon Code、Solon Agent SDK 和 Solon API 的问题"),
+
+    /**
+     * 自定义代理 - 从 MD 文件动态加载
+     */
+    CUSTOM("custom", "自定义代理，从用户的 MD 文件动态加载");
 
     private final String code;
     private final String description;
@@ -70,6 +70,10 @@ public enum SubAgentType {
 
     /**
      * 根据代码获取类型
+     *
+     * @param code 类型代码
+     * @return 对应的 SubAgentType
+     * @throws IllegalArgumentException 如果代码不匹配任何预定义类型
      */
     public static SubAgentType fromCode(String code) {
         for (SubAgentType type : values()) {
@@ -77,6 +81,6 @@ public enum SubAgentType {
                 return type;
             }
         }
-        return GENERAL_PURPOSE;
+        throw new IllegalArgumentException("未知的 SubAgent 类型: " + code);
     }
 }

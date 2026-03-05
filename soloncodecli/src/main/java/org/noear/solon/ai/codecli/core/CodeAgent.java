@@ -51,8 +51,11 @@ public class CodeAgent {
     public final static String SESSION_DEFAULT = "cli";
     public final static String SOLONCODE_SESSIONS = "/.soloncode/sessions/";
     public final static String SOLONCODE_SKILLS = "/.soloncode/skills/";
+    public final static String SOLONCODE_AGENTS = "/.soloncode/agents/";
     public final static String OPENCODE_SKILLS = "/.opencode/skills/";
+    public final static String OPENCODE_AGENTS = "/.opencode/agents/";
     public final static String CLAUDE_SKILLS = "/.claude/skills/";
+    public final static String CLAUDE_AGENTS = "/.claude/agents/";
 
     private final ChatModel chatModel;
     private final AgentSessionProvider sessionProvider;
@@ -216,6 +219,15 @@ public class CodeAgent {
                         this,
                         chatModel
                 );
+
+                // 注册自定义 agents 池（类似 skillPool）
+                // 注册 soloncode agents
+                subAgentManager.agentPool("@soloncode_agents", config.workDir + CodeAgent.SOLONCODE_AGENTS);
+                // 注册 opencode agents
+                subAgentManager.agentPool("@opencode_agents",config.workDir +  CodeAgent.OPENCODE_AGENTS);
+                // 注册 claude agents
+                subAgentManager.agentPool("@claude_agents",config.workDir +  CodeAgent.CLAUDE_AGENTS);
+
                 // SubAgentTool 会通过 @ToolMapping 自动注册为工具
                 agentBuilder.defaultToolAdd(new SubAgentTool(subAgentManager));
                 LOG.info("子代理功能已启用");
