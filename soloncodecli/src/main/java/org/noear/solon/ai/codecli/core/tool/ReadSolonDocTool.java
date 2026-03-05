@@ -37,14 +37,26 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ReadSolonDocTool {
     private static final Logger LOG = LoggerFactory.getLogger(ReadSolonDocTool.class);
 
-    // 文档缓存
+    // 文档缓存（全局共享）
     private static final Map<String, String> DOC_CACHE = new ConcurrentHashMap<>();
 
     // Solon 官网文档基础 URL
     private static final String SOLON_DOCS_BASE_URL = "https://solon.noear.org/article/";
 
+    // 工作目录
+    private final String workDir;
+
     // 本地缓存目录
-    private static final String CACHE_DIR = ".soloncode" + File.separator + "cache" + File.separator + "docs";
+    private String cacheDir;
+
+    /**
+     * 默认构造函数（使用当前工作目录）
+     */
+    public ReadSolonDocTool(String workDir) {
+        this.workDir = workDir;
+        this.cacheDir = this.workDir + File.separator + ".soloncode" + File.separator + "cache" + File.separator + "docs";
+
+    }
 
     /**
      * 读取 Solon 官网文档
@@ -58,10 +70,6 @@ public class ReadSolonDocTool {
 
         // 清理文档名称
         String cleanDocName = docName.trim().replace(".md", "");
-
-        if (!cleanDocName.toLowerCase().startsWith("solon")){
-            cleanDocName += "solon ";
-        }
 
         // 检查缓存
         String cached = DOC_CACHE.get(cleanDocName);
@@ -155,6 +163,7 @@ public class ReadSolonDocTool {
 
         sb.append("\n提示：使用 read_solon_doc 工具读取具体文档\n");
         sb.append("例如：read_solon_doc(\"learn-start\")\n");
+        sb.append("\n缓存目录: ").append(cacheDir).append("\n");
 
         return sb.toString();
     }
@@ -173,7 +182,8 @@ public class ReadSolonDocTool {
         int fileCacheSize = clearLocalCache();
 
         LOG.info("Solon 文档缓存已清除: 内存{}个, 本地{}个文件", memoryCacheSize, fileCacheSize);
-        return String.format("Solon 文档缓存已清除\n- 内存缓存: %d 条\n- 本地文件: %d 个", memoryCacheSize, fileCacheSize);
+        return String.format("Solon 文档缓存已清除\n- 内存缓存: %d 条\n- 本地文件: %d 个\n- 缓存目录: %s",
+                memoryCacheSize, fileCacheSize, cacheDir);
     }
 
     /**
@@ -181,7 +191,7 @@ public class ReadSolonDocTool {
      */
     private String readLocalCache(String docName) {
         try {
-            File cacheFile = new File(CACHE_DIR, docName + ".md");
+            File cacheFile = new File(cacheDir, docName + ".md");
 
             if (cacheFile.exists() && cacheFile.isFile()) {
                 byte[] bytes = Files.readAllBytes(Paths.get(cacheFile.getAbsolutePath()));
@@ -200,12 +210,12 @@ public class ReadSolonDocTool {
      */
     private void saveLocalCache(String docName, String content) {
         try {
-            File dir = new File(CACHE_DIR);
+            File dir = new File(cacheDir);
             if (!dir.exists()) {
                 dir.mkdirs();
             }
 
-            File cacheFile = new File(CACHE_DIR, docName + ".md");
+            File cacheFile = new File(cacheDir, docName + ".md");
             Files.write(Paths.get(cacheFile.getAbsolutePath()), content.getBytes(StandardCharsets.UTF_8));
             LOG.debug("Solon 文档已缓存到本地: {}", cacheFile.getAbsolutePath());
         } catch (Throwable e) {
@@ -218,9 +228,9 @@ public class ReadSolonDocTool {
      */
     private int clearLocalCache() {
         try {
-            File dir = new File(CACHE_DIR);
+            File dir = new File(cacheDir);
             if (dir.exists() && dir.isDirectory()) {
-                File[] files = dir.listFiles((d, name) -> name.toLowerCase().startsWith("solon") && name.endsWith(".md"));
+                File[] files = dir.listFiles((d, name) -> name.endsWith(".md"));
                 int count = 0;
                 if (files != null) {
                     for (File file : files) {

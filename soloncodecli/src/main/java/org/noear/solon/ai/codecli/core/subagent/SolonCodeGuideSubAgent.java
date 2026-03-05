@@ -63,8 +63,8 @@ public class SolonCodeGuideSubAgent extends AbstractSubAgent {
             // 添加网络获取工具（用于读取在线文档）
             builder.defaultToolAdd(WebfetchTool.getInstance());
 
-            // 添加自定义工具：读取 Solon 文档
-            builder.defaultToolAdd(new ReadSolonDocTool());
+            // 添加自定义工具：读取 Solon 文档（传递 workDir）
+            builder.defaultToolAdd(new ReadSolonDocTool(workDir));
 
             // 设置较小的步数限制（主要是查询和回答）
             builder.maxSteps(15);

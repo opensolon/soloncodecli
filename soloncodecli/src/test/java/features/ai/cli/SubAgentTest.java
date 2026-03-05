@@ -41,7 +41,7 @@ public class SubAgentTest {
         ChatModel chatModel = ChatModel.of(config.chatModel).build();
 
         CodeAgent codeAgent = new CodeAgent(chatModel, sessionProvider.apply(config.workDir), config)
-                .enableSubAgent(true);
+                ;
 
         // 准备 Agent
         codeAgent.prepare();
@@ -66,7 +66,7 @@ public class SubAgentTest {
         ChatModel chatModel = ChatModel.of(config.chatModel).build();
 
         CodeAgent codeAgent = new CodeAgent(chatModel, sessionProvider.apply(config.workDir), config)
-                .enableSubAgent(true);
+               ;
 
         codeAgent.prepare();
 
@@ -88,7 +88,7 @@ public class SubAgentTest {
         ChatModel chatModel = ChatModel.of(config.chatModel).build();
 
         CodeAgent codeAgent = new CodeAgent(chatModel, sessionProvider.apply(config.workDir), config)
-                .enableSubAgent(true);
+              ;
 
         codeAgent.prepare();
 
@@ -110,7 +110,7 @@ public class SubAgentTest {
         ChatModel chatModel = ChatModel.of(config.chatModel).build();
 
         CodeAgent codeAgent = new CodeAgent(chatModel, sessionProvider.apply(config.workDir), config)
-                .enableSubAgent(true);
+              ;
 
         codeAgent.prepare();
 
