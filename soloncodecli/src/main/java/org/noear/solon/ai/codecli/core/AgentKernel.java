@@ -12,7 +12,7 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
-import org.noear.solon.ai.codecli.core.subagent.SubagentTool;
+import org.noear.solon.ai.codecli.core.subagent.TaskTool;
 import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
@@ -149,7 +149,7 @@ public class AgentKernel {
             subagentManager.agentPool( properties.getWorkDir() +  AgentKernel.CLAUDE_AGENTS);
 
             // SubagentSkill 会通过 @ToolMapping 自动注册为工具
-            agentBuilder.defaultToolAdd(new SubagentTool(subagentManager));
+            agentBuilder.defaultToolAdd(new TaskTool(subagentManager));
             LOG.info("子代理模式已启用");
         }
 

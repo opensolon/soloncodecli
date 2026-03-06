@@ -20,7 +20,6 @@ import org.noear.solon.core.util.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -119,17 +118,19 @@ public class SubagentManager {
             for (Path file : files) {
                 try {
                     String fileName = file.getFileName().toString();
-                    List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+                    String fullContent = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
 
-                    String description = extractDescription(lines);
-                    String systemPrompt = String.join("\n", lines);
-                    String subagentType = fileName.substring(0, fileName.length() - 3); // .md 是3位
+                    // 解析文件：拆分元数据和 Prompt
+                    ParsedAgentFile parsed = parseAgentFile(fullContent);
+
+                    String subagentType = (parsed.name != null) ? parsed.name : fileName.substring(0, fileName.length() - 3);
 
                     AbsSubagent subagent = (AbsSubagent) subagentMap.computeIfAbsent(subagentType,
                             k -> new DynamicSubagent(mainAgent, k));
 
-                    subagent.setDescription(description);
-                    subagent.setSystemPrompt(systemPrompt);
+                    // 设置解析后的属性
+                    subagent.setDescription(parsed.description);
+                    subagent.setSystemPrompt(parsed.body);
                     subagent.refresh();
                 } catch (IOException e) {
                     LOG.error("读取代理文件失败: {}", file, e);
@@ -140,25 +141,42 @@ public class SubagentManager {
         }
     }
 
-    /**
-     * 从 MD 文件提取描述
-     * 优先读取第一行作为描述，否则使用默认描述
-     */
-    private String extractDescription(List<String> lines) {
-        if (!lines.isEmpty()) {
-            String firstLine = lines.get(0).trim();
-            // 跳过 Markdown 标题标记 (# )
-            if (firstLine.startsWith("#")) {
-                firstLine = firstLine.substring(1).trim();
-            }
-            // 限制描述长度
-            if (firstLine.length() > 50) {
-                firstLine = firstLine.substring(0, 47) + "...";
-            }
+    private static class ParsedAgentFile {
+        String name;
+        String description;
+        String tools;
+        String body;
+    }
 
-            return firstLine;
+    private ParsedAgentFile parseAgentFile(String content) {
+        ParsedAgentFile result = new ParsedAgentFile();
+        String[] parts = content.split("---", 3);
+
+        if (parts.length >= 3) {
+            // 说明存在元数据区
+            String yamlContent = parts[1];
+            result.body = parts[2].trim();
+
+            // 简单的 key-value 解析
+            for (String line : yamlContent.split("\n")) {
+                if (line.contains(":")) {
+                    String[] kv = line.split(":", 2);
+                    String key = kv[0].trim().toLowerCase();
+                    String value = kv[1].trim();
+                    if ("name".equals(key)) result.name = value;
+                    else if ("description".equals(key)) result.description = value;
+                    else if ("tools".equals(key)) result.tools = value;
+                }
+            }
+        } else {
+            // 兼容老格式：没有 --- 头部
+            result.body = content.trim();
+            // 回退到原来的逻辑获取描述
+            String[] lines = content.split("\n");
+            result.description = (lines.length > 0) ? lines[0].replace("#", "").trim() : "自定义代理";
         }
 
-        return "自定义代理";
+        if (result.description == null) result.description = "自定义代理";
+        return result;
     }
 }

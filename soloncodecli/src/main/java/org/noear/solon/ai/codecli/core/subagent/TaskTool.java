@@ -32,12 +32,12 @@ import java.util.Map;
  * @author bai
  * @since 3.9.5
  */
-public class SubagentTool extends AbsTool {
-    private static final Logger LOG = LoggerFactory.getLogger(SubagentTool.class);
+public class TaskTool extends AbsTool {
+    private static final Logger LOG = LoggerFactory.getLogger(TaskTool.class);
 
     private final SubagentManager manager;
 
-    public SubagentTool(SubagentManager manager) {
+    public TaskTool(SubagentManager manager) {
         this.manager = manager;
 
         addParam("subagent_type", String.class, "用于此任务的子代理类型");
@@ -48,7 +48,7 @@ public class SubagentTool extends AbsTool {
 
     @Override
     public String name() {
-        return "subagent";
+        return "task";
     }
 
     @Override
@@ -75,9 +75,9 @@ public class SubagentTool extends AbsTool {
         sb.append("### 调用示例:\n");
         sb.append("```json\n");
         sb.append("// 场景：需要对代码进行深度分析并修复\n");
-        sb.append("subagent(subagent_type=\"dev\", prompt=\"分析并修复所有单元测试中发现的并发死锁问题\", description=\"修复并发死锁\")\n\n");
+        sb.append("task(subagent_type=\"dev\", prompt=\"分析并修复所有单元测试中发现的并发死锁问题\", description=\"修复并发死锁\")\n\n");
         sb.append("// 场景：继续之前的重构任务\n");
-        sb.append("subagent(subagent_type=\"plan\", task_id=\"subagent_plan_12345\", prompt=\"基于上一步的方案，生成具体的接口定义\", description=\"细化接口设计\")\n");
+        sb.append("task(subagent_type=\"plan\", task_id=\"subagent_plan_12345\", prompt=\"基于上一步的方案，生成具体的接口定义\", description=\"细化接口设计\")\n");
         sb.append("```\n\n");
 
         // 4. 注意事项：醒目提示
