@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * CodeSearchTool - 100% 对齐 OpenCode 逻辑
+ * CodeSearchTool
  */
 public class CodeSearchTool extends AbsTool {
     private static CodeSearchTool instance = new CodeSearchTool();
@@ -22,19 +22,16 @@ public class CodeSearchTool extends AbsTool {
     private final McpClientProvider mcpClient;
 
     public CodeSearchTool() {
-        // 假设 ExaMcp 已经封装了基础的 MCP 客户端连接
         this.mcpClient = ExaMcp.getMcpClient();
 
-        // 100% 对齐参数描述文案
         addParam("query", String.class, true,
-                "Search query to find relevant context for APIs, Libraries, and SDKs. " +
-                        "For example, 'React useState hook examples', 'Python pandas dataframe filtering', " +
-                        "'Express.js middleware', 'Next js partial prerendering configuration'");
+                "搜索查询词，用于查找 API、库和 SDK 的相关上下文。 " +
+                        "例如：'React useState 钩子示例'、'Python pandas 数据框过滤'、" +
+                        "'Express.js 中间件'、'Next.js 局部预渲染配置'");
 
         addParam("tokensNum", Integer.class, false,
-                "Number of tokens to return (1000-50000). Default is 5000 tokens. " +
-                        "Adjust this value based on how much context you need - use lower values for " +
-                        "focused queries and higher values for comprehensive documentation.",
+                "返回的 Token 数量 (1000-50000)。默认为 5000。 " +
+                        "根据需要的上下文量进行调整：针对特定问题使用较低值，针对全面文档使用较高值。",
                 "5000");
     }
 
@@ -45,18 +42,16 @@ public class CodeSearchTool extends AbsTool {
 
     @Override
     public String description() {
-        // 100% 对齐 codesearch.txt 内容
-        return "Search and get relevant context for any programming task using Exa Code API\n" +
-                "- Provides the highest quality and freshest context for libraries, SDKs, and APIs\n" +
-                "- Use this tool for ANY question or task related to programming\n" +
-                "- Returns comprehensive code examples, documentation, and API references\n" +
-                "- Optimized for finding specific programming patterns and solutions\n\n" +
-                "Usage notes:\n" +
-                "  - Adjustable token count (1000-50000) for focused or comprehensive results\n" +
-                "  - Default 5000 tokens provides balanced context for most queries\n" +
-                "  - Use lower values for specific questions, higher values for comprehensive documentation\n" +
-                "  - Supports queries about frameworks, libraries, APIs, and programming concepts\n" +
-                "  - Examples: 'React useState hook examples', 'Python pandas dataframe filtering', 'Express.js middleware'";
+        return "使用 Exa Code API 搜索并获取任何编程任务的相关上下文\n" +
+                "- 为库、SDK 和 API 提供最高质量且最实时的上下文信息\n" +
+                "- 适用于任何与编程相关的疑问或任务\n" +
+                "- 返回详尽的代码示例、技术文档和 API 参考\n" +
+                "- 针对寻找特定编程模式和解决方案进行了优化\n\n" +
+                "使用说明：\n" +
+                "- 可调节 Token 数量 (1000-50000) 以获得精确或详尽的结果\n" +
+                "- 默认 5000 Token 为大多数查询提供均衡的上下文\n" +
+                "- 支持关于框架、库、API 以及编程概念的查询\n" +
+                "- 示例：'React 状态管理'、'Spring Boot 响应式编程'、'Solon 插件开发'";
     }
 
     @Override
@@ -64,41 +59,33 @@ public class CodeSearchTool extends AbsTool {
         String query = (String) args0.get("query");
         Object tokensNumObj = args0.get("tokensNum");
 
-        // 1. 参数预处理 (对齐 TS 的默认值逻辑)
         Integer tokensNum = null;
         if (tokensNumObj instanceof Number) {
             tokensNum = ((Number) tokensNumObj).intValue();
         }
         int finalTokens = (tokensNum == null) ? DEFAULT_TOKENS : tokensNum;
 
-        // 2. 模拟 ctx.ask 权限检查 (SolonAI 内部逻辑，保持静默或记录)
-        // ctx.ask({ permission: "codesearch", ... })
 
         Map<String, Object> toolArgs = new HashMap<>();
         toolArgs.put("query", query);
         toolArgs.put("tokensNum", finalTokens);
 
-        // 3. 执行 MCP 调用
         ToolResult result;
         try {
-            // 对齐工具名: get_code_context_exa
+            // 工具名: get_code_context_exa
             result = mcpClient.callTool("get_code_context_exa", toolArgs);
         } catch (Exception e) {
-            // 对齐超时文案
             if (e.getMessage() != null && e.getMessage().toLowerCase().contains("timeout")) {
-                throw new RuntimeException("Code search request timed out");
+                throw new RuntimeException("代码搜索请求超时");
             }
             throw e;
         }
 
-        // 4. 处理异常响应 (对齐 response.ok 后的错误处理)
         if (result.isError()) {
-            // 尽量提取原始错误文案以对齐 `Code search error (${status}): ${errorText}`
             String errorText = Utils.isNotEmpty(result.getContent()) ? result.getContent() : "Unknown error";
-            throw new RuntimeException("Code search error: " + errorText);
+            throw new RuntimeException("代码搜索出错: " + errorText);
         }
 
-        // 5. 构造输出结构 (100% 对齐 TS 的 Return 结构)
         String title = "Code search: " + query;
         Map<String, Object> response = new LinkedHashMap<>();
 
@@ -107,9 +94,8 @@ public class CodeSearchTool extends AbsTool {
             response.put("title", title);
             response.put("metadata", new HashMap<>()); // 成功时 metadata 为空
         } else {
-            // 100% 对齐兜底文案
-            String fallback = "No code snippets or documentation found. Please try a different query, " +
-                    "be more specific about the library or programming concept, or check the spelling of framework names.";
+            String fallback = "未找到相关的代码片段或文档。请尝试更换查询词，" +
+                    "明确具体的库或编程概念，并检查框架名称拼写是否正确。";
             response.put("output", fallback);
             response.put("title", title);
             response.put("metadata", new HashMap<>());

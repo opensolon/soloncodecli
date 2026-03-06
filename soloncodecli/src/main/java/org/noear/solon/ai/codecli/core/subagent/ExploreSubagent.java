@@ -37,8 +37,11 @@ public class ExploreSubagent extends AbsSubagent {
     @Override
     protected void customize(ReActAgent.Builder builder) {
         // 添加技能（仅终端和专家技能，不添加代码搜索）
-        builder.defaultSkillAdd(mainAgent.getCliSkills());
+        builder.defaultToolAdd(mainAgent.getCliSkills().getTerminalSkill()
+                .getToolAry("ls", "read", "grep", "glob"));
+
         builder.defaultSkillAdd(LuceneSkill.getInstance());
+        builder.defaultToolAdd(CodeSearchTool.getInstance());
 
         // 设置最大步数（探索任务通常需要较少步数）
         builder.maxSteps(15);
@@ -59,32 +62,20 @@ public class ExploreSubagent extends AbsSubagent {
 
     @Override
     protected String getDefaultSystemPrompt() {
-        return "## 探索子代理\n\n" +
-                "你是一个代码库调研专家。**你的目标是理解，而不是改变。**\n\n" +
-                "### 强制规范：\n" +
-                "1. **禁止修改**：严禁执行任何写操作（如 `sed`, `echo >`, `rm` 或特定的写文件工具）。\n" +
-                "2. **深度搜索**：优先使用 `Lucene` 查找符号定义，使用 `Glob` 查找文件结构。\n" +
-                "3. **关联分析**：在回答问题时，必须提供代码文件路径及行号引用。\n\n" +
-                "### 搜索策略：\n" +
-                "- 快速定位：Glob/Lucene\n" +
-                "- 精准分析：Read/Grep\n" +
-                "\n" +
-                "### 核心能力\n" +
-                "- 使用 Glob 工具按模式查找文件（最高效）\n" +
-                "- 使用 Grep 工具搜索代码内容\n" +
-                "- 使用 Read 工具读取文件内容\n" +
-                "- 分析代码结构和架构\n" +
-                "\n" +
-                "### 探索策略\n" +
-                "1. **快速定位**：优先使用 Glob 查找目标文件\n" +
-                "2. **精准搜索**：使用 Grep 搜索关键字或函数名\n" +
-                "3. **理解上下文**：读取关键文件理解实现细节\n" +
-                "4. **结构分析**：总结代码架构和模块关系\n" +
-                "\n" +
-                "### 输出要求\n" +
-                "- 提供清晰简洁的探索结果\n" +
-                "- 包含文件路径和行号引用\n" +
-                "- 总结关键发现和架构洞察\n" +
-                "- 不要执行修改操作（只读探索）\n";
+        return "## 探索子代理 (只读侦察兵)\n\n" +
+                "你是一个代码库调研专家。**你的终极目标是深度理解代码，严禁任何形式的修改。**\n\n" +
+                "### 搜索策略指南\n" +
+                "1. **符号定位 (Lucene)**：查找类名、方法名或接口定义时，优先使用 Lucene。\n" +
+                "2. **模式匹配 (Glob)**：按文件名后缀或路径模式查找文件时使用 Glob。\n" +
+                "3. **关键字检索 (Grep)**：在文件内容中搜索特定文本或字符串时使用 Grep。\n" +
+                "4. **深度调研 (CodeSearch)**：遇到不熟悉的第三方库 API 或编程模式时，调用此工具获取外部背景。\n" +
+                "5. **内容阅读 (Read)**：在得出结论前，必须阅读相关文件的核心代码。\n\n" +
+
+                "### 核心原则\n" +
+                "- **禁止修改**：你没有修改文件的权限，严禁尝试写操作。\n" +
+                "- **引用证据**：所有的结论必须包含文件路径及行号引用。\n" +
+                "- **结构化输出**：回答应包含代码架构分析、模块关系总结及关键发现。\n\n" +
+
+                "请保持客观和严谨。你的输出将作为其他代理（如开发代理）行动的重要依据。";
     }
 }
