@@ -13,14 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.noear.solon.ai.codecli.core;
+package org.noear.solon.ai.codecli.core.subagent;
 
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.AbsSkill;
-import org.noear.solon.ai.codecli.core.subagent.Subagent;
-import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
 import org.noear.solon.annotation.Param;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +30,9 @@ import java.nio.file.Paths;
 import java.util.*;
 
 /**
- * 子代理工具
+ * 子代理技能
  *
- * 将子代理能力暴露为可调用的工具
+ * 将子代理能力暴露为可调用的工具（Claude Code Subagent 类似实现）
  *
  * @author bai
  * @since 3.9.5
@@ -48,15 +46,20 @@ public class SubagentSkill extends AbsSkill {
         this.manager = manager;
     }
 
+    @Override
+    public String getInstruction(Prompt prompt) {
+        return super.getInstruction(prompt);
+    }
+
     /**
      * 启动子代理执行任务
      */
     @ToolMapping(
             name = "subagent",
-            description = "启动一个专门的子代理来处理复杂任务。支持预定义类型（explore, plan, bash, general-purpose）和自定义代理（从 agentPools 中动态加载）"
+            description = "启动一个专门的子代理来处理复杂任务。支持预定义子类型（explore, plan, bash, general-purpose）和自定义代理（从 agentPools 中动态加载）"
     )
     public String subagent(
-            @Param(value = "type", description = "子代理类型：explore, plan, bash, general-purpose，或自定义代理名称") String type,
+            @Param(value = "subagent_type", description = "子代理类型：explore, plan, bash, general-purpose，或自定义代理名称") String type,
             @Param(value = "prompt", description = "任务描述或提示词") String prompt,
             @Param(value = "description", required = false, description = "简短的任务描述（3-5个词）") String description) {
 

@@ -53,16 +53,12 @@ public class SubagentManager {
      * 导出所有 Subagent 的提示词到 .soloncode/agents 目录
      */
     private void exportAllPrompts() {
-        LOG.info("开始导出 Subagent 提示词到 .soloncode/agents 目录...");
-
         // 创建所有已实现的 Subagent 实例（仅用于导出提示词）
         addSubagent(ExploreSubagent::new);
         addSubagent(DevPlanSubagent::new);
         addSubagent(BashSubagent::new);
         addSubagent(SolonGuideSubagent::new);
         addSubagent(GeneralPurposeSubagent::new);
-
-        LOG.info("Subagent 提示词导出完成");
     }
 
     public void addSubagent(SubagentFactory factory) {

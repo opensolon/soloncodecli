@@ -12,6 +12,7 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
+import org.noear.solon.ai.codecli.core.subagent.SubagentSkill;
 import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
