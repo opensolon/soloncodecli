@@ -27,14 +27,14 @@ import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
  * @author bai
  * @since 3.9.5
  */
-public class GeneralPurposeSubagent extends AbstractSubagent {
+public class GeneralPurposeSubagent extends AbsSubagent {
 
     public GeneralPurposeSubagent(AgentKernel mainAgent) {
         super(mainAgent);
     }
 
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 添加所有核心技能
         builder.defaultSkillAdd(mainAgent.getCliSkills());
 
@@ -54,12 +54,12 @@ public class GeneralPurposeSubagent extends AbstractSubagent {
     }
 
     @Override
-    public String getName() {
+    public String getType() {
         return "general-purpose";
     }
 
     @Override
-    public String getDescription() {
+    protected String getDefaultDescription() {
         return "通用子代理，擅长研究复杂问题、搜索代码和执行多步骤任务";
     }
 

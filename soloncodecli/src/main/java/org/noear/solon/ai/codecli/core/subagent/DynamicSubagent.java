@@ -20,6 +20,7 @@ import org.noear.solon.ai.codecli.core.AgentKernel;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
 import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
+import org.noear.solon.core.util.Assert;
 
 /**
  * 动态子代理 - 从 MD 文件动态加载提示词
@@ -27,23 +28,22 @@ import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
  * @author bai
  * @since 3.9.5
  */
-public class DynamicSubagent extends AbstractSubagent {
+public class DynamicSubagent extends AbsSubagent {
 
-    private final String agentName;
-    private final String customPrompt;
+    private final String subagentType;
 
-    public DynamicSubagent(AgentKernel mainAgent, String agentName, String customPrompt) {
+
+    public DynamicSubagent(AgentKernel mainAgent, String subagentType) {
         super(mainAgent);
 
-        this.agentName = agentName;
-        this.customPrompt = customPrompt;
+        this.subagentType = subagentType;
     }
 
     /**
      * 初始化动态代理
      */
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 添加所有核心技能
         builder.defaultSkillAdd(mainAgent.getCliSkills());
 
@@ -62,34 +62,25 @@ public class DynamicSubagent extends AbstractSubagent {
     }
 
     @Override
+    public String getType() {
+        return subagentType;
+    }
+
+    @Override
+    protected String getDefaultDescription() {
+        return "自定义代理: " + subagentType;
+    }
+
+    @Override
     protected String getDefaultSystemPrompt() {
         // 使用自定义提示词
-        if (customPrompt != null && !customPrompt.isEmpty()) {
-            return customPrompt;
+        if (Assert.isNotEmpty(systemPrompt)) {
+            return systemPrompt;
         }
         // 如果没有自定义提示词，使用默认提示词
         return "## 动态子代理\n\n" +
                 "你是一个专门的任务执行代理，根据用户的需求完成相应任务。\n" +
                 "\n" +
                 "请充分利用你提供的工具和技能，高效完成任务。\n";
-    }
-
-    @Override
-    public String getName() {
-        return agentName;
-    }
-
-    @Override
-    public String getDescription() {
-        return "自定义代理: " + agentName;
-    }
-
-    @Override
-    protected String buildSystemPrompt() {
-        // 动态代理优先使用自定义提示词
-        if (customPrompt != null && !customPrompt.isEmpty()) {
-            return customPrompt;
-        }
-        return super.buildSystemPrompt();
     }
 }

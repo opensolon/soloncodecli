@@ -24,14 +24,14 @@ import org.noear.solon.ai.codecli.core.AgentKernel;
  * @author bai
  * @since 3.9.5
  */
-public class ExploreSubagent extends AbstractSubagent {
+public class ExploreSubagent extends AbsSubagent {
 
     public ExploreSubagent(AgentKernel mainAgent) {
         super(mainAgent);
     }
 
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 添加技能（仅终端和专家技能，不添加代码搜索）
         builder.defaultSkillAdd(mainAgent.getCliSkills());
 
@@ -43,12 +43,12 @@ public class ExploreSubagent extends AbstractSubagent {
     }
 
     @Override
-    public String getName() {
+    public String getType() {
         return "explore";
     }
 
     @Override
-    public String getDescription() {
+    protected String getDefaultDescription() {
         return "快速探索子代理，专门用于查找文件、理解代码结构和回答代码库问题";
     }
 

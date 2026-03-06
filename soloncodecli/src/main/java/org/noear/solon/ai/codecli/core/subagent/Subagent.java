@@ -28,15 +28,19 @@ import reactor.core.publisher.Flux;
  */
 public interface Subagent {
     /**
-     * 获取名字
+     * 获取类型
      */
-    String getName();
+    String getType();
 
     /**
      * 获取描述
      */
     String getDescription();
 
+    /**
+     * 获取系统提示词
+     */
+    String getSystemPrompt();
 
     /**
      * 执行任务（同步）
@@ -44,7 +48,7 @@ public interface Subagent {
      * @param prompt 任务提示词
      * @return 执行结果
      */
-    AgentResponse execute(Prompt prompt) throws Throwable;
+    AgentResponse execute(String sessionId, Prompt prompt) throws Throwable;
 
     /**
      * 执行任务（流式）
@@ -52,5 +56,5 @@ public interface Subagent {
      * @param prompt 任务提示词
      * @return 流式结果
      */
-    Flux<AgentChunk> stream(Prompt prompt);
+    Flux<AgentChunk> stream(String sessionId, Prompt prompt);
 }

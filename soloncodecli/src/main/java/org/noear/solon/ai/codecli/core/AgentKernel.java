@@ -12,7 +12,7 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
-import org.noear.solon.ai.codecli.core.subagent.SubagentSkill;
+import org.noear.solon.ai.codecli.core.subagent.SubagentTool;
 import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
@@ -142,14 +142,14 @@ public class AgentKernel {
 
             // 注册自定义 agents 池（类似 skillPool）
             // 注册 soloncode agents
-            subagentManager.agentPool("@soloncode_agents", properties.getWorkDir() + AgentKernel.SOLONCODE_AGENTS);
+            subagentManager.agentPool(properties.getWorkDir() + AgentKernel.SOLONCODE_AGENTS);
             // 注册 opencode agents
-            subagentManager.agentPool("@opencode_agents", properties.getWorkDir() +  AgentKernel.OPENCODE_AGENTS);
+            subagentManager.agentPool(properties.getWorkDir() +  AgentKernel.OPENCODE_AGENTS);
             // 注册 claude agents
-            subagentManager.agentPool("@claude_agents", properties.getWorkDir() +  AgentKernel.CLAUDE_AGENTS);
+            subagentManager.agentPool( properties.getWorkDir() +  AgentKernel.CLAUDE_AGENTS);
 
             // SubagentSkill 会通过 @ToolMapping 自动注册为工具
-            agentBuilder.defaultSkillAdd(new SubagentSkill(subagentManager));
+            agentBuilder.defaultSkillAdd(new SubagentTool(subagentManager));
             LOG.info("子代理模式已启用");
         }
 

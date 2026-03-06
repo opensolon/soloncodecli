@@ -25,14 +25,14 @@ import org.noear.solon.ai.codecli.core.LuceneSkill;
  * @author bai
  * @since 3.9.5
  */
-public class DevPlanSubagent extends AbstractSubagent {
+public class DevPlanSubagent extends AbsSubagent {
 
     public DevPlanSubagent(AgentKernel mainAgent) {
         super(mainAgent);
     }
 
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 计划代理主要依赖推理能力，不需要太多工具
         // 可以添加只读工具来了解代码库
         builder.defaultSkillAdd(mainAgent.getCliSkills().getTerminalSkill());
@@ -46,12 +46,12 @@ public class DevPlanSubagent extends AbstractSubagent {
     }
 
     @Override
-    public String getName() {
+    public String getType() {
         return "dev-plan";
     }
 
     @Override
-    public String getDescription() {
+    protected String getDefaultDescription() {
         return "开发计划子代理，软件架构师，用于设计实现策略和步骤计划";
     }
 

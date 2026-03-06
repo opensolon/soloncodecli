@@ -24,7 +24,7 @@ import org.noear.solon.ai.codecli.core.AgentKernel;
  * @author bai
  * @since 3.9.5
  */
-public class BashSubagent extends AbstractSubagent {
+public class BashSubagent extends AbsSubagent {
 
     public BashSubagent(AgentKernel mainAgent) {
         super(mainAgent);
@@ -34,7 +34,7 @@ public class BashSubagent extends AbstractSubagent {
      * 初始化 Bash 代理
      */
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 只添加终端技能（bash 工具）
         builder.defaultSkillAdd(mainAgent.getCliSkills().getTerminalSkill());
 
@@ -46,12 +46,12 @@ public class BashSubagent extends AbstractSubagent {
     }
 
     @Override
-    public String getName() {
+    public String getType() {
         return "bash";
     }
 
     @Override
-    public String getDescription() {
+    protected String getDefaultDescription() {
         return "Bash 命令执行子代理，专门执行 git 操作、命令行任务和终端操作";
     }
 

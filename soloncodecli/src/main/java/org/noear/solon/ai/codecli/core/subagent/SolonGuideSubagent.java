@@ -26,13 +26,13 @@ import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
  * @author bai
  * @since 3.9.5
  */
-public class SolonGuideSubagent extends AbstractSubagent {
+public class SolonGuideSubagent extends AbsSubagent {
     public SolonGuideSubagent(AgentKernel mainAgent) {
         super(mainAgent);
     }
 
     @Override
-    protected void initialize(ReActAgent.Builder builder) {
+    protected void customize(ReActAgent.Builder builder) {
         // 添加专家技能（用于技能搜索和读取）
         builder.defaultSkillAdd(mainAgent.getCliSkills().getExpertSkill());
 
@@ -50,12 +50,12 @@ public class SolonGuideSubagent extends AbstractSubagent {
     }
 
     @Override
-    public String getName() {
+    public String getType() {
         return "solon-guide";
     }
 
     @Override
-    public String getDescription() {
+    protected String getDefaultDescription() {
         return "Solon Code 指南代理，专门回答关于 Solon Code、Solon Agent SDK 和 Solon API 的问题";
     }
 
