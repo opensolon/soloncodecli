@@ -22,8 +22,8 @@ public class SkillTest {
 
         CliSkillProvider cliSkillProvider = new CliSkillProvider();
 
-        if(Assert.isNotEmpty(config.skillPools)) {
-            for (Map.Entry<String, String> entry : config.skillPools.entrySet()) {
+        if(Assert.isNotEmpty(config.getSkillPools())) {
+            for (Map.Entry<String, String> entry : config.getSkillPools().entrySet()) {
                 cliSkillProvider.skillPool(entry.getKey(), entry.getValue());
             }
         }
