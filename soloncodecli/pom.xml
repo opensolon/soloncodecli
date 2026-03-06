@@ -13,7 +13,7 @@
 
     <artifactId>soloncodecli</artifactId>
     <name>${project.artifactId}</name>
-    <version>0.0.18</version>
+    <version>0.0.19</version>
     <packaging>jar</packaging>
 
     <properties>
@@ -102,6 +102,12 @@
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-queryparser</artifactId>
             <version>${lucene.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
