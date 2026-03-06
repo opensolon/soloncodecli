@@ -115,6 +115,8 @@ public class TerminalSkill extends AbsSkill {
         sb.append("## Terminal 环境状态\n");
         sb.append("- **当前时间**: ").append(currentTime).append("\n");
         sb.append("- **沙盒模式**: ").append((sandboxMode ? "开启 (受限)" : "关闭 (开放)")).append("\n");
+        sb.append("- **运行环境**: ").append(System.getProperty("os.name"))
+                .append(" (").append(System.getProperty("os.arch")).append(")\n");
         sb.append("- **终端类型**: ").append(shellMode).append("\n");
 
         sb.append("- **执行环境**: \n");
@@ -127,9 +129,9 @@ public class TerminalSkill extends AbsSkill {
         sb.append("  - **工作区(Workspace)**: 你的主目录，支持读写。使用相对路径访问（如 `src/app.java`）。\n");
         sb.append("  - **挂载池(Pools)**: 以 `@` 开头的逻辑路径（如 ").append(poolManager.getPoolMap().keySet()).append("）为**只读**资源，严禁写入。\n");
         if (sandboxMode) {
-            sb.append("  - **沙盒模式**: 仅支持相对路径（相对于 Workspace）或逻辑路径(@pool)。严禁绝对路径。\n");
+            sb.append("  - **安全级别**: 沙盒模式已开启。严禁使用绝对路径。仅限相对路径 (如 `src/app.java`) 或逻辑路径 (@pool)。\n");
         } else {
-            sb.append("  - **开放模式**: 支持绝对路径（如 `/etc/hosts` 或 `C:\\Windows`）、相对路径、逻辑路径(@pool)。\n");
+            sb.append("  - **安全级别**: 开放模式。支持绝对路径（如 `/etc/hosts` 或 `C:\\Windows`）、相对路径 (如 `src/app.java`) 及逻辑路径(@pool)。\n");
         }
 
         sb.append("## 执行规约\n");

@@ -5,15 +5,11 @@ import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -61,7 +57,6 @@ public class CodeSkill extends AbsSkill {
     @Override
     public String getInstruction(Prompt prompt) {
         String __cwd = prompt.attrAs(AgentKernel.ATTR_CWD);
-        Path rootPath = getRootPath(__cwd);
 
         StringBuilder buf = new StringBuilder();
 
@@ -78,9 +73,9 @@ public class CodeSkill extends AbsSkill {
         return buf.toString();
     }
 
-    public String refresh(String workDir) {
-        if (isSupported(null)) {
-            return init(workDir);
+    public String refresh(String __cwd) {
+        if (isSupported(Prompt.of().attrPut(AgentKernel.ATTR_CWD, __cwd))) {
+            return init(__cwd);
         } else {
             return null;
         }
@@ -115,49 +110,65 @@ public class CodeSkill extends AbsSkill {
                 appendNodeCommands(newContent, null);
             }
 
-            try (Stream<Path> stream = Files.walk(rootPath, 3)) {
-                List<Path> allNodes = stream.filter(Files::isDirectory)
-                        .filter(p -> !p.equals(rootPath))
-                        .filter(p -> !isIgnored(p)) // 使用统一的过滤逻辑
-                        .collect(Collectors.toList());
 
-                boolean hasSubModulesSection = false;
-
-                // 存储已经处理过的模块路径，防止重复（比如父子目录都被识别）
-                Set<String> processedPaths = new HashSet<>();
-
-                for (Path dir : allNodes) {
-                    String relativePath = rootPath.relativize(dir).toString().replace("\\", "/");
-
-                    // 如果父目录已经作为模块处理过了，子目录就不再单独列出（Maven 惯例）
-                    if (processedPaths.stream().anyMatch(relativePath::startsWith)) continue;
-
-                    boolean isMaven = Files.exists(dir.resolve("pom.xml"));
-                    boolean isNode = Files.exists(dir.resolve("package.json"));
-
-                    if (isMaven || isNode) {
-                        processedPaths.add(relativePath); // 标记此路径已处理
-
-                        // 判断是否是异构项目（比如 Root 是 Maven，子目录是 Node）
-                        boolean isHeterogeneous = (isMaven && !rootHasMaven) || (isNode && !rootHasNode);
-
-                        if (isHeterogeneous) {
-                            detectedStacks.add(relativePath + (isMaven ? "(Maven)" : "(Node)"));
-                            if (isMaven) appendMavenCommands(newContent, relativePath);
-                            if (isNode) appendNodeCommands(newContent, relativePath);
-                        } else {
-                            if (!hasSubModulesSection) {
-                                newContent.append("### Sub-modules / Sub-projects\n");
-                                hasSubModulesSection = true;
-                            }
-                            newContent.append("- ").append(relativePath).append(": ")
-                                    .append(isMaven ? "Maven module" : "Node project")
-                                    .append(". Controlled by root project commands.\n");
+            List<Path> allNodes = new ArrayList<>();
+            try {
+                Files.walkFileTree(rootPath, EnumSet.noneOf(FileVisitOption.class), 3, new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (dir.equals(rootPath)) {
+                            return FileVisitResult.CONTINUE;
                         }
+
+                        if (isIgnored(dir)) {
+                            return FileVisitResult.SKIP_SUBTREE;
+                        }
+
+                        allNodes.add(dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } catch (IOException e) {
+                LOG.error("Scan sub-modules failed", e);
+            }
+
+            boolean hasSubModulesSection = false;
+
+            // 存储已经处理过的模块路径，防止重复（比如父子目录都被识别）
+            Set<String> processedPaths = new HashSet<>();
+
+            for (Path dir : allNodes) {
+                String relativePath = rootPath.relativize(dir).toString().replace("\\", "/");
+
+                // 如果父目录已经作为模块处理过了，子目录就不再单独列出（Maven 惯例）
+                if (processedPaths.stream().anyMatch(p -> relativePath.startsWith(p + "/"))) continue;
+
+                boolean isMaven = Files.exists(dir.resolve("pom.xml"));
+                boolean isNode = Files.exists(dir.resolve("package.json"));
+
+                if (isMaven || isNode) {
+                    processedPaths.add(relativePath); // 标记此路径已处理
+
+                    // 判断是否是异构项目（比如 Root 是 Maven，子目录是 Node）
+                    boolean isHeterogeneous = (isMaven && !rootHasMaven) || (isNode && !rootHasNode);
+
+                    if (isHeterogeneous) {
+                        detectedStacks.add(relativePath + (isMaven ? "(Maven)" : "(Node)"));
+                        if (isMaven) appendMavenCommands(newContent, relativePath);
+                        if (isNode) appendNodeCommands(newContent, relativePath);
+                    } else {
+                        if (!hasSubModulesSection) {
+                            newContent.append("### Sub-modules / Sub-projects\n");
+                            hasSubModulesSection = true;
+                        }
+                        newContent.append("- ").append(relativePath).append(": ")
+                                .append(isMaven ? "Maven module" : "Node project")
+                                .append(". Controlled by root project commands.\n");
                     }
                 }
-                if (hasSubModulesSection) newContent.append("\n");
             }
+            if (hasSubModulesSection) newContent.append("\n");
+
 
             appendGuidelines(newContent);
 
@@ -227,10 +238,15 @@ public class CodeSkill extends AbsSkill {
         try {
             Path gitignore = rootPath.resolve(".gitignore");
             if (Files.exists(gitignore)) {
-                String content = new String(Files.readAllBytes(gitignore));
-                if (!content.contains(fileName)) {
-                    String separator = content.endsWith("\n") ? "" : "\n";
-                    Files.write(gitignore, (separator + fileName + "\n").getBytes(), java.nio.file.StandardOpenOption.APPEND);
+                List<String> lines = Files.readAllLines(gitignore);
+                // 精确匹配行，或者检查是否有以该文件名开头的有效行
+                boolean exists = lines.stream()
+                        .map(String::trim)
+                        .anyMatch(line -> line.equals(fileName) || line.startsWith(fileName + " "));
+
+                if (!exists) {
+                    String separator = (lines.isEmpty() || lines.get(lines.size()-1).isEmpty()) ? "" : "\n";
+                    Files.write(gitignore, (separator + fileName + "\n").getBytes(), StandardOpenOption.APPEND);
                 }
             }
         } catch (Exception ignored) {
@@ -242,11 +258,27 @@ public class CodeSkill extends AbsSkill {
     }
 
     private boolean deepExists(Path rootPath, String path) {
-        try (Stream<Path> stream = Files.walk(rootPath, 3)) {
-            return stream.filter(Files::isDirectory)
-                    .filter(p -> !isIgnored(p)) // 清爽的过滤
-                    .anyMatch(dir -> Files.exists(dir.resolve(path)));
-        } catch (Exception e) {
+        try {
+            final boolean[] found = {false};
+
+            Files.walkFileTree(rootPath, EnumSet.noneOf(FileVisitOption.class), 3, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                    if (isIgnored(dir)) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+
+                    if (Files.exists(dir.resolve(path))) {
+                        found[0] = true;
+                        return FileVisitResult.TERMINATE;
+                    }
+
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+            return found[0];
+        } catch (IOException e) {
             return false;
         }
     }
