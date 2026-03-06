@@ -12,7 +12,6 @@ import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
-import org.noear.solon.ai.codecli.core.tool.SubAgentTool;
 import org.noear.solon.ai.codecli.core.tool.ApplyPatchTool;
 import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
@@ -221,9 +220,9 @@ public class AgentKernel {
                 // 注册 claude agents
                 subAgentManager.agentPool("@claude_agents", properties.workDir +  AgentKernel.CLAUDE_AGENTS);
 
-                // SubAgentTool 会通过 @ToolMapping 自动注册为工具
-                agentBuilder.defaultToolAdd(new SubAgentTool(subAgentManager));
-                LOG.info("子代理功能已启用");
+                // SubagentSkill 会通过 @ToolMapping 自动注册为工具
+                agentBuilder.defaultSkillAdd(new SubagentSkill(subAgentManager));
+                LOG.info("子代理模式已启用");
             }
 
             //上下文摘要

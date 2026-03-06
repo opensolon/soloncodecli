@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.noear.solon.ai.codecli.core.tool;
+package org.noear.solon.ai.codecli.core;
 
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.noear.solon.ai.codecli.core.subagent.Subagent;
 import org.noear.solon.ai.codecli.core.subagent.SubagentManager;
 import org.noear.solon.ai.codecli.core.subagent.SubagentType;
@@ -39,12 +40,12 @@ import java.util.*;
  * @author bai
  * @since 3.9.5
  */
-public class SubAgentTool {
-    private static final Logger LOG = LoggerFactory.getLogger(SubAgentTool.class);
+public class SubagentSkill extends AbsSkill {
+    private static final Logger LOG = LoggerFactory.getLogger(SubagentSkill.class);
 
     private final SubagentManager manager;
 
-    public SubAgentTool(SubagentManager manager) {
+    public SubagentSkill(SubagentManager manager) {
         this.manager = manager;
     }
 

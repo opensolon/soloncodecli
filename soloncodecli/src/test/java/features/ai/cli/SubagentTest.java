@@ -25,7 +25,7 @@ import java.util.function.Function;
  * @since 3.9.5
  */
 @SolonTest
-public class SubAgentTest {
+public class SubagentTest {
 
     Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();
 
