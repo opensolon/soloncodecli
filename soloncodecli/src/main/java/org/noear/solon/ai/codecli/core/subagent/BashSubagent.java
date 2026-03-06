@@ -36,10 +36,10 @@ public class BashSubagent extends AbstractSubagent {
     /**
      * 初始化 Bash 代理
      */
-    public void initialize(ChatModel chatModel) {
-        initAgent(chatModel, builder -> {
+    @Override
+    public void initialize() {
+        initAgent(builder -> {
             // 只添加终端技能（bash 工具）
-            // 仅添加 bash 工具
             builder.defaultSkillAdd(mainAgent.getCliSkills().getTerminalSkill());
 
             // 设置最大步数

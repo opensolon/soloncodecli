@@ -37,6 +37,10 @@ public interface Subagent {
      */
     String getDescription();
 
+    /**
+     * 初始化
+     */
+    void initialize();
 
     /**
      * 执行任务（同步）

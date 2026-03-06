@@ -41,6 +41,11 @@ import java.util.stream.Collectors;
  */
 public class LuceneSkill extends AbsSkill {
     private static final Logger LOG = LoggerFactory.getLogger(LuceneSkill.class);
+    private static final LuceneSkill instance = new LuceneSkill();
+
+    public static LuceneSkill getInstance() {
+        return instance;
+    }
 
     private final Directory indexDirectory;
     private final Analyzer analyzer;

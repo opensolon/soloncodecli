@@ -20,6 +20,7 @@ import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.codecli.core.CliSkillProvider;
 import org.noear.solon.ai.codecli.core.AgentKernel;
 import org.noear.solon.ai.codecli.core.PoolManager;
+import org.noear.solon.ai.codecli.core.tool.CodeSearchTool;
 import org.noear.solon.ai.codecli.core.tool.WebfetchTool;
 import org.noear.solon.ai.codecli.core.tool.WebsearchTool;
 
@@ -35,17 +36,16 @@ public class GeneralPurposeSubagent extends AbstractSubagent {
         super(mainAgent);
     }
 
-    /**
-     * 初始化通用代理
-     */
-    public void initialize(ChatModel chatModel) {
-        initAgent(chatModel, builder -> {
+    @Override
+    public void initialize() {
+        initAgent(builder -> {
             // 添加所有核心技能
             builder.defaultSkillAdd(mainAgent.getCliSkills());
 
             // 添加网络工具
             builder.defaultToolAdd(WebfetchTool.getInstance());
             builder.defaultToolAdd(WebsearchTool.getInstance());
+            builder.defaultToolAdd(CodeSearchTool.getInstance());
 
             // 如果主 CodeAgent 有代码搜索能力，也可以添加
             // 这里可以根据需要动态添加工具

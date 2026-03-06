@@ -42,8 +42,8 @@ public class DynamicSubagent extends AbstractSubagent {
     /**
      * 初始化动态代理
      */
-    public void initialize(ChatModel chatModel) {
-        initAgent(chatModel, builder -> {
+    public void initialize() {
+        initAgent(builder -> {
             // 添加所有核心技能
             builder.defaultSkillAdd(mainAgent.getCliSkills());
 

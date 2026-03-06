@@ -34,11 +34,9 @@ public class SolonGuideSubagent extends AbstractSubagent {
         super(mainAgent);
     }
 
-    /**
-     * 初始化 Solon Code 指南代理
-     */
-    public void initialize(ChatModel chatModel) {
-        initAgent(chatModel, builder -> {
+    @Override
+    public void initialize() {
+        initAgent(builder -> {
             // 添加专家技能（用于技能搜索和读取）
             builder.defaultSkillAdd(mainAgent.getCliSkills().getExpertSkill());
 

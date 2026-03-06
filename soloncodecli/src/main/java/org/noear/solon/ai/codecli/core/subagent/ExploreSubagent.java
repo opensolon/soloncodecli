@@ -33,11 +33,9 @@ public class ExploreSubagent extends AbstractSubagent {
         super(mainAgent);
     }
 
-    /**
-     * 初始化探索代理
-     */
-    public void initialize(ChatModel chatModel) {
-        initAgent(chatModel, builder -> {
+    @Override
+    public void initialize() {
+        initAgent(builder -> {
             // 添加技能（仅终端和专家技能，不添加代码搜索）
             builder.defaultSkillAdd(mainAgent.getCliSkills());
 

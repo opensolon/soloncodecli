@@ -18,9 +18,7 @@ package org.noear.solon.ai.codecli.core.subagent;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
-import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.react.ReActAgent;
-import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.codecli.core.AgentKernel;
 import org.noear.solon.ai.codecli.core.SystemPrompt;
@@ -50,15 +48,16 @@ public abstract class AbstractSubagent implements Subagent {
         this.mainAgent = mainAgent;
 
         exportSystemPrompt();
+
+        initialize();
     }
 
     /**
      * 初始化代理
      */
-    protected synchronized void initAgent(ChatModel chatModel,
-                                           Consumer<ReActAgent.Builder> configurator) {
+    protected synchronized void initAgent(Consumer<ReActAgent.Builder> configurator) {
         if (agent == null) {
-            ReActAgent.Builder builder = ReActAgent.of(chatModel);
+            ReActAgent.Builder builder = ReActAgent.of(mainAgent.getChatModel());
 
             // 设置系统提示词
             String systemPrompt = buildSystemPrompt();
