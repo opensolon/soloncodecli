@@ -52,11 +52,6 @@ public class TaskSkill extends AbsSkill {
         this.manager = manager;
     }
 
-    @Override
-    public String name() {
-        return "task";
-    }
-
 
     @Override
     public String description() {
