@@ -97,7 +97,7 @@ public class AgentKernel {
 
         //-----------
 
-        final ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel);
+        final ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel).name("main");
         final String agentsMd = getAgentsMd();
 
         if (Assert.isEmpty(agentsMd)) {

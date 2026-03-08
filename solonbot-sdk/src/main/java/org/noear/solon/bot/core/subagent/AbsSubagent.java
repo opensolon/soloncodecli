@@ -110,9 +110,8 @@ public abstract class AbsSubagent implements Subagent {
                 if (cachedAgent == null) {
                     ReActAgent.Builder builder = ReActAgent.of(mainAgent.getChatModel());
 
-                    builder.systemPrompt(SystemPrompt.builder()
-                            .instruction(getSystemPrompt())
-                            .build());
+                    builder.name(getType())
+                            .systemPrompt(t -> getSystemPrompt());
 
                     // 应用自定义配置
                     customize(builder);

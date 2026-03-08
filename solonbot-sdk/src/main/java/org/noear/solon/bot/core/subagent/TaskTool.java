@@ -20,6 +20,7 @@ import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.tool.AbsTool;
@@ -136,7 +137,10 @@ public class TaskTool extends AbsTool {
             } else {
                 ReActChunk chunk1 = (ReActChunk) agent.stream(__cwd, finalSessionId, Prompt.of(prompt))
                         .doOnNext(chunk -> {
-                            __parentTrace.getOptions().getStreamSink().next(chunk);
+                            if(chunk instanceof ActionChunk) {
+                                //只输出 tool
+                                __parentTrace.getOptions().getStreamSink().next(chunk);
+                            }
                         })
                         .blockLast();
 

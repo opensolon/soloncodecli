@@ -295,6 +295,15 @@ public class CliShellOld implements Runnable {
 
     private void onActionChunk(ActionChunk action, AtomicBoolean isFirstReasonChunk) {
         if (Assert.isNotEmpty(action.getToolName())) {
+            final String fullToolName;
+
+            if(kernel.getProps().isSubagentEnabled()) {
+                fullToolName = action.getAgentName() + "/" + action.getToolName();
+            } else {
+                fullToolName = action.getToolName();
+            }
+
+
             // 1. 准备参数字符串
             StringBuilder argsBuilder = new StringBuilder();
             Map<String, Object> args = action.getArgs();
@@ -327,7 +336,7 @@ public class CliShellOld implements Runnable {
                 String shortArgs = argsStr.length() > 40 ? argsStr.substring(0, 37) + "..." : argsStr;
 
                 terminal.writer().println();
-                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + shortArgs + " (" + summary + ")" + RESET);
+                terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + fullToolName + RESET + " " + DIM + shortArgs + " (" + summary + ")" + RESET);
                 terminal.flush();
 
             } else {
@@ -336,10 +345,10 @@ public class CliShellOld implements Runnable {
                 terminal.writer().println();
                 if (!hasBigArgs) {
                     // 短参数直接跟在后面
-                    terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET + " " + DIM + argsStr + RESET);
+                    terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + fullToolName + RESET + " " + DIM + argsStr + RESET);
                 } else {
                     // 大参数块，指令名独占一行，参数作为缩进内容打印（类似 write_file 的 content 部分）
-                    terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + action.getToolName() + RESET);
+                    terminal.writer().println(YELLOW + "❯ " + RESET + BOLD + fullToolName + RESET);
                     if (args != null) {
                         args.forEach((k, v) -> {
                             String val = String.valueOf(v).trim();
