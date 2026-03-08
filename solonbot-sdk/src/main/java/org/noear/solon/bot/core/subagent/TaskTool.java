@@ -15,9 +15,15 @@
  */
 package org.noear.solon.bot.core.subagent;
 
+import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
+import org.noear.solon.ai.agent.AgentSession;
+import org.noear.solon.ai.agent.react.ReActChunk;
+import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.tool.AbsTool;
+import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.core.util.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +41,11 @@ import java.util.Map;
 public class TaskTool extends AbsTool {
     private static final Logger LOG = LoggerFactory.getLogger(TaskTool.class);
 
+    private final AgentKernel mainAgent;
     private final SubagentManager manager;
 
-    public TaskTool(SubagentManager manager) {
+    public TaskTool(AgentKernel mainAgent, SubagentManager manager) {
+        this.mainAgent = mainAgent;
         this.manager = manager;
 
         addParam("subagent_type", String.class, "用于此任务的子代理类型");
@@ -95,6 +103,9 @@ public class TaskTool extends AbsTool {
         String taskId = (String) args.get("task_id");
 
         String __cwd = (String) args.get("__cwd");
+        String __parentSessionId = (String) args.get(ChatSession.ATTR_SESSIONID);
+        AgentSession __parentSession = mainAgent.getSession(__parentSessionId);
+        ReActTrace __parentTrace = ReActTrace.getCurrent(__parentSession.getSnapshot());
 
         try {
             Subagent agent = manager.getAgent(subagentType);
@@ -112,9 +123,29 @@ public class TaskTool extends AbsTool {
 
             // 2. 这里的 AgentSession 逻辑应与 AgentKernel 深度绑定
             // 注意：execute 内部应能识别 sessionId 并从 sessionManager 恢复上下文
-            AgentResponse response = agent.execute(finalSessionId, __cwd, Prompt.of(prompt));
 
-            String result = response.getContent();
+            String result = null;
+
+            if (__parentTrace.getOptions().getStreamSink() == null) {
+                //没有流信息（同步）
+                AgentResponse response = agent.call(__cwd, finalSessionId, Prompt.of(prompt));
+                result = response.getContent();
+
+                //累计 tokens 计数
+                __parentTrace.getMetrics().addMetrics(response.getMetrics());
+            } else {
+                ReActChunk chunk1 = (ReActChunk) agent.stream(__cwd, finalSessionId, Prompt.of(prompt))
+                        .doOnNext(chunk -> {
+                            __parentTrace.getOptions().getStreamSink().next(chunk);
+                        })
+                        .blockLast();
+
+                result = chunk1.getContent();
+                //累计 tokens 计数
+                __parentTrace.getMetrics().addMetrics(chunk1.getResponse().getMetrics());
+            }
+
+
             LOG.info("子代理任务完成: {}", finalSessionId);
 
             // 3. 结构化输出，方便主代理识别结果并知道如何继续
