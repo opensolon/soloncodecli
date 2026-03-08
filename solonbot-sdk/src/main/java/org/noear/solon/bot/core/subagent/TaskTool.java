@@ -21,6 +21,7 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
+import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.tool.AbsTool;
@@ -30,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 子代理技能
@@ -135,11 +137,19 @@ public class TaskTool extends AbsTool {
                 //累计 tokens 计数
                 __parentTrace.getMetrics().addMetrics(response.getMetrics());
             } else {
+                AtomicReference<AgentChunk> atomicReference = new AtomicReference<>();
                 ReActChunk chunk1 = (ReActChunk) agent.stream(__cwd, finalSessionId, Prompt.of(prompt))
                         .doOnNext(chunk -> {
                             if(chunk instanceof ActionChunk) {
-                                //只输出 tool
+                                atomicReference.set(chunk);
                                 __parentTrace.getOptions().getStreamSink().next(chunk);
+                            } else if(chunk instanceof ReasonChunk) {
+                                if (atomicReference.get() != null) {
+                                    ReasonChunk reasonChunk = (ReasonChunk) chunk;
+                                    if (reasonChunk.isFinished() == false) {
+                                        __parentTrace.getOptions().getStreamSink().next(chunk);
+                                    }
+                                }
                             }
                         })
                         .blockLast();
