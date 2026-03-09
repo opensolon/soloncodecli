@@ -25,7 +25,17 @@ import lombok.Getter;
  */
 @Getter
 public enum AgentEventType {
-    // ========== 任务事件 ==========
+    // ========== 主代理任务事件 ==========
+    /** 主代理任务开始 */
+    MAIN_TASK_STARTED("main.task.started"),
+    /** 主代理任务完成 */
+    MAIN_TASK_COMPLETED("main.task.completed"),
+    /** 主代理任务失败 */
+    MAIN_TASK_FAILED("main.task.failed"),
+
+    // ========== 子任务事件 ==========
+    /** 任务创建 */
+    TASK_CREATED("task.created"),
     /** 任务开始 */
     TASK_STARTED("task.started"),
     /** 任务完成 */
@@ -34,9 +44,9 @@ public enum AgentEventType {
     TASK_FAILED("task.failed"),
     /** 任务进度更新 */
     TASK_PROGRESS("task.progress"),
-
-    TASK_CREATED("task.created"),
+    /** 任务认领 */
     TASK_CLAIMED("task.claimed"),
+    /** 任务释放 */
     TASK_RELEASED("task.released"),
 
     // ========== 记忆事件 ==========

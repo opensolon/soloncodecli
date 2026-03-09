@@ -92,14 +92,9 @@ public class AgentProperties {
      */
     public Map<String, String> subAgentModels;
 
-
-    private Map<String, McpServerParameters> mcpServers;
-    private ChatConfig chatModel;
     @Deprecated
     private Map<String, String> mountPool;
     private Map<String, String> skillPools;
-    public Map<String, String> mountPool;
-    public Map<String, String> skillPools;
 
     /**
      * 共享记忆配置类

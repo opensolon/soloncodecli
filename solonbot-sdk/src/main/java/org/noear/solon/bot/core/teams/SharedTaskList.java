@@ -22,7 +22,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
@@ -53,20 +52,6 @@ public class SharedTaskList {
     private final int maxCompletedTasks;                    // 保留的最大已完成任务数
     private final Queue<String> completedTaskQueue;         // 已完成任务队列（FIFO清理）
 
-    // 事件监听器
-    private final List<TaskEventListener> eventListeners;
-
-    /**
-     * 任务事件监听器
-     */
-    public interface TaskEventListener {
-        void onTaskAdded(TeamTask task);
-        void onTaskClaimed(TeamTask task, String agentId);
-        void onTaskReleased(TeamTask task, String agentId);
-        void onTaskCompleted(TeamTask task, String agentId);
-        void onTaskFailed(TeamTask task, String agentId, String error);
-    }
-
     /**
      * 构造函数
      *
@@ -91,10 +76,8 @@ public class SharedTaskList {
         this.eventBus = eventBus;
         this.maxCompletedTasks = maxCompletedTasks;
         this.completedTaskQueue = new LinkedList<>();
-        this.eventListeners = new CopyOnWriteArrayList<>();
     }
 
-    // ========== 任务管理 ==========
 
     /**
      * 添加任务
@@ -132,7 +115,6 @@ public class SharedTaskList {
 
                 // 触发事件（在锁外执行，避免阻塞）
                 CompletableFuture.runAsync(() -> {
-                    notifyTaskAdded(finalTask);
                     publishTaskEvent(AgentEventType.TASK_CREATED, finalTask, null);
                 });
 
@@ -209,7 +191,6 @@ public class SharedTaskList {
                 List<TeamTask> finalAdded = added;
                 CompletableFuture.runAsync(() -> {
                     for (TeamTask task : finalAdded) {
-                        notifyTaskAdded(task);
                         publishTaskEvent(AgentEventType.TASK_CREATED, task, null);
                     }
                 });
@@ -316,9 +297,12 @@ public class SharedTaskList {
 
                 LOG.info("任务已认领: {} by {}", task.getTitle(), agentId);
 
-                // 触发事件
-                notifyTaskClaimed(task, agentId);
-                publishTaskEvent(AgentEventType.TASK_CLAIMED, task, agentId);
+                // 触发事件（在锁外执行，避免阻塞）
+                TeamTask finalTask = task;
+                String finalAgentId = agentId;
+                CompletableFuture.runAsync(() -> {
+                    publishTaskEvent(AgentEventType.TASK_CLAIMED, finalTask, finalAgentId);
+                });
 
                 return true;
 
@@ -404,9 +388,12 @@ public class SharedTaskList {
 
             LOG.info("任务已释放: {} by {}", task.getTitle(), agentId);
 
-            // 触发事件
-            notifyTaskReleased(task, agentId);
-            publishTaskEvent(AgentEventType.TASK_RELEASED, task, agentId);
+            // 触发事件（在锁外执行，避免阻塞）
+            TeamTask finalTask = task;
+            String finalAgentId = agentId;
+            CompletableFuture.runAsync(() -> {
+                publishTaskEvent(AgentEventType.TASK_RELEASED, finalTask, finalAgentId);
+            });
 
             return true;
 
@@ -458,9 +445,12 @@ public class SharedTaskList {
 
             LOG.info("任务已完成: {} by {}", task.getTitle(), agentId);
 
-            // 触发事件
-            notifyTaskCompleted(task, agentId);
-            publishTaskEvent(AgentEventType.TASK_COMPLETED, task, agentId);
+            // 触发事件（在锁外执行，避免阻塞）
+            TeamTask finalTask = task;
+            String finalAgentId = agentId;
+            CompletableFuture.runAsync(() -> {
+                publishTaskEvent(AgentEventType.TASK_COMPLETED, finalTask, finalAgentId);
+            });
 
             return true;
 
@@ -506,9 +496,12 @@ public class SharedTaskList {
 
             LOG.warn("任务已失败: {} - {}", task.getTitle(), errorMessage);
 
-            // 触发事件
-            notifyTaskFailed(task, agentId, errorMessage);
-            publishTaskEvent(AgentEventType.TASK_FAILED, task, agentId);
+            // 触发事件（在锁外执行，避免阻塞）
+            TeamTask finalTask = task;
+            String finalAgentId = agentId;
+            CompletableFuture.runAsync(() -> {
+                publishTaskEvent(AgentEventType.TASK_FAILED, finalTask, finalAgentId);
+            });
 
             return true;
 
@@ -855,24 +848,6 @@ public class SharedTaskList {
 
     // ========== 事件监听 ==========
 
-    /**
-     * 添加事件监听器
-     *
-     * @param listener 监听器
-     */
-    public void addEventListener(TaskEventListener listener) {
-        eventListeners.add(listener);
-    }
-
-    /**
-     * 移除事件监听器
-     *
-     * @param listener 监听器
-     */
-    public void removeEventListener(TaskEventListener listener) {
-        eventListeners.remove(listener);
-    }
-
     // ========== 私有方法 ==========
 
     /**
@@ -913,6 +888,11 @@ public class SharedTaskList {
                 payload.put("status", task.getStatus());
                 payload.put("priority", task.getPriority());
 
+                // 对于失败任务，添加错误信息
+                if (eventType == AgentEventType.TASK_FAILED && task.getErrorMessage() != null) {
+                    payload.put("errorMessage", task.getErrorMessage());
+                }
+
                 // 创建事件元数据
                 EventMetadata metadata = EventMetadata.builder()
                         .taskId(task.getId())
@@ -924,71 +904,6 @@ public class SharedTaskList {
                 eventBus.publishAsync(event);
             } catch (Exception e) {
                 LOG.error("发布任务事件失败", e);
-            }
-        }
-    }
-
-    /**
-     * 通知任务已添加
-     */
-    private void notifyTaskAdded(TeamTask task) {
-        for (TaskEventListener listener : eventListeners) {
-            try {
-                listener.onTaskAdded(task);
-            } catch (Exception e) {
-                LOG.error("任务事件监听器异常", e);
-            }
-        }
-    }
-
-    /**
-     * 通知任务已认领
-     */
-    private void notifyTaskClaimed(TeamTask task, String agentId) {
-        for (TaskEventListener listener : eventListeners) {
-            try {
-                listener.onTaskClaimed(task, agentId);
-            } catch (Exception e) {
-                LOG.error("任务事件监听器异常", e);
-            }
-        }
-    }
-
-    /**
-     * 通知任务已释放
-     */
-    private void notifyTaskReleased(TeamTask task, String agentId) {
-        for (TaskEventListener listener : eventListeners) {
-            try {
-                listener.onTaskReleased(task, agentId);
-            } catch (Exception e) {
-                LOG.error("任务事件监听器异常", e);
-            }
-        }
-    }
-
-    /**
-     * 通知任务已完成
-     */
-    private void notifyTaskCompleted(TeamTask task, String agentId) {
-        for (TaskEventListener listener : eventListeners) {
-            try {
-                listener.onTaskCompleted(task, agentId);
-            } catch (Exception e) {
-                LOG.error("任务事件监听器异常", e);
-            }
-        }
-    }
-
-    /**
-     * 通知任务已失败
-     */
-    private void notifyTaskFailed(TeamTask task, String agentId, String error) {
-        for (TaskEventListener listener : eventListeners) {
-            try {
-                listener.onTaskFailed(task, agentId, error);
-            } catch (Exception e) {
-                LOG.error("任务事件监听器异常", e);
             }
         }
     }

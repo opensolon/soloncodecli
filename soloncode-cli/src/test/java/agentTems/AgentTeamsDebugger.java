@@ -15,9 +15,9 @@
  */
 package agentTems;
 
-import org.noear.solon.ai.codecli.core.memory.*;
-import org.noear.solon.ai.codecli.core.event.*;
-import org.noear.solon.ai.codecli.core.message.*;
+import org.noear.solon.bot.core.memory.*;
+import org.noear.solon.bot.core.event.*;
+import org.noear.solon.bot.core.message.*;
 
 import java.util.Arrays;
 import java.util.List;

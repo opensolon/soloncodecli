@@ -15,8 +15,10 @@
  */
 package org.noear.solon.bot.core.teams;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.noear.solon.ai.chat.ChatResponse;
 import org.noear.solon.ai.chat.prompt.Prompt;
@@ -41,9 +43,11 @@ import java.util.concurrent.CompletableFuture;
  */
 @Getter
 @Setter
-@Builder
+@Builder(toBuilder = true)
+@NoArgsConstructor
+@AllArgsConstructor
 public class TeamTask {
-    private final String id;                      // 任务ID
+    private String id;                      // 任务ID
     private String title;                          // 任务标题
     private String description;                    // 详细描述
     private int priority;                         // 优先级（1-10，10最高）
@@ -60,8 +64,10 @@ public class TeamTask {
     private long completedTime;                     // 完成时间
 
     // 依赖和协作
-    private List<String> dependencies;              // 依赖的任务ID列表
-    private Map<String, String> metadata;           // 元数据
+    @Builder.Default
+    private List<String> dependencies = new ArrayList<>();              // 依赖的任务ID列表
+    @Builder.Default
+    private Map<String, String> metadata = new HashMap<>();           // 元数据
 
     /**
      * 任务状态枚举
@@ -92,20 +98,36 @@ public class TeamTask {
      * @param title 任务标题
      */
     public TeamTask(String title) {
-        this(UUID.randomUUID().toString(), title);
-    }
-
-    /**
-     * 完整构造函数
-     */
-    public TeamTask(String id, String title) {
-        this.id = id;
+        this.id = UUID.randomUUID().toString();
         this.title = title;
-        this.priority = 5;  // 默认中等优先级
+        this.priority = 5;
         this.status = Status.PENDING;
         this.type = TaskType.DEVELOPMENT;
         this.dependencies = new ArrayList<>();
         this.metadata = new HashMap<>();
+    }
+
+    /**
+     * 双参数构造函数
+     *
+     * @param id 任务ID
+     * @param title 任务标题
+     */
+    public TeamTask(String id, String title) {
+        this.id = id;
+        this.title = title;
+        this.priority = 5;
+        this.status = Status.PENDING;
+        this.type = TaskType.DEVELOPMENT;
+        this.dependencies = new ArrayList<>();
+        this.metadata = new HashMap<>();
+    }
+
+    /**
+     * 创建带自动生成 ID 的 Builder
+     */
+    public static TeamTaskBuilder builderWithAutoId() {
+        return TeamTask.builder().id(UUID.randomUUID().toString());
     }
 
 
@@ -296,15 +318,34 @@ public class TeamTask {
 
     /**
      * 获取状态图标
+     * 支持通过系统属性控制使用 Emoji 或 ASCII 字符
+     * -DteamTask.useEmoji=true  使用 Emoji（默认）
+     * -DteamTask.useEmoji=false 使用 ASCII 字符（兼容旧系统）
      */
     private String getStatusIcon(Status status) {
-        switch (status) {
-            case PENDING: return "⏳";
-            case IN_PROGRESS: return "🔄";
-            case COMPLETED: return "✅";
-            case FAILED: return "❌";
-            case CANCELLED: return "🚫";
-            default: return "❓";
+        boolean useEmoji = Boolean.parseBoolean(
+                System.getProperty("teamTask.useEmoji", "true"));
+
+        if (useEmoji) {
+            // Emoji 模式（默认，需要 UTF-8 支持）
+            switch (status) {
+                case PENDING: return "⏳";
+                case IN_PROGRESS: return "🔄";
+                case COMPLETED: return "✅";
+                case FAILED: return "❌";
+                case CANCELLED: return "🚫";
+                default: return "❓";
+            }
+        } else {
+            // ASCII 模式（兼容旧系统/Windows CMD）
+            switch (status) {
+                case PENDING: return "[WAIT]";
+                case IN_PROGRESS: return "[DOING]";
+                case COMPLETED: return "[DONE]";
+                case FAILED: return "[FAIL]";
+                case CANCELLED: return "[CANCEL]";
+                default: return "[???]";
+            }
         }
     }
 

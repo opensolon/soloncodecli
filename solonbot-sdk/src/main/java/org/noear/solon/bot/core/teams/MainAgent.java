@@ -30,6 +30,7 @@ import org.noear.solon.bot.core.event.EventBus;
 import org.noear.solon.bot.core.event.EventHandler;
 import org.noear.solon.bot.core.event.EventMetadata;
 import org.noear.solon.bot.core.memory.SharedMemoryManager;
+import org.noear.solon.bot.core.memory.ShortTermMemory;
 import org.noear.solon.bot.core.message.AgentMessage;
 import org.noear.solon.bot.core.message.MessageAck;
 import org.noear.solon.bot.core.message.MessageChannel;
@@ -72,6 +73,7 @@ public class MainAgent {
 
     // 任务事件监听器
     private String taskEventSubscriptionId;
+    private String taskFailedSubscriptionId;  //  新增：保存失败事件订阅ID
     private String messageHandlerId;
 
     public MainAgent(SubAgentMetadata config,
@@ -146,8 +148,8 @@ public class MainAgent {
         running.set(true);
 
         try {
-            // 1. 发布任务开始事件
-            publishEvent(AgentEventType.TASK_STARTED, prompt.getUserContent(), null);
+            // 1. 发布主代理任务开始事件
+            publishEvent(AgentEventType.MAIN_TASK_STARTED, prompt.getUserContent(), null);
 
             // 2. 分析任务并创建子任务
             List<TeamTask> subTasks = analyzeAndCreateTasks(prompt);
@@ -187,19 +189,19 @@ public class MainAgent {
                 }
             }
 
-            // 5. 执行主代理自身的协调逻辑
+            // 6. 执行主代理自身的协调逻辑
             AgentResponse response = agent.prompt(prompt)
                     .session(session)
                     .call();
 
-            // 6. 等待所有子任务完成
+            // 7. 等待所有子任务完成
             waitForAllTasksCompleted();
 
-            // 7. 汇总结果
+            // 8. 汇总结果
             String summary = summarizeResults();
 
-            // 8. 发布任务完成事件
-            publishEvent(AgentEventType.TASK_COMPLETED, summary, null);
+            // 9. 发布主代理任务完成事件
+            publishEvent(AgentEventType.MAIN_TASK_COMPLETED, summary, null);
 
             return response;
 
@@ -215,8 +217,35 @@ public class MainAgent {
         List<TeamTask> tasks = new ArrayList<>();
         String userPrompt = prompt.getUserContent().toLowerCase();
 
+        // 从共享内存中读取相关信息（如果有历史任务结果）
+        StringBuilder contextBuilder = new StringBuilder();
+        if (sharedMemoryManager != null) {
+            try {
+                // 查询相关的历史任务结果
+                List<org.noear.solon.bot.core.memory.Memory> recentMemories =
+                        sharedMemoryManager.search("task-result", 10);
+
+                if (!recentMemories.isEmpty()) {
+                    contextBuilder.append("\n\n# 历史任务上下文\n\n");
+                    for (org.noear.solon.bot.core.memory.Memory memory : recentMemories) {
+                        if (memory instanceof ShortTermMemory) {
+                            ShortTermMemory stm = (ShortTermMemory) memory;
+                            String taskTitle = (String) stm.getMetadata("taskTitle");
+                            contextBuilder.append(String.format("- **%s**: %s\n",
+                                    taskTitle != null ? taskTitle : "Unknown",
+                                    stm.getContext()));
+                        }
+                    }
+                    LOG.debug("从共享内存加载了 {} 条历史任务记录", recentMemories.size());
+                }
+            } catch (Exception e) {
+                LOG.warn("从共享内存读取历史任务失败", e);
+            }
+        }
+
         // 根据提示内容智能创建任务
         // 这里是简化版本，实际可以使用 LLM 来分析任务
+        // 可以将 contextBuilder 中的内容添加到任务的描述中
 
         if (userPrompt.contains("探索") || userPrompt.contains("explore") || userPrompt.contains("分析")) {
             // 创建探索任务链：探索 -> 搜索
@@ -435,46 +464,129 @@ public class MainAgent {
      */
     private void registerTaskEventListeners() {
         if (eventBus != null) {
+            // 监听子任务完成事件
             taskEventSubscriptionId = eventBus.subscribe(AgentEventType.TASK_COMPLETED, event -> {
                 String taskId = event.getMetadata().getTaskId();
-                LOG.info("主代理收到任务完成事件: {}", taskId);
+                Map<String, Object> payload = (Map<String, Object>) event.getPayload();
 
-                // 可以在这里添加额外的协调逻辑
-                // 例如：当某个任务完成后，触发依赖它的其他任务
+                String taskTitle = payload != null ? (String) payload.get("taskTitle") : "Unknown";
+                String agentId = payload != null ? (String) payload.get("agentId") : "Unknown";
+
+                LOG.info("主代理收到子任务完成事件: {} by {}", taskTitle, agentId);
+
+                // 将任务结果存储到共享内存（供后续任务使用）
+                if (sharedMemoryManager != null && payload != null) {
+                    try {
+                        Object result = payload.get("result");
+                        if (result != null) {
+                            // 创建短期记忆存储任务结果
+                            ShortTermMemory memory = new ShortTermMemory(
+                                    agentId,
+                                    result.toString(),
+                                    taskId
+                            );
+                            memory.setId("task-result-" + taskId);
+
+                            // 添加元数据
+                            memory.putMetadata("taskTitle", taskTitle);
+                            memory.putMetadata("taskType", "task-result");
+                            memory.putMetadata("source", agentId);
+
+                            sharedMemoryManager.store(memory);
+                            LOG.debug("任务结果已存储到共享内存: taskId={}, source={}", taskId, agentId);
+                        }
+                    } catch (Exception e) {
+                        LOG.warn("存储任务结果到共享内存失败", e);
+                    }
+                }
+
+                // 检查是否有依赖此任务的其他任务可以开始执行
+                checkAndNotifyDependentTasks(taskId);
 
                 return CompletableFuture.completedFuture(EventHandler.Result.success());
             });
 
-            LOG.info("MainAgent 任务事件监听器已注册");
+            // 监听子任务失败事件
+            taskFailedSubscriptionId = eventBus.subscribe(AgentEventType.TASK_FAILED, event -> {
+                String taskId = event.getMetadata().getTaskId();
+                Map<String, Object> payload = (Map<String, Object>) event.getPayload();
+
+                String taskTitle = payload != null ? (String) payload.get("taskTitle") : "Unknown";
+                String agentId = payload != null ? (String) payload.get("agentId") : "Unknown";
+
+                // 获取错误信息（从任务对象或payload）
+                String errorMessage = null;
+                if (payload != null && payload.containsKey("errorMessage")) {
+                    errorMessage = (String) payload.get("errorMessage");
+                } else {
+                    // 从任务列表中获取错误信息
+                    TeamTask failedTask = taskList.getTask(taskId);
+                    if (failedTask != null) {
+                        errorMessage = failedTask.getErrorMessage();
+                    }
+                }
+
+                if (errorMessage == null) {
+                    errorMessage = "Unknown error";
+                }
+
+                LOG.warn("主代理收到子任务失败事件: {} by {} - {}", taskTitle, agentId, errorMessage);
+
+                // 处理任务失败：决定是否需要重试或标记依赖任务失败
+                handleTaskFailure(taskId, errorMessage);
+
+                return CompletableFuture.completedFuture(EventHandler.Result.success());
+            });
+
+            LOG.info("MainAgent 任务事件监听器已注册（TASK_COMPLETED, TASK_FAILED）");
         }
+    }
 
-        // 添加任务列表监听器
-        taskList.addEventListener(new SharedTaskList.TaskEventListener() {
-            @Override
-            public void onTaskAdded(TeamTask task) {
-                LOG.debug("任务已添加: {}", task.getTitle());
+    /**
+     * 检查并通知依赖此任务的其他任务
+     */
+    private void checkAndNotifyDependentTasks(String completedTaskId) {
+        try {
+            // 查找依赖此任务的所有待认领任务
+            List<TeamTask> claimableTasks = taskList.getClaimableTasks();
+
+            if (!claimableTasks.isEmpty()) {
+                LOG.info("发现 {} 个可认领的任务（由于任务 {} 完成）", claimableTasks.size(), completedTaskId);
+
+                // 可以在这里触发通知，让子代理认领这些任务
+                // 例如：通过 MessageChannel 广播
+            }
+        } catch (Exception e) {
+            LOG.error("检查依赖任务失败", e);
+        }
+    }
+
+    /**
+     * 处理任务失败
+     */
+    private void handleTaskFailure(String taskId, String errorMessage) {
+        try {
+            // 查找依赖此失败任务的其他任务
+            List<TeamTask> allTasks = taskList.getAllTasks();
+            List<TeamTask> dependentTasks = new ArrayList<>();
+
+            for (TeamTask task : allTasks) {
+                if (task.getStatus() == TeamTask.Status.PENDING &&
+                    task.getDependencies().contains(taskId)) {
+                    dependentTasks.add(task);
+                }
             }
 
-            @Override
-            public void onTaskClaimed(TeamTask task, String agentId) {
-                LOG.info("任务已被认领: {} by {}", task.getTitle(), agentId);
-            }
+            if (!dependentTasks.isEmpty()) {
+                LOG.warn("发现 {} 个任务受影响（依赖失败任务 {}）", dependentTasks.size(), taskId);
 
-            @Override
-            public void onTaskReleased(TeamTask task, String agentId) {
-                LOG.info("任务已被释放: {} by {}", task.getTitle(), agentId);
+                // 策略1：标记依赖任务为失败
+                // 策略2：等待人工干预
+                // 当前：记录日志，保持待认领状态（由人工决策）
             }
-
-            @Override
-            public void onTaskCompleted(TeamTask task, String agentId) {
-                LOG.info("任务已完成: {} by {}", task.getTitle(), agentId);
-            }
-
-            @Override
-            public void onTaskFailed(TeamTask task, String agentId, String error) {
-                LOG.warn("任务已失败: {} by {} - {}", task.getTitle(), agentId, error);
-            }
-        });
+        } catch (Exception e) {
+            LOG.error("处理任务失败时发生异常", e);
+        }
     }
 
     /**
@@ -613,9 +725,15 @@ public class MainAgent {
      */
     public void destroy() {
         // 注销事件监听器
-        if (eventBus != null && taskEventSubscriptionId != null) {
-            eventBus.unsubscribe(taskEventSubscriptionId);
-            LOG.info("MainAgent 事件监听器已注销");
+        if (eventBus != null) {
+            if (taskEventSubscriptionId != null) {
+                eventBus.unsubscribe(taskEventSubscriptionId);
+                LOG.info("MainAgent TASK_COMPLETED 事件监听器已注销");
+            }
+            if (taskFailedSubscriptionId != null) {
+                eventBus.unsubscribe(taskFailedSubscriptionId);
+                LOG.info("MainAgent TASK_FAILED 事件监听器已注销");
+            }
         }
 
         // 注销消息处理器

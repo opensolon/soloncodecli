@@ -125,16 +125,19 @@ public class SubagentManager {
                     List<String> fullContent = Files.readAllLines(file, StandardCharsets.UTF_8);
 
                     // 解析文件：拆分元数据和 Prompt
-                    SubagentFile parsed = parseSubagentFile(fullContent);
+                    SubAgentMetadata.PromptWithMetadata parsed = SubAgentMetadata.fromFileLines(fullContent);
 
-                    String subagentType = (parsed.name != null) ? parsed.name : fileName.substring(0, fileName.length() - 3);
+                    String subagentType = parsed.getMetadata().getName();
+                    if (subagentType == null || subagentType.isEmpty()) {
+                        subagentType = fileName.substring(0, fileName.length() - 3);
+                    }
 
                     AbsSubagent subagent = (AbsSubagent) subagentMap.computeIfAbsent(subagentType,
                             k -> new GeneralPurposeSubagent(mainAgent, k));
 
                     // 设置解析后的属性
-                    subagent.setDescription(parsed.description);
-                    subagent.setSystemPrompt(parsed.systemPrompt);
+                    subagent.setDescription(parsed.getMetadata().getDescription());
+                    subagent.setSystemPrompt(parsed.getPrompt());
                     subagent.refresh();
                 } catch (IOException e) {
                     LOG.error("读取代理文件失败: {}", file, e);
@@ -143,101 +146,5 @@ public class SubagentManager {
         } catch (IOException e) {
             LOG.error("扫描代理池目录失败: {}", dir, e);
         }
-    }
-
-    public static class SubagentFile {
-        public String name;
-        public String description;
-        public Collection<String> tools;
-        public String model;
-        public Map<String, Object> metadata;
-
-        public String systemPrompt;
-    }
-
-    public SubagentFile parseSubagentFile(List<String> lines) {
-        SubagentFile result = new SubagentFile();
-
-        if (lines == null || lines.isEmpty()) {
-            result.systemPrompt = "";
-            result.description = "自定义代理";
-            return result;
-        }
-
-        // 规范：第一行必须是 --- 且不能有前导空行
-        if ("---".equals(lines.get(0).trim())) {
-            StringBuilder yamlBuilder = new StringBuilder();
-            StringBuilder bodyBuilder = new StringBuilder();
-            int secondSeparatorIndex = -1;
-
-            for (int i = 1; i < lines.size(); i++) {
-                String line = lines.get(i);
-                if (secondSeparatorIndex == -1) {
-                    if ("---".equals(line.trim())) {
-                        secondSeparatorIndex = i;
-                    } else {
-                        yamlBuilder.append(line).append("\n");
-                    }
-                } else {
-                    bodyBuilder.append(line).append("\n");
-                }
-            }
-
-            // 成功找到闭合标识
-            if (secondSeparatorIndex != -1) {
-                try {
-                    Yaml yaml = new Yaml();
-                    Object yamlData = yaml.load(yamlBuilder.toString());
-                    // 使用 ONode.loadObj 性能更好且更直接
-                    ONode oNode = ONode.ofBean(yamlData);
-
-                    if (oNode.isObject()) {
-                        // 1. 存入全量元数据
-                        result.metadata = oNode.toBean(Map.class);
-
-                        // 2. 提取标准字段
-                        result.name = oNode.get("name").getString();
-                        result.description = oNode.get("description").getString();
-                        result.model = oNode.get("model").getString();
-
-                        // 3. 灵活解析 tools (数组或逗号分隔)
-                        if (oNode.hasKey("tools")) {
-                            ONode tNode = oNode.get("tools");
-                            if (tNode.isArray()) {
-                                result.tools = tNode.toBean(List.class);
-                            } else {
-                                result.tools = Arrays.stream(tNode.getString().split(","))
-                                        .map(String::trim)
-                                        .filter(s -> !s.isEmpty())
-                                        .collect(Collectors.toList());
-                            }
-                        }
-                    }
-                    result.systemPrompt = bodyBuilder.toString().trim();
-                } catch (Exception e) {
-                    LOG.error("YAML 格式异常，全文本回退", e);
-                    result.systemPrompt = String.join("\n", lines).trim();
-                }
-            } else {
-                // 有开头无结尾，视为普通文本
-                result.systemPrompt = String.join("\n", lines).trim();
-            }
-        } else {
-            // 第一行不是 ---，严格作为普通 Body 处理
-            result.systemPrompt = String.join("\n", lines).trim();
-        }
-
-        // 描述兜底
-        if (Assert.isEmpty(result.description) && !result.systemPrompt.isEmpty()) {
-            // 取第一行并移除 Markdown 标题符
-            String firstLine = result.systemPrompt.split("\\R")[0];
-            result.description = firstLine.replace("#", "").trim();
-        }
-
-        if (Assert.isEmpty(result.description)) {
-            result.description = "自定义代理";
-        }
-
-        return result;
     }
 }

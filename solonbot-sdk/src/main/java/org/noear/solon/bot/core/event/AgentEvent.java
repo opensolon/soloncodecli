@@ -15,6 +15,8 @@
  */
 package org.noear.solon.bot.core.event;
 
+import lombok.Getter;
+
 import java.util.UUID;
 
 /**
@@ -23,6 +25,7 @@ import java.util.UUID;
  * @author bai
  * @since 3.9.5
  */
+@Getter
 public class AgentEvent {
     private final String eventId;
     private final AgentEventType eventType;
@@ -55,13 +58,6 @@ public class AgentEvent {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public String getEventId() {
-        return eventId;
-    }
-
-    public AgentEventType getEventType() {
-        return eventType;
-    }
 
     /**
      * 获取事件类型代码（向后兼容）
@@ -73,17 +69,6 @@ public class AgentEvent {
         return eventType.getCode();
     }
 
-    public Object getPayload() {
-        return payload;
-    }
-
-    public EventMetadata getMetadata() {
-        return metadata;
-    }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
 
     @Override
     public String toString() {

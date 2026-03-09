@@ -15,6 +15,7 @@
  */
 package org.noear.solon.bot.core.teams;
 
+import lombok.Getter;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.bot.core.subagent.Subagent;
 import org.slf4j.Logger;
@@ -34,6 +35,7 @@ import java.util.List;
  * @author bai
  * @since 3.9.5
  */
+@Getter
 public class SubAgentAgentBuilder {
     private static final Logger LOG = LoggerFactory.getLogger(SubAgentAgentBuilder.class);
 
@@ -93,17 +95,4 @@ public class SubAgentAgentBuilder {
         return null; // 需要通过 AgentKernel 创建
     }
 
-    /**
-     * 获取子代理列表
-     */
-    public List<Subagent> getSubAgents() {
-        return new ArrayList<>(subAgents);
-    }
-
-    /**
-     * 获取聊天模型
-     */
-    public ChatModel getChatModel() {
-        return chatModel;
-    }
 }

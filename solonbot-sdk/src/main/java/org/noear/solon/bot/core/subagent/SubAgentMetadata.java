@@ -236,6 +236,24 @@ public class SubAgentMetadata {
         }
     }
 
+    /**
+     * 从文件行列表解析子代理元数据和提示词
+     *
+     * @param lines 文件内容行列表
+     * @return 包含元数据和提示词的对象
+     */
+    public static PromptWithMetadata fromFileLines(List<String> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return new PromptWithMetadata(new SubAgentMetadata(), "");
+        }
+
+        // 将行列表合并为字符串
+        String content = String.join("\n", lines);
+
+        // 使用现有的解析方法
+        return parseAndClean(content);
+    }
+
 
     /**
      * 将元数据转换为 YAML frontmatter 格式

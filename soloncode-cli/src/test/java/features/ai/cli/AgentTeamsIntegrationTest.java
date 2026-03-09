@@ -16,10 +16,10 @@
 package features.ai.cli;
 
 import org.junit.jupiter.api.Test;
-import org.noear.solon.ai.codecli.core.AgentProperties;
-import org.noear.solon.ai.codecli.core.memory.*;
-import org.noear.solon.ai.codecli.core.event.*;
-import org.noear.solon.ai.codecli.core.message.*;
+import org.noear.solon.bot.core.AgentProperties;
+import org.noear.solon.bot.core.memory.*;
+import org.noear.solon.bot.core.event.*;
+import org.noear.solon.bot.core.message.*;
 
 import java.io.File;
 import java.util.Arrays;
