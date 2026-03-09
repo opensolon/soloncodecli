@@ -12,6 +12,8 @@ import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.skills.restapi.RestApiSkill;
+import org.noear.solon.bot.core.config.ApiServerParameters;
 import org.noear.solon.bot.core.subagent.SubagentManager;
 import org.noear.solon.bot.core.subagent.TaskSkill;
 import org.noear.solon.bot.core.tool.ApplyPatchTool;
@@ -35,6 +37,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -55,6 +58,7 @@ public class AgentKernel {
     public final static String SOLONCODE_SKILLS = ".soloncode/skills/";
     public final static String SOLONCODE_AGENTS = ".soloncode/agents/";
     public final static String SOLONCODE_DOWNLOADS = ".soloncode/downloads/";
+    public final static String SOLONCODE_BROWSER = ".soloncode/browser/";
 
     public final static String OPENCODE_SKILLS = ".opencode/skills/";
     public final static String OPENCODE_AGENTS = ".opencode/agents/";
@@ -70,7 +74,10 @@ public class AgentKernel {
     private final LuceneSkill luceneSkill = new LuceneSkill();
 
     private final ReActAgent reActAgent;
+
     private final McpProviders mcpProviders;
+    private final RestApiSkill restApis;
+
     private final Consumer<ReActAgent.Builder> configurator;
     private final CliSkillProvider cliSkills = new CliSkillProvider();
 
@@ -93,6 +100,17 @@ public class AgentKernel {
         this.properties = properties;
         this.sessionProvider = sessionProvider;
         this.configurator = configurator;
+
+        if(Assert.isNotEmpty(properties.getRestApis())) {
+            restApis = new RestApiSkill();
+            for (Map.Entry<String, ApiServerParameters> entry : properties.getRestApis().entrySet()) {
+                restApis.addApi(entry.getValue().getDocUrl(),
+                        entry.getValue().getApiBaseUrl(),
+                        entry.getValue().getHeaders());
+            }
+        } else {
+            restApis = null;
+        }
 
         try {
             if (Assert.isNotEmpty(properties.getMcpServers())) {
@@ -191,6 +209,10 @@ public class AgentKernel {
             for (McpClientProvider mcpProvider : mcpProviders.getProviders().values()) {
                 agentBuilder.defaultToolAdd(mcpProvider);
             }
+        }
+
+        if(restApis != null){
+            agentBuilder.defaultSkillAdd(restApis);
         }
 
         if (configurator != null) {

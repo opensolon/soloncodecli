@@ -1,6 +1,7 @@
 package org.noear.solon.bot.core;
 
 import com.microsoft.playwright.*;
+import org.noear.solon.core.util.JavaUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,25 +41,37 @@ public class BrowserManager implements AutoCloseable {
 
         // 状态文件存储路径：项目根目录/.soloncode/browser_state.json
 
-
-        this.browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
-                .setHeadless(true)
-                .setArgs(Arrays.asList("--disable-blink-features=AutomationControlled")));
-
-        // 配置 Context 选项
-        Browser.NewContextOptions options = new Browser.NewContextOptions()
-                .setViewportSize(1280, 800)
-                .setAcceptDownloads(true)
-                .setUserAgent("Mozilla/5.0 SolonCode/1.0 (AI Agent)");
-
         this.downloadPath = Paths.get(__cwd, AgentKernel.SOLONCODE_DOWNLOADS).toAbsolutePath();
-        this.statePath = Paths.get(__cwd, ".soloncode", "browser_state.json");
+        this.statePath = Paths.get(__cwd, AgentKernel.SOLONCODE_BROWSER, "browser_state.json");
 
         try {
             // 自动创建必要的目录
             Files.createDirectories(this.downloadPath);
             Files.createDirectories(this.statePath.getParent());
         } catch (Exception ignored) {}
+
+       // ...
+
+        BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
+                .setHeadless(true)
+                .setDownloadsPath(downloadPath)
+                .setArgs(Arrays.asList("--disable-blink-features=AutomationControlled"));
+
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+
+        if (isWindows) {
+            launchOptions.setChannel("msedge");
+        } else {
+            launchOptions.setChannel("chrome");
+        }
+
+        this.browser = playwright.chromium().launch(launchOptions);
+
+        // 配置 Context 选项
+        Browser.NewContextOptions options = new Browser.NewContextOptions()
+                .setViewportSize(1280, 800)
+                .setAcceptDownloads(true)
+                .setUserAgent("Mozilla/5.0 SolonCode/1.0 (AI Agent)");
 
         // 如果存在历史状态文件，则加载它（包含 Cookies 和 LocalStorage）
         if (Files.exists(statePath)) {
