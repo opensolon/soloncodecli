@@ -41,17 +41,17 @@ solon.code.cli:
 #      top_p: 0.5
 #      frequency_penalty: 0.5
 #      presence_penalty: 0.4
-  skillPools: # 技能池（可以多个）
-    "@shared": "/path/to/shared-skills"
-  mcpServers:
-    gitee:
-      type: "streamable"
-      url: "http://..."
-      headers: { API_KEY: "xxx" }
-      timeout: "120s"
-    memory:
-      command: "npx"
-      args: [ "-y", "@modelcontextprotocol/server-memory" ]
+#  skillPools: # 技能池（可以多个）
+#    "@shared": "/path/to/shared-skills"
+#  mcpServers:
+#    gitee:
+#      type: "streamable"
+#      url: "http://..."
+#      headers: { API_KEY: "xxx" }
+#      timeout: "120s"
+#    memory:
+#      command: "npx"
+#      args: [ "-y", "@modelcontextprotocol/server-memory" ]
 
 # 1. chatModel 按需配置，不熟的看下 solon ai 官网资料
 # 2. SolonCodeCLI 兼容 Claude Code Agent Skills
