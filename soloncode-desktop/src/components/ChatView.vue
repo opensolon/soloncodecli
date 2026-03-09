@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
+import axios from 'axios';
 import { type Message, type Conversation, type Theme, type Plugin } from '../types';
 import ChatHeader from './ChatHeader.vue';
 import ChatMessages from './ChatMessages.vue';
@@ -21,6 +22,7 @@ const currentTheme = ref<Theme>('dark');
 const messages = ref<Message[]>([]);
 const isLoading = ref(false);
 const chatMessagesRef = ref<InstanceType<typeof ChatMessages>>();
+const API_BASE_URL = '/cli';
 
 function toggleTheme() {
   currentTheme.value = currentTheme.value === 'dark' ? 'light' : 'dark';
@@ -53,29 +55,120 @@ async function sendMessage(messageText: string) {
 
   await chatMessagesRef.value?.scrollToBottom();
 
-  setTimeout(async () => {
-    const assistantMessage: Message = {
+  try {
+    const sessionId = props.currentConversation.id.toString();
+    const url = `${API_BASE_URL}?input=${encodeURIComponent(messageText)}&m=stream`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'X-Session-Id': sessionId
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let assistantMessage: Message | null = null;
+
+    if (reader) {
+      const assistantMsgId = Date.now() + 1;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.trim() === '[DONE]') {
+            isLoading.value = false;
+            await chatMessagesRef.value?.scrollToBottom();
+            return;
+          }
+
+          if (line.trim()) {
+            try {
+              let jsonStr = line.trim();
+              if (jsonStr.startsWith('data:')) {
+                jsonStr = jsonStr.substring(5).trim();
+              }
+
+              if (jsonStr === '[DONE]') {
+                isLoading.value = false;
+                await chatMessagesRef.value?.scrollToBottom();
+                return;
+              }
+
+              const data = JSON.parse(jsonStr);
+              const type = data.type;
+              const text = data.text || '';
+
+              if (type === 'reason') {
+                assistantMessage = {
+                  id: assistantMsgId,
+                  role: 'reason',
+                  content: text,
+                  timestamp: new Date().toLocaleTimeString()
+                };
+              } else if (type === 'action') {
+                assistantMessage = {
+                  id: assistantMsgId,
+                  role: 'action',
+                  content: text,
+                  timestamp: new Date().toLocaleTimeString(),
+                  toolName: data.toolName,
+                  args: data.args
+                };
+              } else if (type === 'agent') {
+                assistantMessage = {
+                  id: assistantMsgId,
+                  role: 'assistant',
+                  content: text,
+                  timestamp: new Date().toLocaleTimeString()
+                };
+              } else if (type === 'error') {
+                assistantMessage = {
+                  id: assistantMsgId,
+                  role: 'error',
+                  content: text,
+                  timestamp: new Date().toLocaleTimeString()
+                };
+              }
+
+              if (assistantMessage && text) {
+                const existingIndex = messages.value.findIndex(m => m.id === assistantMsgId);
+                if (existingIndex !== -1) {
+                  messages.value[existingIndex] = assistantMessage;
+                } else {
+                  messages.value.push(assistantMessage);
+                }
+                await chatMessagesRef.value?.scrollToBottom();
+              }
+            } catch (e) {
+              console.warn('Failed to parse chunk:', line, e);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to send message:', error);
+    const errorMessage: Message = {
       id: Date.now() + 1,
-      role: 'assistant',
-      content: generateResponse(userMessage.content),
+      role: 'error',
+      content: `请求失败: ${error instanceof Error ? error.message : '未知错误'}`,
       timestamp: new Date().toLocaleTimeString()
     };
-
-    messages.value.push(assistantMessage);
+    messages.value.push(errorMessage);
+  } finally {
     isLoading.value = false;
     await chatMessagesRef.value?.scrollToBottom();
-  }, 1000);
-}
-
-function generateResponse(userInput: string): string {
-  const responses = [
-    '我理解你的问题。让我来帮助你解决这个任务。',
-    '这是一个很好的问题！让我详细解释一下。',
-    '根据你的描述，我建议采用以下方案...',
-    '我明白了。这里有几个可行的解决方案供你参考。',
-    '你的想法很有创意！我们可以进一步探讨这个方向。'
-  ];
-  return responses[Math.floor(Math.random() * responses.length)];
+  }
 }
 
 function loadSolonClawMessages() {

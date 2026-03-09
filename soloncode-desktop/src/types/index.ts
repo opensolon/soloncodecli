@@ -1,8 +1,12 @@
+export type MessageType = 'user' | 'assistant' | 'reason' | 'action' | 'error';
+
 export interface Message {
   id: number;
-  role: 'user' | 'assistant';
+  role: MessageType;
   content: string;
   timestamp: string;
+  toolName?: string;
+  args?: any;
 }
 
 export interface Conversation {

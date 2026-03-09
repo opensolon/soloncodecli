@@ -17,6 +17,28 @@ async function scrollToBottom() {
   }
 }
 
+function getAvatar(role: string): string {
+  const avatars: Record<string, string> = {
+    'user': '👤',
+    'assistant': '🤖',
+    'reason': '💭',
+    'action': '⚡',
+    'error': '❌'
+  };
+  return avatars[role] || '🤖';
+}
+
+function getRoleLabel(role: string): string {
+  const labels: Record<string, string> = {
+    'user': '用户',
+    'assistant': '助手',
+    'reason': '思考',
+    'action': '执行',
+    'error': '错误'
+  };
+  return labels[role] || role;
+}
+
 defineExpose({
   scrollToBottom
 });
@@ -32,10 +54,17 @@ defineExpose({
     >
       <div class="message-content">
         <div class="message-avatar">
-          {{ message.role === 'user' ? '👤' : '🤖' }}
+          {{ getAvatar(message.role) }}
         </div>
         <div class="message-body">
+          <div class="message-header">
+            <span class="message-role">{{ getRoleLabel(message.role) }}</span>
+            <span v-if="message.toolName" class="message-tool">🔧 {{ message.toolName }}</span>
+          </div>
           <div class="message-text">{{ message.content }}</div>
+          <div v-if="message.args" class="message-args">
+            <pre>{{ JSON.stringify(message.args, null, 2) }}</pre>
+          </div>
           <div class="message-time">{{ message.timestamp }}</div>
         </div>
       </div>
@@ -85,6 +114,60 @@ defineExpose({
 
 .message.user {
   justify-content: flex-end;
+}
+
+.message.reason {
+  border-left: 3px solid #6c757d;
+  padding-left: 8px;
+}
+
+.message.action {
+  border-left: 3px solid #28a745;
+  padding-left: 8px;
+}
+
+.message.error {
+  border-left: 3px solid #dc3545;
+  padding-left: 8px;
+}
+
+.message-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.message-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cb-text-secondary);
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--cb-vscode-input-background);
+}
+
+.message-tool {
+  font-size: 11px;
+  color: #28a745;
+  font-weight: 500;
+}
+
+.message-args {
+  margin-top: 8px;
+  padding: 8px;
+  background-color: var(--cb-vscode-input-background);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.message-args pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--cb-text-secondary);
 }
 
 .message-content {
