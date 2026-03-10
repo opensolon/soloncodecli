@@ -1,15 +1,19 @@
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue';
-import { type Message, type ContentType, type ContentItem } from '../types';
+import { ref, nextTick, watch, computed } from 'vue';
+import { type Message, type ContentType, type ContentItem, type Theme } from '../types';
 import { StreamMarkdown } from 'streamdown-vue';
 
 interface Props {
   messages: Message[];
   isLoading: boolean;
+  theme?: Theme;
 }
 
 const props = defineProps<Props>();
 const chatContainer = ref<HTMLElement>();
+
+const isDark = computed(() => props.theme === 'dark');
+const shikiTheme = computed(() => isDark.value ? 'github-dark' : 'github-light');
 
 async function scrollToBottom() {
   await nextTick();
@@ -71,7 +75,7 @@ defineExpose({
               :key="index"
               class="content-item"
             >
-              <StreamMarkdown class="content-text" :content="item.text" />
+              <StreamMarkdown :shiki-theme="shikiTheme" :content="item.text" />
             </div>
           </div>
           <div class="message-time">{{ message.timestamp }}</div>
@@ -161,7 +165,6 @@ defineExpose({
   padding: 0;
   border-radius: 0;
   background-color: transparent;
-  color: var(--cb-text-primary);
   line-height: 1.6;
   word-wrap: break-word;
   transition: background-color 0.3s, color 0.3s;

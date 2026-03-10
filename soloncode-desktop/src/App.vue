@@ -50,7 +50,7 @@
   --cb-text-primary: #24292f;
   --cb-text-secondary: #656d76;
   --cb-border-color: #d0d7de;
-  --cb-accent: #0969da;
+  --cb-accent: #bbe3b3;
   --cb-accent-light: #0b57d0;
   --cb-success: #1a7f37;
 }

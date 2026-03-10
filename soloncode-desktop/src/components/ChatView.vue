@@ -76,7 +76,6 @@ async function sendMessage(messageText: string) {
     if (reader) {
       while (true) {
         const {done, value} = await reader.read();
-        if (done) break;
 
         const chunk = decoder.decode(value, {stream: true});
         const lines = chunk.split('\n');
@@ -119,12 +118,13 @@ async function sendMessage(messageText: string) {
                 } else if (type === 'reason') {
                   text = "```md\n> 🧠\n" + text;
                 } else {
-                  text = "\n" + text;
+                  text = "\n\n" + text;
                 }
                 if (isAddText){
                   text = addText + text;
                 }
               }
+              console.log(text)
 
               if (text || data.toolName || data.args) {
                 // 获取或创建助手消息
@@ -225,6 +225,7 @@ onMounted(() => {
         ref="chatMessagesRef"
         :messages="messages"
         :is-loading="isLoading"
+        :theme="currentTheme"
     />
     <ChatInput @send="sendMessage"/>
   </main>
