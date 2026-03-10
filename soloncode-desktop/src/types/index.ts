@@ -1,14 +1,18 @@
 export type MessageType = 'user' | 'assistant' | 'reason' | 'action' | 'error';
+export type ContentType = 'reason' | 'action' | 'text' | 'error';
+
+export interface ContentItem {
+  type: ContentType;
+  text: string;
+  toolName?: string;
+  args?: any;
+}
 
 export interface Message {
   id: number;
   role: MessageType;
-  content: string;
   timestamp: string;
-  toolName?: string;
-  args?: any;
-  reasonContent?: string;
-  actionContent?: string;
+  contents: ContentItem[];
 }
 
 export interface Conversation {

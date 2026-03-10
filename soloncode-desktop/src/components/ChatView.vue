@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
-import { type Message, type Conversation, type Theme, type Plugin } from '../types';
+import { type Message, type Conversation, type Theme, type Plugin, type ContentItem, type ContentType } from '../types';
 import ChatHeader from './ChatHeader.vue';
 import ChatMessages from './ChatMessages.vue';
 import ChatInput from './ChatInput.vue';
@@ -46,8 +46,8 @@ async function sendMessage(messageText: string) {
   const userMessage: Message = {
     id: Date.now(),
     role: 'user',
-    content: messageText,
-    timestamp: new Date().toLocaleTimeString()
+    timestamp: new Date().toLocaleTimeString(),
+    contents: [{ type: 'text', text: messageText }]
   };
 
   messages.value.push(userMessage);
@@ -72,15 +72,10 @@ async function sendMessage(messageText: string) {
 
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
-    let assistantMessage: Message | null = null;
-    let currentMessageId: number | null = null;
-    let accumulatedReason = '';
-    let accumulatedAction = '';
-    let currentAction = { content: '', toolName: '', args: null as any };
+    let currentAssistantMessage: Message | null = null;
+    let currentAssistantMsgId: number | null = null;
 
     if (reader) {
-      const assistantMsgId = Date.now() + 1;
-
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -109,119 +104,53 @@ async function sendMessage(messageText: string) {
               }
 
               const data = JSON.parse(jsonStr);
-              const type = data.type;
+              const type = data.type as ContentType;
               const text = data.text || '';
 
-              if (text) {
-                if (type === 'reason') {
-                  accumulatedReason += text;
-                  if (currentMessageId === null) {
-                    currentMessageId = Date.now() + Math.floor(Math.random() * 1000);
-                    assistantMessage = {
-                      id: currentMessageId,
-                      role: 'assistant',
-                      content: '',
-                      timestamp: new Date().toLocaleTimeString(),
-                      reasonContent: text
-                    };
-                    messages.value.push(assistantMessage);
-                  } else {
-                    const existingMsg = messages.value.find(m => m.id === currentMessageId);
-                    if (existingMsg) {
-                      existingMsg.reasonContent = accumulatedReason;
-                      await chatMessagesRef.value?.scrollToBottom();
-                    }
-                  }
-                  await chatMessagesRef.value?.scrollToBottom();
-                } else if (type === 'action') {
-                  accumulatedAction += text;
-                  if (data.toolName) currentAction.toolName = data.toolName;
-                  if (data.args) currentAction.args = data.args;
-                  if (currentMessageId === null) {
-                    currentMessageId = Date.now() + Math.floor(Math.random() * 1000);
-                    assistantMessage = {
-                      id: currentMessageId,
-                      role: 'assistant',
-                      content: '',
-                      timestamp: new Date().toLocaleTimeString(),
-                      actionContent: accumulatedAction,
-                      toolName: data.toolName,
-                      args: data.args
-                    };
-                    messages.value.push(assistantMessage);
-                  } else {
-                    const existingMsg = messages.value.find(m => m.id === currentMessageId);
-                    if (existingMsg) {
-                      existingMsg.actionContent = accumulatedAction;
-                      existingMsg.toolName = currentAction.toolName;
-                      existingMsg.args = currentAction.args;
-                      await chatMessagesRef.value?.scrollToBottom();
-                    }
-                  }
-                  await chatMessagesRef.value?.scrollToBottom();
-                } else if (type === 'agent') {
-                  let role = 'assistant';
-
-                  if (currentMessageId !== null) {
-                    const existingMsg = messages.value.find(m => m.id === currentMessageId);
-                    if (existingMsg && existingMsg.role === role) {
-                      existingMsg.content += text;
-                      existingMsg.toolName = currentAction.toolName || undefined;
-                      existingMsg.args = currentAction.args;
-                  if (accumulatedAction) {
-                    existingMsg.actionContent = accumulatedAction;
-                  }
-                  if (accumulatedReason) {
-                    existingMsg.reasonContent = accumulatedReason;
-                  }
-                    } else {
-                      currentMessageId = Date.now() + Math.floor(Math.random() * 1000);
-                    assistantMessage = {
-                      id: currentMessageId,
-                      role: role as any,
-                      content: text,
-                      timestamp: new Date().toLocaleTimeString(),
-                      reasonContent: accumulatedReason || undefined,
-                      actionContent: accumulatedAction || undefined,
-                      toolName: currentAction.toolName || undefined,
-                      args: currentAction.args
-                    };
-                    messages.value.push(assistantMessage);
-                    accumulatedReason = '';
-                    accumulatedAction = '';
-                    currentAction = { content: '', toolName: '', args: null };
-                  }
-                  } else {
-                    currentMessageId = Date.now() + Math.floor(Math.random() * 1000);
-                    assistantMessage = {
-                      id: currentMessageId,
-                      role: role as any,
-                      content: text,
-                      timestamp: new Date().toLocaleTimeString(),
-                      reasonContent: accumulatedReason || undefined,
-                      actionContent: accumulatedAction || undefined,
-                      toolName: currentAction.toolName || undefined,
-                      args: currentAction.args
-                    };
-                    messages.value.push(assistantMessage);
-                    accumulatedReason = '';
-                    accumulatedAction = '';
-                    currentAction = { content: '', toolName: '', args: null };
-                  }
-                  await chatMessagesRef.value?.scrollToBottom();
-                } else if (type === 'error') {
-                  currentMessageId = Date.now() + Math.floor(Math.random() * 1000);
-                  assistantMessage = {
-                    id: currentMessageId,
-                    role: 'error',
-                    content: text,
-                    timestamp: new Date().toLocaleTimeString()
+              if (text || type === 'action') {
+                // 确保有当前的助手消息
+                if (!currentAssistantMessage) {
+                  currentAssistantMsgId = Date.now() + Math.floor(Math.random() * 1000);
+                  currentAssistantMessage = {
+                    id: currentAssistantMsgId,
+                    role: 'assistant',
+                    timestamp: new Date().toLocaleTimeString(),
+                    contents: []
                   };
-                  messages.value.push(assistantMessage);
-                  accumulatedReason = '';
-                  accumulatedAction = '';
-                  await chatMessagesRef.value?.scrollToBottom();
+                  messages.value.push(currentAssistantMessage);
                 }
+
+                // 按类型处理并追加内容
+                if (type === 'reason') {
+                  // 查找最后一个 reason 内容项，追加或创建新的
+                  const lastContent = currentAssistantMessage.contents[currentAssistantMessage.contents.length - 1];
+                  if (lastContent && lastContent.type === 'reason') {
+                    lastContent.text += text;
+                  } else {
+                    currentAssistantMessage.contents.push({ type: 'reason', text });
+                  }
+                } else if (type === 'action') {
+                  // action 通常每次都是新的
+                  const actionItem: ContentItem = {
+                    type: 'action',
+                    text: text,
+                    toolName: data.toolName,
+                    args: data.args
+                  };
+                  currentAssistantMessage.contents.push(actionItem);
+                } else if (type === 'agent') {
+                  // agent 是普通文本，查找最后一个 text 内容项追加
+                  const lastContent = currentAssistantMessage.contents[currentAssistantMessage.contents.length - 1];
+                  if (lastContent && lastContent.type === 'text') {
+                    lastContent.text += text;
+                  } else {
+                    currentAssistantMessage.contents.push({ type: 'text', text });
+                  }
+                } else if (type === 'error') {
+                  currentAssistantMessage.contents.push({ type: 'error', text });
+                }
+
+                await chatMessagesRef.value?.scrollToBottom();
               }
             } catch (e) {
               console.warn('Failed to parse chunk:', line, e);
@@ -235,8 +164,8 @@ async function sendMessage(messageText: string) {
     const errorMessage: Message = {
       id: Date.now() + 1,
       role: 'error',
-      content: `请求失败: ${error instanceof Error ? error.message : '未知错误'}`,
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString(),
+      contents: [{ type: 'error', text: `请求失败: ${error instanceof Error ? error.message : '未知错误'}` }]
     };
     messages.value.push(errorMessage);
   } finally {
@@ -250,8 +179,11 @@ function loadSolonClawMessages() {
     {
       id: 1,
       role: 'assistant',
-      content: '🦊 SolonClaw 已启动\n\n这是一个强大的代码分析和管理工具。我可以帮助你：\n\n• 分析项目结构和依赖关系\n• 检测代码质量问题\n• 生成代码文档\n• 执行代码重构建议\n• 管理项目配置\n\n请告诉我你需要什么帮助？',
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString(),
+      contents: [{
+        type: 'text',
+        text: '🦊 SolonClaw 已启动\n\n这是一个强大的代码分析和管理工具。我可以帮助你：\n\n• 分析项目结构和依赖关系\n• 检测代码质量问题\n• 生成代码文档\n• 执行代码重构建议\n• 管理项目配置\n\n请告诉我你需要什么帮助？'
+      }]
     }
   ];
 }
@@ -261,8 +193,11 @@ function loadConversationMessages(convId: number) {
     {
       id: 1,
       role: 'assistant',
-      content: '你好！我是 SolonCode 助手。有什么我可以帮助你的吗？',
-      timestamp: new Date().toLocaleTimeString()
+      timestamp: new Date().toLocaleTimeString(),
+      contents: [{
+        type: 'text',
+        text: '你好！我是 SolonCode 助手。有什么我可以帮助你的吗？'
+      }]
     }
   ];
 }

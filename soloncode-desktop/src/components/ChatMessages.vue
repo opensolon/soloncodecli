@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue';
-import { type Message } from '../types';
+import { type Message, type ContentType } from '../types';
 
 interface Props {
   messages: Message[];
@@ -39,6 +39,26 @@ function getRoleLabel(role: string): string {
   return labels[role] || role;
 }
 
+function getContentLabel(type: ContentType): string {
+  const labels: Record<ContentType, string> = {
+    'reason': '思考',
+    'action': '执行',
+    'text': '',
+    'error': '错误'
+  };
+  return labels[type];
+}
+
+function getContentIcon(type: ContentType): string {
+  const icons: Record<ContentType, string> = {
+    'reason': '💭',
+    'action': '⚡',
+    'text': '',
+    'error': '❌'
+  };
+  return icons[type];
+}
+
 defineExpose({
   scrollToBottom
 });
@@ -59,18 +79,33 @@ defineExpose({
         <div class="message-body">
           <div class="message-header">
             <span class="message-role">{{ getRoleLabel(message.role) }}</span>
-            <span v-if="message.toolName" class="message-tool">🔧 {{ message.toolName }}</span>
           </div>
           <div class="message-text">
-            <div v-if="message.reasonContent" class="message-reason">
-              {{ message.reasonContent }}
-            </div>
-            <div v-if="message.actionContent" class="message-action">
-              {{ message.actionContent }}
-            </div>
-            <div v-if="message.content" class="content-text">{{ message.content }}</div>
-            <div v-if="message.args" class="message-args">
-              <pre>{{ JSON.stringify(message.args, null, 2) }}</pre>
+            <!-- 按顺序渲染内容项 -->
+            <div
+              v-for="(item, index) in message.contents"
+              :key="index"
+              :class="['content-item', `content-${item.type}`]"
+            >
+              <div v-if="item.type === 'reason'" class="content-reason">
+                <span class="content-label">{{ getContentIcon(item.type) }} {{ getContentLabel(item.type) }}</span>
+                <div class="content-text">{{ item.text }}</div>
+              </div>
+              <div v-else-if="item.type === 'action'" class="content-action">
+                <span class="content-label">{{ getContentIcon(item.type) }} {{ getContentLabel(item.type) }}</span>
+                <span v-if="item.toolName" class="content-tool">🔧 {{ item.toolName }}</span>
+                <div class="content-text">{{ item.text }}</div>
+                <div v-if="item.args" class="message-args">
+                  <pre>{{ JSON.stringify(item.args, null, 2) }}</pre>
+                </div>
+              </div>
+              <div v-else-if="item.type === 'error'" class="content-error">
+                <span class="content-label">{{ getContentIcon(item.type) }} {{ getContentLabel(item.type) }}</span>
+                <div class="content-text">{{ item.text }}</div>
+              </div>
+              <div v-else class="content-plain">
+                <div class="content-text">{{ item.text }}</div>
+              </div>
             </div>
           </div>
           <div class="message-time">{{ message.timestamp }}</div>
@@ -156,28 +191,6 @@ defineExpose({
   background-color: var(--cb-vscode-input-background);
 }
 
-.message-tool {
-  font-size: 11px;
-  color: #28a745;
-  font-weight: 500;
-}
-
-.message-args {
-  margin-top: 8px;
-  padding: 8px;
-  background-color: var(--cb-vscode-sideBar-background);
-  border-radius: 6px;
-  font-size: 12px;
-  overflow-x: auto;
-}
-
-.message-args pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  color: var(--cb-text-secondary);
-}
-
 .message-text {
   padding: 0;
   border-radius: 0;
@@ -201,20 +214,65 @@ defineExpose({
   border-radius: 12px;
 }
 
+/* 内容项样式 */
+.content-item {
+  margin-bottom: 8px;
+}
+
+.content-item:last-child {
+  margin-bottom: 0;
+}
+
+.content-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cb-text-secondary);
+  margin-bottom: 4px;
+  display: inline-block;
+}
+
+.content-tool {
+  font-size: 11px;
+  color: #28a745;
+  font-weight: 500;
+  margin-left: 8px;
+}
+
 .content-text {
   padding: 4px 0;
+  white-space: pre-wrap;
 }
 
 .message.user .content-text {
   padding: 0;
 }
 
-.message-reason,
-.message-action {
-  padding: 4px 0;
+.content-reason {
   color: var(--cb-text-secondary);
-  line-height: 1.5;
-  white-space: pre-wrap;
+  padding: 8px;
+  background-color: rgba(108, 117, 125, 0.1);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.content-action {
+  color: #28a745;
+  padding: 8px;
+  background-color: rgba(40, 167, 69, 0.1);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.content-error {
+  color: #dc3545;
+  padding: 8px;
+  background-color: rgba(220, 53, 69, 0.1);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.content-plain .content-text {
+  padding: 4px 0;
 }
 
 .message-args {
@@ -224,6 +282,13 @@ defineExpose({
   border-radius: 6px;
   font-size: 12px;
   overflow-x: auto;
+}
+
+.message-args pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  color: var(--cb-text-secondary);
 }
 
 .message-content {
