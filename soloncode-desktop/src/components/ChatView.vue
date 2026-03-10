@@ -72,7 +72,7 @@ async function sendMessage(messageText: string) {
 
     const reader = response.body?.getReader();
     const decoder = new TextDecoder();
-
+    const currentType = ref<ContentType>('');
     if (reader) {
       while (true) {
         const { done, value } = await reader.read();
@@ -103,7 +103,18 @@ async function sendMessage(messageText: string) {
 
               const data = JSON.parse(jsonStr);
               const type = data.type as ContentType;
-              const text = data.text || '';
+              let text = data.text || '';
+              if (text === ''){
+                continue;
+              }
+              if (currentType.value != type){
+                currentType.value = type;
+                if (type === 'action'){
+                  text = `> ⚡工具 ${data.toolName}\n> 参数:\`\`\`${JSON.stringify(data.args)}\`\`\`\n> 响应:\`\`\`${text.substring(0,10)+"..."}\`\`\`\n`
+                }else{
+                  text = "\n----<<" + type + ">>----\n" + text;
+                }
+              }
 
               if (text || data.toolName || data.args) {
                 // 获取或创建助手消息
@@ -120,6 +131,7 @@ async function sendMessage(messageText: string) {
 
                 const assistantMsg = messages.value[messages.value.length - 1];
                 const lastContent = assistantMsg.contents[assistantMsg.contents.length - 1];
+
                 if (lastContent) {
                   lastContent.text += text;
                 } else {
