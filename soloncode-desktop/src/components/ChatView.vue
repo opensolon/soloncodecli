@@ -76,30 +76,21 @@ async function sendMessage(messageText: string) {
     if (reader) {
       while (true) {
         const {done, value} = await reader.read();
-
+        if (done) return;
         const chunk = decoder.decode(value, {stream: true});
         const lines = chunk.split('\n');
-
         for (const line of lines) {
-          if (line.trim() === '[DONE]') {
-            isLoading.value = false;
-            await chatMessagesRef.value?.scrollToBottom();
-            return;
-          }
-
           if (line.trim()) {
             try {
               let jsonStr = line.trim();
               if (jsonStr.startsWith('data:')) {
                 jsonStr = jsonStr.substring(5).trim();
               }
-
               if (jsonStr === '[DONE]') {
                 isLoading.value = false;
                 await chatMessagesRef.value?.scrollToBottom();
                 return;
               }
-
               const data = JSON.parse(jsonStr);
               const type = data.type as ContentType;
               let text = data.text || '';
@@ -109,7 +100,7 @@ async function sendMessage(messageText: string) {
               if (currentType.value != type) {
                 let isAddText = false;
                 const addText = "\n```\n\n";
-                if (currentType.value && (currentType.value == 'reason' || currentType.value == 'action')){
+                if (currentType.value && (currentType.value == 'reason' || currentType.value == 'action')) {
                   isAddText = true;
                 }
                 currentType.value = type;
@@ -120,12 +111,11 @@ async function sendMessage(messageText: string) {
                 } else {
                   text = "\n\n" + text;
                 }
-                if (isAddText){
+                if (isAddText) {
                   text = addText + text;
                 }
               }
               console.log(text)
-
               if (text || data.toolName || data.args) {
                 // 获取或创建助手消息
                 const lastMsg = messages.value[messages.value.length - 1];
@@ -138,16 +128,13 @@ async function sendMessage(messageText: string) {
                   };
                   messages.value.push(newMsg);
                 }
-
                 const assistantMsg = messages.value[messages.value.length - 1];
                 const lastContent = assistantMsg.contents[assistantMsg.contents.length - 1];
-
                 if (lastContent) {
                   lastContent.text += text;
                 } else {
                   assistantMsg.contents.push({type: 'text', text});
                 }
-
                 await chatMessagesRef.value?.scrollToBottom();
               }
             } catch (e) {
@@ -201,7 +188,7 @@ function loadConversationMessages(convId: number) {
 }
 
 watch(() => props.currentConversation.id, (newId) => {
-  if (newId === 0 && props.currentConversation.isPermanent) {
+  if (newId === 'SolonClaw' && props.currentConversation.isPermanent) {
     loadSolonClawMessages();
   } else {
     loadConversationMessages(newId);

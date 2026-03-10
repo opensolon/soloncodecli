@@ -16,7 +16,7 @@ export interface Message {
 }
 
 export interface Conversation {
-  id: number;
+  id: string | number;
   title: string;
   timestamp: string;
   status: string;

@@ -48,7 +48,7 @@ const currentConversation = ref<Conversation>({
 
 const conversations = ref<Conversation[]>([
   {
-    id: 0,
+    id: 'SolonClaw',
     title: 'SolonClaw',
     timestamp: new Date().toLocaleString(),
     status: 'active',
