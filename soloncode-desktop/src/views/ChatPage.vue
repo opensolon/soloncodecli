@@ -7,36 +7,12 @@ import ChatView from '../components/ChatView.vue';
 
 const plugins = ref<Plugin[]>([
   {
-    id: 'solonclaw',
-    name: 'SolonClaw',
-    icon: '🦊',
-    description: '代码分析和项目管理工具',
+    id: 'none',
+    name: '插件暂不支持',
+    icon: '🐱',
+    description: '插件暂不支持',
     enabled: true,
     version: '1.0.0'
-  },
-  {
-    id: 'copilot',
-    name: 'Code Copilot',
-    icon: '🤖',
-    description: 'AI 代码助手',
-    enabled: true,
-    version: '2.1.0'
-  },
-  {
-    id: 'formatter',
-    name: 'Code Formatter',
-    icon: '✨',
-    description: '代码格式化工具',
-    enabled: false,
-    version: '1.5.0'
-  },
-  {
-    id: 'linter',
-    name: 'Code Linter',
-    icon: '🔍',
-    description: '代码质量检查',
-    enabled: true,
-    version: '3.0.0'
   }
 ]);
 
