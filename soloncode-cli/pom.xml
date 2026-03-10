@@ -79,7 +79,7 @@
                             <goal>single</goal>
                         </goals>
                         <configuration>
-                            <finalName>${project.artifactId}-bin-${project.version}</finalName>
+                            <finalName>${project.artifactId}-bin-v${project.version}</finalName>
                             <appendAssemblyId>false</appendAssemblyId>
                             <descriptors>
                                 <descriptor>src/assembly/release.xml</descriptor>
