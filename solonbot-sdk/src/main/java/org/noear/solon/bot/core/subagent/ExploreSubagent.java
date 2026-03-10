@@ -21,6 +21,8 @@ import org.noear.solon.ai.agent.react.intercept.summarize.HierarchicalSummarizat
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.core.LuceneSkill;
 import org.noear.solon.bot.core.tool.CodeSearchTool;
+import org.noear.solon.bot.core.tool.WebfetchTool;
+import org.noear.solon.bot.core.tool.WebsearchTool;
 
 /**
  * 探索子代理 - 快速探索代码库
@@ -37,11 +39,13 @@ public class ExploreSubagent extends AbsSubagent {
     @Override
     protected void customize(ReActAgent.Builder builder) {
         // 添加技能（仅终端和专家技能，不添加代码搜索）
-        builder.defaultToolAdd(mainAgent.getCliSkills().getTerminalSkill()
-                .getToolAry("ls", "read", "grep", "glob"));
+        builder.defaultSkillAdd(mainAgent.getCliSkills());
 
-        builder.defaultSkillAdd(mainAgent.getCliSkills().getExpertSkill());
         builder.defaultSkillAdd(LuceneSkill.getInstance());
+
+        // 添加网络工具
+        builder.defaultToolAdd(WebfetchTool.getInstance());
+        builder.defaultToolAdd(WebsearchTool.getInstance());
         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
 
