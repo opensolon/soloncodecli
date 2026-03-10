@@ -121,13 +121,7 @@ public class BrowserManager implements AutoCloseable {
     @Override
     public void close() {
         cached.remove(__cwd);
-
-        // 关闭前自动保存一次状态
-        try {
-            saveState();
-        } catch (Exception ignored) {
-        }
-
+        saveState(); // 关闭前自动保存
         pageMap.values().forEach(Page::close);
         if (context != null) context.close();
         if (browser != null) browser.close();

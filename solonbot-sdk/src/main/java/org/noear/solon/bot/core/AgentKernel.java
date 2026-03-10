@@ -84,7 +84,7 @@ public class AgentKernel {
     private SubagentManager subagentManager;
 
     public String getVersion() {
-        return "v0.0.20";
+        return "v0.0.21";
     }
 
     public String getName() {
