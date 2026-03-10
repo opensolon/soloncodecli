@@ -1,7 +1,7 @@
 package org.noear.solon.bot.core;
 
 import com.microsoft.playwright.*;
-import org.noear.solon.core.util.JavaUtil;
+import org.noear.solon.core.util.RunUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -35,6 +35,12 @@ public class BrowserManager implements AutoCloseable {
         return cached.get(__cwd);
     }
 
+    public static void closeAll() {
+        for (BrowserManager item : cached.values()) {
+            item.close();
+        }
+    }
+
     private BrowserManager(String __cwd) {
         this.__cwd = __cwd;
         this.playwright = Playwright.create();
@@ -48,9 +54,10 @@ public class BrowserManager implements AutoCloseable {
             // 自动创建必要的目录
             Files.createDirectories(this.downloadPath);
             Files.createDirectories(this.statePath.getParent());
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
 
-       // ...
+        // ...
 
         BrowserType.LaunchOptions launchOptions = new BrowserType.LaunchOptions()
                 .setHeadless(true)
@@ -122,9 +129,11 @@ public class BrowserManager implements AutoCloseable {
     public void close() {
         cached.remove(__cwd);
         saveState(); // 关闭前自动保存
-        pageMap.values().forEach(Page::close);
-        if (context != null) context.close();
-        if (browser != null) browser.close();
-        if (playwright != null) playwright.close();
+        for (Page page : pageMap.values()) {
+            RunUtil.runAndTry(page::close);
+        }
+        if (context != null) RunUtil.runAndTry(context::close);
+        if (browser != null) RunUtil.runAndTry(browser::close);
+        if (playwright != null) RunUtil.runAndTry(playwright::close);
     }
 }
