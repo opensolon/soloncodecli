@@ -115,7 +115,7 @@ async function sendMessage(messageText: string) {
                 }
                 currentType.value = type;
                 if (type === 'action') {
-                  text = "```md\n⚡" + data?.toolName || '工具' + "\n" + JSON.stringify(data.args) + "\n" + text.substring(0, 30) + "...\n```\n\n";
+                  text = "```md\n> ⚡ " + data?.toolName || '工具' + "\n" + JSON.stringify(data.args) + "\n" + text.substring(0, 5) + "...\n```\n\n";
                 } else if (type === 'reason') {
                   text = "```md\n> 🧠\n" + text;
                 } else {

@@ -165,6 +165,8 @@ defineExpose({
   line-height: 1.6;
   word-wrap: break-word;
   transition: background-color 0.3s, color 0.3s;
+  max-width: 800px;
+  overflow-x: auto;
 }
 
 .message.user .message-text {
@@ -260,7 +262,7 @@ defineExpose({
 .message-content {
   display: flex;
   gap: 12px;
-  max-width: 80%;
+  width: 50%;
 }
 
 .message.user .message-content {
