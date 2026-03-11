@@ -62,7 +62,7 @@ public class TaskSkill extends AbsSkill {
     @Override
     public String getInstruction(Prompt prompt) {
         StringBuilder sb = new StringBuilder();
-        sb.append("处理复杂的、多步骤的任务，优先委派子代理（Subagent）执行\n\n");
+        sb.append("处理复杂的、多步骤的任务，必须委派子代理（Subagent）执行\n\n");
 
         sb.append("可用的代理类型及其拥有的工具：\n");
         sb.append("<available_agents>\n");
