@@ -23,6 +23,7 @@ import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.core.memory.LongTermMemory;
+import org.noear.solon.bot.core.memory.Memory;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.noear.solon.bot.core.subagent.Subagent;
 import org.noear.solon.bot.core.subagent.SubagentManager;
@@ -648,7 +649,7 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             int actualLimit = limit != null && limit > 0 ? limit : 10;
-            List<org.noear.solon.bot.core.memory.Memory> results =
+            List<Memory> results =
                 mainAgent.getSharedMemoryManager().search(query, actualLimit);
 
             if (results.isEmpty()) {
@@ -659,8 +660,9 @@ public class AgentTeamsSkill extends AbsSkill {
             sb.append("找到 ").append(results.size()).append(" 条相关任务结果:\n\n");
 
             for (int i = 0; i < results.size(); i++) {
-                org.noear.solon.bot.core.memory.Memory mem = results.get(i);
-                sb.append(i + 1).append(". ").append(mem.getContext()).append("\n");
+                Memory mem = results.get(i);
+                String content = getMemoryContent(mem);
+                sb.append(i + 1).append(". ").append(content).append("\n");
             }
 
             return sb.toString();
@@ -1196,6 +1198,21 @@ public class AgentTeamsSkill extends AbsSkill {
         } catch (Exception e) {
             LOG.error("更新任务结果失败", e);
             return "❌ 更新失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取记忆内容（辅助方法）
+     */
+    private String getMemoryContent(Memory memory) {
+        if (memory instanceof org.noear.solon.bot.core.memory.ShortTermMemory) {
+            return ((org.noear.solon.bot.core.memory.ShortTermMemory) memory).getContext();
+        } else if (memory instanceof org.noear.solon.bot.core.memory.LongTermMemory) {
+            return ((org.noear.solon.bot.core.memory.LongTermMemory) memory).getSummary();
+        } else if (memory instanceof org.noear.solon.bot.core.memory.KnowledgeMemory) {
+            return ((org.noear.solon.bot.core.memory.KnowledgeMemory) memory).getContent();
+        } else {
+            return memory.getId();
         }
     }
 }
