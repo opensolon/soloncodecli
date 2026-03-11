@@ -74,6 +74,10 @@ public class TeamTask {
     @Builder.Default
     private Map<String, String> metadata = new HashMap<>();           // 元数据
 
+    // 性能优化：依赖完成状态缓存（避免重复递归检查）
+    private transient volatile Set<String> cachedCompletedDeps;         // 已完成的依赖ID集合
+    private transient volatile long cacheVersion;                      // 缓存版本号（用于失效）
+
 
     /**
      * 任务状态枚举
@@ -175,6 +179,75 @@ public class TeamTask {
 
 
     /**
+     * 设置状态（重写以清除缓存）
+     *
+     * @param status 任务状态
+     * @throws IllegalArgumentException 如果状态转换不合法
+     */
+    public void setStatus(Status status) {
+        // 验证状态转换合法性
+        if (!isValidTransition(this.status, status)) {
+            throw new IllegalArgumentException(
+                String.format("非法的状态转换: %s -> %s (任务: %s)",
+                    this.status, status, this.title));
+        }
+        this.status = status;
+        // 清除缓存，因为状态变化会影响依赖完成状态
+        this.cachedCompletedDeps = null;
+    }
+
+    /**
+     * 验证状态转换是否合法
+     *
+     * @param from 当前状态
+     * @param to 目标状态
+     * @return 是否合法
+     */
+    private boolean isValidTransition(Status from, Status to) {
+        if (from == to) {
+            return true;  // 允许保持相同状态
+        }
+
+        switch (from) {
+            case PENDING:
+                // PENDING 可以转换到：IN_PROGRESS, CANCELLED
+                return to == Status.IN_PROGRESS || to == Status.CANCELLED;
+
+            case IN_PROGRESS:
+                // IN_PROGRESS 可以转换到：COMPLETED, FAILED, CANCELLED
+                return to == Status.COMPLETED || to == Status.FAILED || to == Status.CANCELLED;
+
+            case COMPLETED:
+            case FAILED:
+            case CANCELLED:
+                // 终态不允许再转换
+                return false;
+
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * 设置依赖列表（重写以清除缓存）
+     *
+     * @param dependencies 依赖任务ID列表
+     */
+    public void setDependencies(List<String> dependencies) {
+        this.dependencies = dependencies;
+        // 清除缓存
+        this.cachedCompletedDeps = null;
+    }
+
+    /**
+     * 清除依赖缓存
+     * 当依赖任务完成时调用此方法，强制重新检查依赖状态
+     */
+    public void clearCachedCompletedDeps() {
+        this.cachedCompletedDeps = null;
+    }
+
+    /**
      * 添加元数据
      */
     public void putMetadata(String key, String value) {
@@ -203,24 +276,48 @@ public class TeamTask {
     }
 
     /**
-     * 检查依赖任务是否都已完成（递归检查）
+     * 检查依赖任务是否都已完成（使用缓存优化性能）
      *
      * @param taskLookup 任务查找函数
      * @return 是否所有依赖都已完成
      * @throws IllegalStateException 如果存在循环依赖
      */
     public boolean areAllDependenciesCompleted(java.util.function.Function<String, TeamTask> taskLookup) {
-        return areAllDependenciesCompleted(taskLookup, new java.util.HashSet<>());
+        // 使用缓存避免重复递归检查
+        if (cachedCompletedDeps != null) {
+            // 检查所有直接依赖是否都在缓存中
+            if (dependencies == null || dependencies.isEmpty()) {
+                return true;
+            }
+            boolean allInCache = cachedCompletedDeps.containsAll(dependencies);
+            if (allInCache) {
+                return true;
+            }
+            // 缓存不完整，重新计算
+        }
+
+        // 执行递归检查并缓存结果
+        Set<String> completedDeps = new java.util.HashSet<>();
+        boolean result = areAllDependenciesCompleted(taskLookup, completedDeps, new java.util.HashSet<>());
+
+        if (result) {
+            // 缓存已完成的依赖
+            cachedCompletedDeps = completedDeps;
+        }
+
+        return result;
     }
 
     /**
      * 递归检查依赖任务是否完成（检测循环依赖）
      *
      * @param taskLookup 任务查找函数
-     * @param visiting   正在访问的任务集合（用于检测循环）
+     * @param completedDeps 已完成的依赖ID集合（输出参数）
+     * @param visiting 正在访问的任务集合（用于检测循环）
      * @return 是否所有依赖都已完成
      */
     private boolean areAllDependenciesCompleted(java.util.function.Function<String, TeamTask> taskLookup,
+                                                java.util.Set<String> completedDeps,
                                                 java.util.Set<String> visiting) {
         // 检测循环依赖
         if (visiting.contains(this.id)) {
@@ -250,8 +347,11 @@ public class TeamTask {
                     return false;
                 }
 
+                // 记录已完成的依赖
+                completedDeps.add(depId);
+
                 // 递归检查依赖的依赖（间接依赖）
-                if (!dep.areAllDependenciesCompleted(taskLookup, visiting)) {
+                if (!dep.areAllDependenciesCompleted(taskLookup, completedDeps, visiting)) {
                     return false;
                 }
             }
@@ -286,7 +386,7 @@ public class TeamTask {
                                      StringBuilder sb) {
         // 防止重复访问（循环依赖检测）
         if (visited.contains(task.getId())) {
-            sb.append(prefix).append("└── [⚠️ 循环依赖] ").append(task.getTitle())
+            sb.append(prefix).append("└── [[WARN] 循环依赖] ").append(task.getTitle())
                     .append(" (").append(task.getId()).append(")\n");
             return;
         }
@@ -308,7 +408,7 @@ public class TeamTask {
                 if (dep != null) {
                     buildDependencyTree(taskLookup, dep, childPrefix, visited, sb);
                 } else {
-                    sb.append(childPrefix).append("└── [❌ 不存在] ").append(depId).append("\n");
+                    sb.append(childPrefix).append("└── [[ERROR] 不存在] ").append(depId).append("\n");
                 }
             }
         }
@@ -330,17 +430,17 @@ public class TeamTask {
             // Emoji 模式（默认，需要 UTF-8 支持）
             switch (status) {
                 case PENDING:
-                    return "⏳";
+                    return "[WAIT]";
                 case IN_PROGRESS:
-                    return "🔄";
+                    return "[PROCESS]";
                 case COMPLETED:
-                    return "✅";
+                    return "[OK]";
                 case FAILED:
-                    return "❌";
+                    return "[ERROR]";
                 case CANCELLED:
-                    return "🚫";
+                    return "[CANCEL]";
                 default:
-                    return "❓";
+                    return "[UNKNOWN]";
             }
         } else {
             // ASCII 模式（兼容旧系统/Windows CMD）

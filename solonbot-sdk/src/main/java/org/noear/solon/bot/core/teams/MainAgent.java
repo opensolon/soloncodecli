@@ -41,6 +41,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -77,6 +79,9 @@ public class MainAgent {
     private String taskEventSubscriptionId;
     private String taskFailedSubscriptionId;  //  新增：保存失败事件订阅ID
     private String messageHandlerId;
+
+    // 性能优化：使用 CountDownLatch 替代轮询
+    private volatile CountDownLatch taskCompletionLatch;
 
     public MainAgent(SubAgentMetadata config,
                      AgentSessionProvider sessionProvider,
@@ -129,8 +134,7 @@ public class MainAgent {
             // Agent Teams 工具集（记忆、事件、消息）
             AgentTeamsTools teamsTools = new AgentTeamsTools(
                     sharedMemoryManager,
-                    eventBus,
-                    messageChannel
+                    eventBus
             );
             builder.defaultSkillAdd(teamsTools);
 
@@ -392,33 +396,46 @@ public class MainAgent {
     }
 
     /**
-     * 等待所有任务完成（使用事件驱动机制）
+     * 等待所有任务完成（使用事件驱动机制，性能优化）
      */
     private void waitForAllTasksCompleted() {
-        int maxWaitSeconds = 300; // 最多等待5分钟
-        int waitedSeconds = 0;
-        int checkInterval = 2; // 每2秒检查一次（降低轮询频率）
+        // 初始化 CountDownLatch（初始值为1，防止立即返回）
+        taskCompletionLatch = new CountDownLatch(1);
 
-        while (waitedSeconds < maxWaitSeconds) {
+        try {
+            // 检查初始状态
             SharedTaskList.TaskStatistics stats = taskList.getStatistics();
-
-            // 检查是否所有任务都已完成或失败
             if (stats.inProgressTasks == 0 && stats.pendingTasks == 0) {
                 LOG.info("所有子任务已完成（总计: {}, 完成: {}, 失败: {}）",
                         stats.totalTasks, stats.completedTasks, stats.failedTasks);
-                break;
+                return;
             }
 
-            LOG.debug("等待任务完成... (进行中: {}, 待认领: {})",
+            LOG.info("等待任务完成... (进行中: {}, 待认领: {})",
                     stats.inProgressTasks, stats.pendingTasks);
 
-            try {
-                Thread.sleep(checkInterval * 1000L);
-                waitedSeconds += checkInterval;
+            // 每30秒打印一次统计信息（使用超时等待，避免阻塞太久）
+            long remainingWaitMs = 300_000; // 最多等待5分钟
+            long printIntervalMs = 30_000;   // 每30秒打印一次
 
-                // 每30秒打印一次统计信息
-                if (waitedSeconds % 30 == 0) {
+            while (remainingWaitMs > 0) {
+                long waitTime = Math.min(printIntervalMs, remainingWaitMs);
+
+                // 等待任务完成或超时
+                boolean completed = taskCompletionLatch.await(waitTime, TimeUnit.MILLISECONDS);
+
+                stats = taskList.getStatistics();
+
+                if (stats.inProgressTasks == 0 && stats.pendingTasks == 0) {
+                    LOG.info("所有子任务已完成（总计: {}, 完成: {}, 失败: {}）",
+                            stats.totalTasks, stats.completedTasks, stats.failedTasks);
+                    break;
+                }
+
+                if (!completed) {
+                    // 超时，打印进度
                     LOG.info("任务进度: {}", stats);
+
                     // 打印阻塞信息
                     if (stats.pendingTasks > 0) {
                         String blockingInfo = taskList.getBlockingInfo();
@@ -427,15 +444,19 @@ public class MainAgent {
                         }
                     }
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                LOG.warn("等待任务完成被中断");
-                break;
-            }
-        }
 
-        if (waitedSeconds >= maxWaitSeconds) {
-            LOG.warn("等待任务完成超时（{}秒），当前状态: {}", maxWaitSeconds, taskList.getStatistics());
+                remainingWaitMs -= waitTime;
+            }
+
+            if (remainingWaitMs <= 0) {
+                LOG.warn("等待任务完成超时，当前状态: {}", taskList.getStatistics());
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.warn("等待任务完成被中断");
+        } finally {
+            taskCompletionLatch = null;
         }
     }
 
@@ -475,6 +496,7 @@ public class MainAgent {
 
     /**
      * 注册任务事件监听器
+     * 性能优化：添加事件驱动机制，在所有任务完成时触发 CountDownLatch
      */
     private void registerTaskEventListeners() {
         if (eventBus != null) {
@@ -517,6 +539,9 @@ public class MainAgent {
                 // 检查是否有依赖此任务的其他任务可以开始执行
                 checkAndNotifyDependentTasks(taskId);
 
+                // 性能优化：检查是否所有任务都已完成，触发 CountDownLatch
+                checkAllTasksCompleted();
+
                 return CompletableFuture.completedFuture(EventHandler.Result.success());
             });
 
@@ -549,6 +574,9 @@ public class MainAgent {
                 // 处理任务失败：决定是否需要重试或标记依赖任务失败
                 handleTaskFailure(taskId, errorMessage);
 
+                // 性能优化：检查是否所有任务都已完成（包括失败的），触发 CountDownLatch
+                checkAllTasksCompleted();
+
                 return CompletableFuture.completedFuture(EventHandler.Result.success());
             });
 
@@ -557,7 +585,23 @@ public class MainAgent {
     }
 
     /**
+     * 检查是否所有任务都已完成
+     * 性能优化：如果所有任务完成，触发 CountDownLatch
+     */
+    private void checkAllTasksCompleted() {
+        if (taskCompletionLatch != null) {
+            SharedTaskList.TaskStatistics stats = taskList.getStatistics();
+            if (stats.inProgressTasks == 0 && stats.pendingTasks == 0) {
+                // 所有任务都已完成或失败，触发 CountDownLatch
+                taskCompletionLatch.countDown();
+                LOG.debug("所有任务完成，触发 CountDownLatch");
+            }
+        }
+    }
+
+    /**
      * 检查并通知依赖此任务的其他任务
+     * 修复：实际广播任务可用通知，而不仅仅是记录日志
      */
     private void checkAndNotifyDependentTasks(String completedTaskId) {
         try {
@@ -565,10 +609,11 @@ public class MainAgent {
             List<TeamTask> claimableTasks = taskList.getClaimableTasks();
 
             if (!claimableTasks.isEmpty()) {
-                LOG.info("发现 {} 个可认领的任务（由于任务 {} 完成）", claimableTasks.size(), completedTaskId);
+                LOG.info("发现 {} 个可认领的任务（由于任务 {} 完成），广播通知...",
+                    claimableTasks.size(), completedTaskId);
 
-                // 可以在这里触发通知，让子代理认领这些任务
-                // 例如：通过 MessageChannel 广播
+                // 修复：通过 MessageChannel 广播任务可用通知
+                broadcastTaskNotification(claimableTasks);
             }
         } catch (Exception e) {
             LOG.error("检查依赖任务失败", e);

@@ -14,6 +14,7 @@ import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.bot.core.event.EventBus;
 import org.noear.solon.bot.core.memory.SharedMemoryManager;
+import org.noear.solon.bot.core.message.MessageChannel;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.noear.solon.bot.core.subagent.SubagentManager;
 import org.noear.solon.bot.core.subagent.TaskSkill;
@@ -88,6 +89,7 @@ public class AgentKernel {
     private EventBus eventBus;
     private SharedTaskList taskList;
     private SharedMemoryManager memoryManager;
+    private MessageChannel messageChannel;
 
     public String getVersion() {
         return "v0.0.20";
@@ -239,20 +241,25 @@ public class AgentKernel {
             this.memoryManager = new SharedMemoryManager(memoryPath);
             LOG.debug("SharedMemoryManager 已创建，路径: {}", memoryPath);
 
-            // 4. 创建 MainAgent 配置
+            // 4. 创建 MessageChannel（消息通道）
+            Path messagePath = Paths.get(properties.getWorkDir(), SOLONCODE_MEMORY);
+            this.messageChannel = new MessageChannel(messagePath.toString());
+            LOG.debug("MessageChannel 已创建，路径: {}", messagePath);
+
+            // 5. 创建 MainAgent 配置
             SubAgentMetadata mainAgentConfig = new SubAgentMetadata();
             mainAgentConfig.setCode("main-agent");
             mainAgentConfig.setName("主代理");
             mainAgentConfig.setDescription("Agent Teams 协调器，负责任务分解和团队协作");
             mainAgentConfig.setEnabled(true);
 
-            // 5. 创建 MainAgent
+            // 6. 创建 MainAgent
             this.mainAgent = new MainAgent(
                     mainAgentConfig,
                     sessionProvider,
                     memoryManager,
                     eventBus,
-                    null, // MessageChannel 暂时为 null（可选功能）
+                    messageChannel,
                     taskList,
                     properties.getWorkDir(),
                     cliSkills.getPoolManager()
@@ -272,7 +279,7 @@ public class AgentKernel {
             agentBuilder.defaultSkillAdd(agentTeamsSkill);
             LOG.info("AgentTeamsSkill 已注册");
 
-            LOG.info("Agent Teams 模式初始化完成 ✅");
+            LOG.info("Agent Teams 模式初始化完成 [OK]");
 
         } catch (Throwable e) {
             LOG.error("Agent Teams 模式初始化失败", e);

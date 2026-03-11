@@ -26,8 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -50,7 +49,12 @@ public class SharedTaskList {
     private final Map<String, TeamTask> pendingTasks;       // 待认领任务
     private final Map<String, Set<String>> agentTasks;      // Agent 的任务集合 (agentId -> Set<taskId>)
     private final Map<String, Integer> agentLoad;           // Agent 负载计数
-    private final ReadWriteLock lock;                        // 读写锁
+
+    // 性能优化：使用细粒度锁替代全局读写锁
+    private final Map<String, ReentrantLock> taskLocks;     // 每个任务一个锁
+
+    // 保留一个轻量级的全局锁用于保护关键区域的原子操作（如批量添加任务）
+    private final ReentrantLock globalLock;
 
     private final EventBus eventBus;                         // 事件总线
     private final int maxCompletedTasks;                    // 保留的最大已完成任务数
@@ -83,7 +87,8 @@ public class SharedTaskList {
         this.pendingTasks = new ConcurrentHashMap<>();
         this.agentTasks = new ConcurrentHashMap<>();
         this.agentLoad = new ConcurrentHashMap<>();
-        this.lock = new ReentrantReadWriteLock();
+        this.taskLocks = new ConcurrentHashMap<>();
+        this.globalLock = new ReentrantLock();
         this.eventBus = eventBus;
         this.maxCompletedTasks = maxCompletedTasks;
         this.completedTaskQueue = new LinkedList<>();
@@ -93,7 +98,7 @@ public class SharedTaskList {
         this.taskExecutor = Executors.newFixedThreadPool(poolSize, new NamedThreadFactory("SharedTaskList"));
         this.eventExecutor = Executors.newSingleThreadExecutor(new NamedThreadFactory("SharedTaskList-Event"));
 
-        LOG.info("SharedTaskList 初始化完成 (线程池大小: {})", poolSize);
+        LOG.info("SharedTaskList 初始化完成 (线程池大小: {}, 使用细粒度锁)", poolSize);
     }
 
     /**
@@ -125,14 +130,33 @@ public class SharedTaskList {
 
     /**
      * 添加任务
+     * 性能优化：使用细粒度锁，只锁定必要的代码段
      *
      * @param task 任务
      * @return 异步结果
      */
     public CompletableFuture<TeamTask> addTask(TeamTask task) {
         return CompletableFuture.supplyAsync(() -> {
-            lock.writeLock().lock();
+            // 获取任务级别的锁（按字母顺序排序以避免死锁）
+            List<String> lockIds = new ArrayList<>(task.getDependencies());
+            lockIds.add(task.getId());
+            lockIds.sort(String::compareTo);
+
+            // 获取所有相关的锁
+            List<ReentrantLock> locks = new ArrayList<>();
+            for (String id : lockIds) {
+                ReentrantLock lock = taskLocks.computeIfAbsent(id, k -> new ReentrantLock());
+                locks.add(lock);
+            }
+
+            // 按顺序获取所有锁（避免死锁），并记录获取数量
+            int acquiredLocks = 0;
             try {
+                for (ReentrantLock lock : locks) {
+                    lock.lock();
+                    acquiredLocks++;  // 记录成功获取的锁数量
+                }
+
                 // 验证依赖任务存在
                 for (String depId : task.getDependencies()) {
                     if (!tasks.containsKey(depId)) {
@@ -164,7 +188,10 @@ public class SharedTaskList {
                 return task;
 
             } finally {
-                lock.writeLock().unlock();
+                // 按相反顺序释放已获取的锁（修复：使用acquiredLocks而不是locks.size()）
+                for (int i = acquiredLocks - 1; i >= 0; i--) {
+                    locks.get(i).unlock();
+                }
             }
         }, taskExecutor);
     }
@@ -189,21 +216,23 @@ public class SharedTaskList {
      */
     public CompletableFuture<List<TeamTask>> addTasks(List<TeamTask> tasks) {
         return CompletableFuture.supplyAsync(() -> {
-            lock.writeLock().lock();
+            globalLock.lock();
             try {
-                // 第一阶段：验证所有任务
+                // 第一阶段：收集所有任务ID并验证唯一性
+                Set<String> batchTaskIds = new HashSet<>();
                 for (TeamTask task : tasks) {
-                    // 检查任务ID唯一性
-                    if (this.tasks.containsKey(task.getId())) {
+                    // 检查任务ID唯一性（包括批次内）
+                    if (this.tasks.containsKey(task.getId()) || batchTaskIds.contains(task.getId())) {
                         throw new IllegalArgumentException("任务ID已存在: " + task.getId());
                     }
+                    batchTaskIds.add(task.getId());
                 }
 
-                // 第二阶段：验证依赖关系（允许依赖同一批中的任务）
+                // 第二阶段：验证依赖关系（修复：使用batchTaskIds避免时序问题）
                 for (TeamTask task : tasks) {
                     for (String depId : task.getDependencies()) {
                         // 检查依赖是否在当前批次中
-                        boolean inBatch = tasks.stream().anyMatch(t -> t.getId().equals(depId));
+                        boolean inBatch = batchTaskIds.contains(depId);
                         // 检查依赖是否已存在
                         boolean exists = this.tasks.containsKey(depId);
 
@@ -248,14 +277,14 @@ public class SharedTaskList {
                     for (TeamTask task : finalAdded) {
                         publishTaskEvent(AgentEventType.TASK_CREATED, task, null);
                     }
-                });
+                }, eventExecutor);
 
                 return added;
 
             } finally {
-                lock.writeLock().unlock();
+                globalLock.unlock();
             }
-        });
+        }, taskExecutor);
     }
 
     /**
@@ -265,12 +294,8 @@ public class SharedTaskList {
      * @return 任务，不存在返回 null
      */
     public TeamTask getTask(String taskId) {
-        lock.readLock().lock();
-        try {
-            return tasks.get(taskId);
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        return tasks.get(taskId);
     }
 
     /**
@@ -280,7 +305,9 @@ public class SharedTaskList {
      * @return 是否删除成功
      */
     public boolean removeTask(String taskId) {
-        lock.writeLock().lock();
+        // 使用细粒度锁
+        ReentrantLock lock = taskLocks.computeIfAbsent(taskId, k -> new ReentrantLock());
+        lock.lock();
         try {
             TeamTask task = tasks.remove(taskId);
             if (task != null) {
@@ -301,7 +328,9 @@ public class SharedTaskList {
             return false;
 
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
+            // 清理锁（避免内存泄漏）
+            taskLocks.remove(taskId);
         }
     }
 
@@ -316,7 +345,9 @@ public class SharedTaskList {
      */
     public CompletableFuture<Boolean> claimTask(String taskId, String agentId) {
         return CompletableFuture.supplyAsync(() -> {
-            lock.writeLock().lock();
+            // 使用细粒度锁
+            ReentrantLock lock = taskLocks.computeIfAbsent(taskId, k -> new ReentrantLock());
+            lock.lock();
             try {
                 TeamTask task = tasks.get(taskId);
 
@@ -357,7 +388,7 @@ public class SharedTaskList {
                 String finalAgentId = agentId;
                 CompletableFuture.runAsync(() -> {
                     publishTaskEvent(AgentEventType.TASK_CLAIMED, finalTask, finalAgentId);
-                });
+                }, eventExecutor);
 
                 return true;
 
@@ -366,9 +397,9 @@ public class SharedTaskList {
                 LOG.error("认领失败: {}", e.getMessage());
                 return false;
             } finally {
-                lock.writeLock().unlock();
+                lock.unlock();
             }
-        });
+        }, taskExecutor);
     }
 
     /**
@@ -379,29 +410,35 @@ public class SharedTaskList {
      */
     public CompletableFuture<TeamTask> smartClaim(String agentId) {
         return CompletableFuture.supplyAsync(() -> {
-            lock.writeLock().lock();
-            try {
-                // 获取可认领的任务
-                List<TeamTask> claimable = getClaimableTasks();
+            // 获取可认领的任务（不加锁，使用 ConcurrentHashMap）
+            List<TeamTask> claimable = getClaimableTasks();
 
-                if (claimable.isEmpty()) {
-                    return null;
-                }
-
-                // 按优先级排序（高优先级优先）
-                claimable.sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
-
-                // 选择最高优先级的任务
-                TeamTask selected = claimable.get(0);
-
-                // 认领任务
-                Boolean claimed = claimTask(selected.getId(), agentId).join();
-                return claimed ? selected : null;
-
-            } finally {
-                lock.writeLock().unlock();
+            if (claimable.isEmpty()) {
+                return null;
             }
-        });
+
+            // 按优先级排序（高优先级优先）
+            claimable.sort((a, b) -> Integer.compare(b.getPriority(), a.getPriority()));
+
+            // 修复：尝试认领任务，失败则尝试下一个（避免竞争导致全部失败）
+            for (TeamTask task : claimable) {
+                try {
+                    Boolean claimed = claimTask(task.getId(), agentId).join();
+                    if (claimed) {
+                        LOG.debug("Agent {} 成功认领任务: {}", agentId, task.getTitle());
+                        return task;
+                    }
+                    // 任务被其他代理认领，尝试下一个
+                    LOG.debug("任务 {} 已被其他代理认领，尝试下一个", task.getTitle());
+                } catch (Exception e) {
+                    LOG.warn("认领任务 {} 时发生异常，尝试下一个", task.getTitle(), e);
+                }
+            }
+
+            // 所有任务都认领失败
+            LOG.debug("Agent {} 未能认领任何任务", agentId);
+            return null;
+        }, taskExecutor);
     }
 
     /**
@@ -412,7 +449,9 @@ public class SharedTaskList {
      * @return 是否释放成功
      */
     public boolean releaseTask(String taskId, String agentId) {
-        lock.writeLock().lock();
+        // 使用细粒度锁
+        ReentrantLock lock = taskLocks.computeIfAbsent(taskId, k -> new ReentrantLock());
+        lock.lock();
         try {
             TeamTask task = tasks.get(taskId);
 
@@ -448,12 +487,12 @@ public class SharedTaskList {
             String finalAgentId = agentId;
             CompletableFuture.runAsync(() -> {
                 publishTaskEvent(AgentEventType.TASK_RELEASED, finalTask, finalAgentId);
-            });
+            }, eventExecutor);
 
             return true;
 
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
         }
     }
 
@@ -467,7 +506,9 @@ public class SharedTaskList {
      * @return 是否完成成功
      */
     public boolean completeTask(String taskId, Object result) {
-        lock.writeLock().lock();
+        // 使用细粒度锁
+        ReentrantLock lock = taskLocks.computeIfAbsent(taskId, k -> new ReentrantLock());
+        lock.lock();
         try {
             TeamTask task = tasks.get(taskId);
 
@@ -498,6 +539,9 @@ public class SharedTaskList {
             completedTaskQueue.offer(taskId);
             cleanupCompletedTasks();
 
+            // 性能优化：清除依赖此任务的其他任务的缓存
+            clearDependentTasksCache(taskId);
+
             LOG.info("任务已完成: {} by {}", task.getTitle(), agentId);
 
             // 触发事件（在锁外执行，避免阻塞）
@@ -505,12 +549,14 @@ public class SharedTaskList {
             String finalAgentId = agentId;
             CompletableFuture.runAsync(() -> {
                 publishTaskEvent(AgentEventType.TASK_COMPLETED, finalTask, finalAgentId);
-            });
+            }, eventExecutor);
 
             return true;
 
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
+            // 完成后清理锁（避免内存泄漏）
+            taskLocks.remove(taskId);
         }
     }
 
@@ -522,7 +568,9 @@ public class SharedTaskList {
      * @return是否标记成功
      */
     public boolean failTask(String taskId, String errorMessage) {
-        lock.writeLock().lock();
+        // 使用细粒度锁
+        ReentrantLock lock = taskLocks.computeIfAbsent(taskId, k -> new ReentrantLock());
+        lock.lock();
         try {
             TeamTask task = tasks.get(taskId);
 
@@ -549,6 +597,9 @@ public class SharedTaskList {
                 }
             }
 
+            // 性能优化：清除依赖此任务的其他任务的缓存
+            clearDependentTasksCache(taskId);
+
             LOG.warn("任务已失败: {} - {}", task.getTitle(), errorMessage);
 
             // 触发事件（在锁外执行，避免阻塞）
@@ -556,12 +607,14 @@ public class SharedTaskList {
             String finalAgentId = agentId;
             CompletableFuture.runAsync(() -> {
                 publishTaskEvent(AgentEventType.TASK_FAILED, finalTask, finalAgentId);
-            });
+            }, eventExecutor);
 
             return true;
 
         } finally {
-            lock.writeLock().unlock();
+            lock.unlock();
+            // 失败后清理锁（避免内存泄漏）
+            taskLocks.remove(taskId);
         }
     }
 
@@ -569,64 +622,53 @@ public class SharedTaskList {
 
     /**
      * 获取所有任务
+     * 性能优化：不再持有锁
      *
      * @return 任务列表
      */
     public List<TeamTask> getAllTasks() {
-        lock.readLock().lock();
-        try {
-            return new ArrayList<>(tasks.values());
-        } finally {
-            lock.readLock().unlock();
-        }
+        return new ArrayList<>(tasks.values());
     }
 
     /**
      * 获取待认领任务
+     * 性能优化：不再持有锁
      *
      * @return 任务列表
      */
     public List<TeamTask> getPendingTasks() {
-        lock.readLock().lock();
-        try {
-            return new ArrayList<>(pendingTasks.values());
-        } finally {
-            lock.readLock().unlock();
-        }
+        return new ArrayList<>(pendingTasks.values());
     }
 
     /**
      * 获取可认领任务（考虑依赖关系，按优先级排序）
+     * 性能优化：不再持有全局锁，使用细粒度锁
      *
      * @return 任务列表（按优先级降序排列）
      */
     public List<TeamTask> getClaimableTasks() {
-        lock.readLock().lock();
-        try {
-            return pendingTasks.values().stream()
-                    .filter(task -> {
-                        try {
-                            // 使用递归检查所有依赖（包括间接依赖）
-                            return task.areAllDependenciesCompleted(tasks::get);
-                        } catch (IllegalStateException e) {
-                            // 循环依赖的任务不能被认领
-                            LOG.warn("任务存在循环依赖，无法认领: {}", task.getTitle());
-                            return false;
-                        }
-                    })
-                    .sorted((a, b) -> {
-                        // 按优先级降序排序（高优先级在前）
-                        int priorityCompare = Integer.compare(b.getPriority(), a.getPriority());
-                        if (priorityCompare != 0) {
-                            return priorityCompare;
-                        }
-                        // 优先级相同时，按创建时间升序排序（早创建的在前）
-                        return Long.compare(a.getClaimTime(), b.getClaimTime());
-                    })
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
-        }
+        // 不加锁，ConcurrentHashMap 支持并发读
+        return pendingTasks.values().stream()
+                .filter(task -> {
+                    try {
+                        // 使用缓存优化后的依赖检查（TeamTask 中有缓存）
+                        return task.areAllDependenciesCompleted(tasks::get);
+                    } catch (IllegalStateException e) {
+                        // 循环依赖的任务不能被认领
+                        LOG.warn("任务存在循环依赖，无法认领: {}", task.getTitle());
+                        return false;
+                    }
+                })
+                .sorted((a, b) -> {
+                    // 按优先级降序排序（高优先级在前）
+                    int priorityCompare = Integer.compare(b.getPriority(), a.getPriority());
+                    if (priorityCompare != 0) {
+                        return priorityCompare;
+                    }
+                    // 优先级相同时，按创建时间升序排序（早创建的在前）
+                    return Long.compare(a.getClaimTime(), b.getClaimTime());
+                })
+                .collect(Collectors.toList());
     }
 
     /**
@@ -636,16 +678,12 @@ public class SharedTaskList {
      * @return 任务列表
      */
     public List<TeamTask> getAgentTasks(String agentId) {
-        lock.readLock().lock();
-        try {
-            Set<String> taskIds = agentTasks.getOrDefault(agentId, Collections.emptySet());
-            return taskIds.stream()
-                    .map(tasks::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        Set<String> taskIds = agentTasks.getOrDefault(agentId, Collections.emptySet());
+        return taskIds.stream()
+                .map(tasks::get)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -655,12 +693,8 @@ public class SharedTaskList {
      * @return 负载数（进行中的任务数）
      */
     public int getAgentLoad(String agentId) {
-        lock.readLock().lock();
-        try {
-            return agentLoad.getOrDefault(agentId, 0);
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        return agentLoad.getOrDefault(agentId, 0);
     }
 
     /**
@@ -669,12 +703,8 @@ public class SharedTaskList {
      * @return Agent ID -> 负载数
      */
     public Map<String, Integer> getAllAgentLoads() {
-        lock.readLock().lock();
-        try {
-            return new HashMap<>(agentLoad);
-        } finally {
-            lock.readLock().unlock();
-        }
+        // 返回副本以避免并发修改
+        return new HashMap<>(agentLoad);
     }
 
     /**
@@ -684,14 +714,10 @@ public class SharedTaskList {
      * @return 任务列表
      */
     public List<TeamTask> getTasksByStatus(TeamTask.Status status) {
-        lock.readLock().lock();
-        try {
-            return tasks.values().stream()
-                    .filter(task -> task.getStatus() == status)
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        return tasks.values().stream()
+                .filter(task -> task.getStatus() == status)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -701,40 +727,32 @@ public class SharedTaskList {
      * @return 任务列表
      */
     public List<TeamTask> getTasksByType(TeamTask.TaskType type) {
-        lock.readLock().lock();
-        try {
-            return tasks.values().stream()
-                    .filter(task -> task.getType() == type)
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        return tasks.values().stream()
+                .filter(task -> task.getType() == type)
+                .collect(Collectors.toList());
     }
 
     // ========== 统计方法 ==========
 
     /**
      * 获取任务统计
+     * 性能优化：不再持有锁
      *
      * @return 统计信息
      */
     public TaskStatistics getStatistics() {
-        lock.readLock().lock();
-        try {
-            Map<TeamTask.Status, Long> statusCounts = tasks.values().stream()
-                    .collect(Collectors.groupingBy(TeamTask::getStatus, Collectors.counting()));
+        Map<TeamTask.Status, Long> statusCounts = tasks.values().stream()
+                .collect(Collectors.groupingBy(TeamTask::getStatus, Collectors.counting()));
 
-            return new TaskStatistics(
-                    tasks.size(),
-                    statusCounts.getOrDefault(TeamTask.Status.PENDING, 0L).intValue(),
-                    statusCounts.getOrDefault(TeamTask.Status.IN_PROGRESS, 0L).intValue(),
-                    statusCounts.getOrDefault(TeamTask.Status.COMPLETED, 0L).intValue(),
-                    statusCounts.getOrDefault(TeamTask.Status.FAILED, 0L).intValue(),
-                    agentLoad.size()
-            );
-        } finally {
-            lock.readLock().unlock();
-        }
+        return new TaskStatistics(
+                tasks.size(),
+                statusCounts.getOrDefault(TeamTask.Status.PENDING, 0L).intValue(),
+                statusCounts.getOrDefault(TeamTask.Status.IN_PROGRESS, 0L).intValue(),
+                statusCounts.getOrDefault(TeamTask.Status.COMPLETED, 0L).intValue(),
+                statusCounts.getOrDefault(TeamTask.Status.FAILED, 0L).intValue(),
+                agentLoad.size()
+        );
     }
 
     // ========== 依赖关系诊断 ==========
@@ -746,16 +764,12 @@ public class SharedTaskList {
      * @return 依赖树字符串
      */
     public String getTaskDependencyTree(String taskId) {
-        lock.readLock().lock();
-        try {
-            TeamTask task = tasks.get(taskId);
-            if (task == null) {
-                return "任务不存在: " + taskId;
-            }
-            return task.getDependencyTree(tasks::get);
-        } finally {
-            lock.readLock().unlock();
+        // ConcurrentHashMap 支持并发读，无需加锁
+        TeamTask task = tasks.get(taskId);
+        if (task == null) {
+            return "任务不存在: " + taskId;
         }
+        return task.getDependencyTree(tasks::get);
     }
 
     /**
@@ -764,14 +778,10 @@ public class SharedTaskList {
      * @return 存在循环依赖的任务列表
      */
     public List<TeamTask> detectCyclicDependencies() {
-        lock.readLock().lock();
-        try {
-            return tasks.values().stream()
-                    .filter(task -> task.hasCyclicDependency(tasks::get))
-                    .collect(Collectors.toList());
-        } finally {
-            lock.readLock().unlock();
-        }
+        // ConcurrentHashMap 支持并发读，无需加锁
+        return tasks.values().stream()
+                .filter(task -> task.hasCyclicDependency(tasks::get))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -780,46 +790,42 @@ public class SharedTaskList {
      * @return 依赖关系的文本表示
      */
     public String getDependencyGraph() {
-        lock.readLock().lock();
-        try {
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== 任务依赖关系图 ===\n\n");
+        // ConcurrentHashMap 支持并发读，无需加锁
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== 任务依赖关系图 ===\n\n");
 
-            for (TeamTask task : tasks.values()) {
-                if (task.getDependencies() != null && !task.getDependencies().isEmpty()) {
-                    sb.append(task.getTitle())
-                      .append(" (").append(task.getId()).append(")")
-                      .append(" [").append(task.getStatus()).append("]")
-                      .append(" 依赖:\n");
+        for (TeamTask task : tasks.values()) {
+            if (task.getDependencies() != null && !task.getDependencies().isEmpty()) {
+                sb.append(task.getTitle())
+                  .append(" (").append(task.getId()).append(")")
+                  .append(" [").append(task.getStatus()).append("]")
+                  .append(" 依赖:\n");
 
-                    for (String depId : task.getDependencies()) {
-                        TeamTask dep = tasks.get(depId);
-                        if (dep != null) {
-                            sb.append("  → ").append(dep.getTitle())
-                              .append(" (").append(depId).append(")")
-                              .append(" [").append(dep.getStatus()).append("]\n");
-                        } else {
-                            sb.append("  → [不存在] ").append(depId).append("\n");
-                        }
+                for (String depId : task.getDependencies()) {
+                    TeamTask dep = tasks.get(depId);
+                    if (dep != null) {
+                        sb.append("  → ").append(dep.getTitle())
+                          .append(" (").append(depId).append(")")
+                          .append(" [").append(dep.getStatus()).append("]\n");
+                    } else {
+                        sb.append("  → [不存在] ").append(depId).append("\n");
                     }
-                    sb.append("\n");
                 }
+                sb.append("\n");
             }
-
-            // 检测循环依赖
-            List<TeamTask> cyclicTasks = detectCyclicDependencies();
-            if (!cyclicTasks.isEmpty()) {
-                sb.append("⚠️ 检测到循环依赖:\n");
-                for (TeamTask task : cyclicTasks) {
-                    sb.append("  - ").append(task.getTitle())
-                      .append(" (").append(task.getId()).append(")\n");
-                }
-            }
-
-            return sb.toString();
-        } finally {
-            lock.readLock().unlock();
         }
+
+        // 检测循环依赖
+        List<TeamTask> cyclicTasks = detectCyclicDependencies();
+        if (!cyclicTasks.isEmpty()) {
+            sb.append("[WARN] 检测到循环依赖:\n");
+            for (TeamTask task : cyclicTasks) {
+                sb.append("  - ").append(task.getTitle())
+                  .append(" (").append(task.getId()).append(")\n");
+            }
+        }
+
+        return sb.toString();
     }
 
     /**
@@ -828,7 +834,7 @@ public class SharedTaskList {
      * @return 被阻塞的任务列表
      */
     public List<TeamTask> getBlockedTasks() {
-        lock.readLock().lock();
+        // ConcurrentHashMap 支持并发读，无需加锁
         try {
             return pendingTasks.values().stream()
                     .filter(task -> !task.areAllDependenciesCompleted(tasks::get))
@@ -836,8 +842,6 @@ public class SharedTaskList {
         } catch (IllegalStateException e) {
             LOG.error("检查阻塞任务时发生异常", e);
             return Collections.emptyList();
-        } finally {
-            lock.readLock().unlock();
         }
     }
 
@@ -847,37 +851,33 @@ public class SharedTaskList {
      * @return 阻塞信息
      */
     public String getBlockingInfo() {
-        lock.readLock().lock();
-        try {
-            List<TeamTask> blockedTasks = getBlockedTasks();
+        // ConcurrentHashMap 支持并发读，无需加锁
+        List<TeamTask> blockedTasks = getBlockedTasks();
 
-            if (blockedTasks.isEmpty()) {
-                return "没有阻塞的任务";
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== 阻塞任务详情 ===\n\n");
-
-            for (TeamTask task : blockedTasks) {
-                sb.append("任务: ").append(task.getTitle())
-                  .append(" (").append(task.getId()).append(")\n");
-                sb.append("状态: ").append(task.getStatus()).append("\n");
-                sb.append("等待依赖:\n");
-
-                for (String depId : task.getAllDependencyIds(tasks::get)) {
-                    TeamTask dep = tasks.get(depId);
-                    if (dep != null && !dep.isCompleted()) {
-                        sb.append("  - ").append(dep.getTitle())
-                          .append(" [").append(dep.getStatus()).append("]\n");
-                    }
-                }
-                sb.append("\n");
-            }
-
-            return sb.toString();
-        } finally {
-            lock.readLock().unlock();
+        if (blockedTasks.isEmpty()) {
+            return "没有阻塞的任务";
         }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== 阻塞任务详情 ===\n\n");
+
+        for (TeamTask task : blockedTasks) {
+            sb.append("任务: ").append(task.getTitle())
+              .append(" (").append(task.getId()).append(")\n");
+            sb.append("状态: ").append(task.getStatus()).append("\n");
+            sb.append("等待依赖:\n");
+
+            for (String depId : task.getAllDependencyIds(tasks::get)) {
+                TeamTask dep = tasks.get(depId);
+                if (dep != null && !dep.isCompleted()) {
+                    sb.append("  - ").append(dep.getTitle())
+                      .append(" [").append(dep.getStatus()).append("]\n");
+                }
+            }
+            sb.append("\n");
+        }
+
+        return sb.toString();
     }
 
     /**
@@ -910,10 +910,6 @@ public class SharedTaskList {
         }
     }
 
-    // ========== 事件监听 ==========
-
-    // ========== 私有方法 ==========
-
     /**
      * 更新 Agent 负载
      */
@@ -921,6 +917,25 @@ public class SharedTaskList {
         Set<String> taskSet = agentTasks.get(agentId);
         int load = (taskSet != null) ? taskSet.size() : 0;
         agentLoad.put(agentId, load);
+    }
+
+    /**
+     * 清除依赖此任务的所有任务的缓存
+     * 性能优化：当任务完成/失败时，通知依赖它的任务清除缓存
+     *
+     * @param completedTaskId 已完成的任务ID
+     */
+    private void clearDependentTasksCache(String completedTaskId) {
+        int clearedCount = 0;
+        for (TeamTask task : tasks.values()) {
+            if (task.getDependencies().contains(completedTaskId)) {
+                task.clearCachedCompletedDeps();
+                clearedCount++;
+            }
+        }
+        if (clearedCount > 0) {
+            LOG.debug("清除了 {} 个依赖任务的缓存（任务 {} 完成）", clearedCount, completedTaskId);
+        }
     }
 
     /**

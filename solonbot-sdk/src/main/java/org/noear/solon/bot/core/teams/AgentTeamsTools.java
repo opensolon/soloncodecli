@@ -61,23 +61,77 @@ public class AgentTeamsTools extends AbsSkill {
     @Override
     public String getInstruction(Prompt prompt) {
         StringBuilder sb = new StringBuilder();
-        sb.append("## Agent Teams 工具集\n\n");
-        sb.append("你可以使用以下工具来协调团队协作：\n\n");
-        sb.append("### 记忆管理\n");
-        sb.append("- `memory_store()`: 存储信息到共享记忆\n");
-        sb.append("- `memory_retrieve()`: 从共享记忆检索信息\n");
-        sb.append("- `memory_search()`: 搜索共享记忆\n");
-        sb.append("- `working_memory_set()`: 设置工作记忆\n");
-        sb.append("- `working_memory_get()`: 获取工作记忆\n\n");
-        sb.append("### 事件和消息\n");
+        sb.append("## Agent Teams 内部工具集\n\n");
+        sb.append("这是 MainAgent 内部使用的工具集，提供记忆管理和事件发布功能。\n\n");
+        sb.append("### 记忆存储工具\n\n");
+        sb.append("**分层记忆存储**（按 TTL 自动过期）：\n");
+        sb.append("- `memory_store_short()`: 短期记忆（1小时 TTL）\n");
+        sb.append("  - 用途：临时上下文、会话级信息\n");
+        sb.append("  - 参数：key（必填）, value（必填）, ttl（可选，默认3600秒）\n\n");
+        sb.append("- `memory_store_long()`: 长期记忆（7天 TTL）\n");
+        sb.append("  - 用途：任务结果、重要信息\n");
+        sb.append("  - 参数：key（必填）, value（必填）, ttl（可选，默认604800秒）\n\n");
+        sb.append("- `memory_store_knowledge()`: 知识记忆（永久保存）\n");
+        sb.append("  - 用途：架构决策、最佳实践、经验教训\n");
+        sb.append("  - 参数：key（必填）, value（必填）\n\n");
+        sb.append("### 记忆检索工具\n\n");
+        sb.append("- `memory_retrieve()`: 根据键精确检索\n");
+        sb.append("  - 自动从短期 → 长期 → 知识记忆中查找\n");
+        sb.append("  - 参数：key（必填）\n\n");
+        sb.append("- `memory_search()`: 模糊搜索记忆\n");
+        sb.append("  - 支持关键词匹配，返回相关记忆列表\n");
+        sb.append("  - 参数：query（必填）, limit（可选，默认10）\n\n");
+        sb.append("### 工作记忆工具\n\n");
+        sb.append("- `working_memory_set()`: 设置工作记忆字段\n");
+        sb.append("  - 用于存储当前任务状态、步骤等结构化数据\n");
+        sb.append("  - 支持字段：taskDescription, status, step, currentAgent, 或自定义字段\n");
+        sb.append("  - 参数：field（必填）, value（必填）\n\n");
+        sb.append("- `working_memory_get()`: 获取工作记忆\n");
+        sb.append("  - 查看当前任务状态、步骤、摘要等\n");
+        sb.append("  - 参数：taskId（可选，默认'main-agent'）\n\n");
+        sb.append("### 事件工具\n\n");
         sb.append("- `publish_event()`: 发布团队事件\n");
-        sb.append("- `send_message()`: 发送消息给其他代理\n\n");
-        sb.append("### 任务状态\n");
-        sb.append("- `get_task_statistics()`: 获取任务统计信息\n");
+        sb.append("  - 通知其他代理任务状态变化\n");
+        sb.append("  - 支持事件类型：TASK_CREATED, TASK_COMPLETED, TASK_FAILED, MESSAGE_RECEIVED 等\n");
+        sb.append("  - 参数：eventType（必填）, data（必填）\n\n");
+        sb.append("### 使用示例\n\n");
+        sb.append("**存储记忆**：\n");
+        sb.append("```\n");
+        sb.append("# 存储临时上下文\n");
+        sb.append("memory_store_short(\n");
+        sb.append("    key=\"current-context\",\n");
+        sb.append("    value=\"正在分析 UserService\",\n");
+        sb.append("    ttl=1800  # 30分钟\n");
+        sb.append(")\n\n");
+        sb.append("# 存储任务结果\n");
+        sb.append("memory_store_long(\n");
+        sb.append("    key=\"task-result\",\n");
+        sb.append("    value=\"已完成用户登录功能\"\n");
+        sb.append(")\n\n");
+        sb.append("# 存储架构决策\n");
+        sb.append("memory_store_knowledge(\n");
+        sb.append("    key=\"architecture\",\n");
+        sb.append("    value=\"采用三层架构：Controller-Service-Repository\"\n");
+        sb.append(")\n");
+        sb.append("```\n\n");
+        sb.append("**检索记忆**：\n");
+        sb.append("```\n");
+        sb.append("# 精确检索\n");
+        sb.append("memory_retrieve(key=\"architecture\")\n\n");
+        sb.append("# 模糊搜索\n");
+        sb.append("memory_search(query=\"登录\", limit=5)\n");
+        sb.append("```\n\n");
+        sb.append("**工作记忆**：\n");
+        sb.append("```\n");
+        sb.append("# 设置当前状态\n");
+        sb.append("working_memory_set(field=\"status\", value=\"in-progress\")\n");
+        sb.append("working_memory_set(field=\"step\", value=\"3\")\n\n");
+        sb.append("# 查看工作记忆\n");
+        sb.append("working_memory_get()\n");
+        sb.append("```\n");
         return sb.toString();
     }
 
-    // ==================== 记忆存储工具 ====================
 
     /**
      * 存储短期记忆
@@ -92,10 +146,10 @@ public class AgentTeamsTools extends AbsSkill {
             int actualTtl = ttl != null && ttl > 0 ? ttl : 3600;
             memoryManager.putShortTerm(key, value, actualTtl);
             LOG.debug("存储短期记忆: key={}, ttl={}", key, actualTtl);
-            return "✅ 短期记忆已存储: " + key;
+            return "[OK] 短期记忆已存储: " + key;
         } catch (Exception e) {
             LOG.error("存储短期记忆失败", e);
-            return "❌ 存储失败: " + e.getMessage();
+            return "[ERROR] 存储失败: " + e.getMessage();
         }
     }
 
@@ -112,10 +166,10 @@ public class AgentTeamsTools extends AbsSkill {
             int actualTtl = ttl != null && ttl > 0 ? ttl : 604800;
             memoryManager.putLongTerm(key, value, actualTtl);
             LOG.debug("存储长期记忆: key={}, ttl={}", key, actualTtl);
-            return "✅ 长期记忆已存储: " + key;
+            return "[OK] 长期记忆已存储: " + key;
         } catch (Exception e) {
             LOG.error("存储长期记忆失败", e);
-            return "❌ 存储失败: " + e.getMessage();
+            return "[ERROR] 存储失败: " + e.getMessage();
         }
     }
 
@@ -130,10 +184,10 @@ public class AgentTeamsTools extends AbsSkill {
         try {
             memoryManager.putKnowledge(key, value);
             LOG.debug("存储知识记忆: key={}", key);
-            return "✅ 知识记忆已存储: " + key;
+            return "[OK] 知识记忆已存储: " + key;
         } catch (Exception e) {
             LOG.error("存储知识记忆失败", e);
-            return "❌ 存储失败: " + e.getMessage();
+            return "[ERROR] 存储失败: " + e.getMessage();
         }
     }
 
@@ -148,13 +202,13 @@ public class AgentTeamsTools extends AbsSkill {
             // 按优先级查找：短期 -> 长期 -> 知识
             String value = memoryManager.get(key);
             if (value != null) {
-                return "✅ 记忆: " + value;
+                return "[OK] 记忆: " + value;
             }
 
-            return "⚠️ 未找到记忆: " + key;
+            return "[WARN] 未找到记忆: " + key;
         } catch (Exception e) {
             LOG.error("检索记忆失败", e);
-            return "❌ 检索失败: " + e.getMessage();
+            return "[ERROR] 检索失败: " + e.getMessage();
         }
     }
 
@@ -171,7 +225,7 @@ public class AgentTeamsTools extends AbsSkill {
             List<Memory> results = memoryManager.search(query, actualLimit);
 
             if (results.isEmpty()) {
-                return "⚠️ 未找到相关记忆";
+                return "[WARN] 未找到相关记忆";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -201,11 +255,10 @@ public class AgentTeamsTools extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("搜索记忆失败", e);
-            return "❌ 搜索失败: " + e.getMessage();
+            return "[ERROR] 搜索失败: " + e.getMessage();
         }
     }
 
-    // ==================== 工作记忆工具 ====================
 
     /**
      * 设置工作记忆
@@ -237,7 +290,7 @@ public class AgentTeamsTools extends AbsSkill {
                     try {
                         workingMemory.setStep(Integer.parseInt(value));
                     } catch (NumberFormatException e) {
-                        return "❌ 步骤必须是数字: " + value;
+                        return "[ERROR] 步骤必须是数字: " + value;
                     }
                     break;
                 case "currentagent":
@@ -255,12 +308,12 @@ public class AgentTeamsTools extends AbsSkill {
             memoryManager.storeWorking(workingMemory);
 
             LOG.debug("设置工作记忆: {}={}", field, value);
-            return "✅ 工作记忆已设置: " + field + " = " + value;
+            return "[OK] 工作记忆已设置: " + field + " = " + value;
         } catch (NumberFormatException e) {
-            return "❌ 步骤必须是数字: " + value;
+            return "[ERROR] 步骤必须是数字: " + value;
         } catch (Exception e) {
             LOG.error("设置工作记忆失败", e);
-            return "❌ 设置失败: " + e.getMessage();
+            return "[ERROR] 设置失败: " + e.getMessage();
         }
     }
 
@@ -279,7 +332,7 @@ public class AgentTeamsTools extends AbsSkill {
             WorkingMemory workingMemory = memoryManager.getWorking(actualTaskId);
 
             if (workingMemory == null) {
-                return "⚠️ 未找到工作记忆: " + actualTaskId;
+                return "[WARN] 未找到工作记忆: " + actualTaskId;
             }
 
             StringBuilder sb = new StringBuilder();
@@ -310,11 +363,10 @@ public class AgentTeamsTools extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取工作记忆失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 
-    // ==================== 事件工具 ====================
 
     /**
      * 发布事件
@@ -330,9 +382,9 @@ public class AgentTeamsTools extends AbsSkill {
             eventBus.publish(event);
 
             LOG.debug("发布事件: type={}, data={}", type, data);
-            return "✅ 事件已发布: " + type;
+            return "[OK] 事件已发布: " + type;
         } catch (IllegalArgumentException e) {
-            return "❌ 无效的事件类型: " + eventType;
+            return "[ERROR] 无效的事件类型: " + eventType;
         }
     }
 }

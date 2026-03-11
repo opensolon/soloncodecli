@@ -15,15 +15,15 @@
  */
 package org.noear.solon.bot.core.memory;
 
+import org.noear.solon.bot.core.memory.bank.MemoryBank;
+import org.noear.solon.bot.core.memory.bank.Observation;
+import org.noear.solon.bot.core.memory.bank.store.FileMemoryStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 共享记忆管理器
+ * 共享记忆管理器（基于 MemoryBank 架构）
  *
  * 负责所有子代理之间的记忆存储、检索和生命周期管理
  *
@@ -47,8 +47,9 @@ public class SharedMemoryManager {
     private final Map<String, Memory> longTermCache = new ConcurrentHashMap<>();
     private final Map<String, Memory> knowledgeCache = new ConcurrentHashMap<>();
 
-    // 持久化存储
-    private final MemoryStore memoryStore;
+    // 持久化存储（使用 MemoryBank 架构）
+    private final MemoryBank memoryBank;
+    private final FileMemoryStore fileStore;  // 保存直接引用用于加载
 
     // 定期清理执行器
     private final ScheduledExecutorService cleanupExecutor;
@@ -64,6 +65,10 @@ public class SharedMemoryManager {
     private final boolean persistOnWrite;
     private final int maxShortTermCount;
     private final int maxLongTermCount;
+
+    // 性能监控：内存使用上限
+    private static final long MAX_MEMORY_USAGE = 100 * 1024 * 1024; // 100MB
+    private static final double MEMORY_WARNING_THRESHOLD = 0.8;     // 80% 警告阈值
 
     /**
      * 构造函数（使用默认配置）
@@ -90,7 +95,17 @@ public class SharedMemoryManager {
                                boolean persistOnWrite,
                                int maxShortTermCount,
                                int maxLongTermCount) {
-        this.memoryStore = new MemoryStore(path.toAbsolutePath().toString());
+        // 初始化 FileMemoryStore
+        this.fileStore = new FileMemoryStore(path.toAbsolutePath().toString());
+
+        // 初始化 MemoryBank（使用 FileMemoryStore）
+        this.memoryBank = new MemoryBank(
+            2000,   // 短期记忆 2000 tokens
+            8000,   // 长期记忆检索 8000 tokens
+            5000,   // 感觉记忆 5 秒过期
+            null,   // 不使用向量化服务
+            fileStore   // 使用文件持久化
+        );
         this.shortTermTtl = shortTermTtl;
         this.longTermTtl = longTermTtl;
         this.cleanupInterval = cleanupInterval;
@@ -120,15 +135,52 @@ public class SharedMemoryManager {
     }
 
     /**
-     * 从 Store 加载记忆
+     * 将 Memory 转换为 Observation
      */
-    private Memory loadFromSession(String memoryId, Memory.MemoryType type) {
-        Memory memory = memoryStore.load(memoryId, type);
-        if (memory != null && !memory.isExpired()) {
-            LOG.debug("从 Store 加载记忆: type={}, id={}", type, memoryId);
-            return memory;
+    private Observation convertMemoryToObservation(Memory memory) {
+        Observation.ObservationType type;
+
+        if (memory instanceof ShortTermMemory) {
+            type = Observation.ObservationType.GENERAL;
+        } else if (memory instanceof LongTermMemory) {
+            type = Observation.ObservationType.TASK_RESULT;
+        } else if (memory instanceof KnowledgeMemory) {
+            type = Observation.ObservationType.ARCHITECTURE;
+        } else {
+            type = Observation.ObservationType.GENERAL;
         }
-        return null;
+
+        Observation.ObservationBuilder builder = Observation.builder()
+            .content(getMemoryContent(memory))
+            .type(type)
+            .timestamp(memory.getTimestamp());
+
+        if (memory.getId() != null) {
+            builder.id(memory.getId());
+        }
+
+        if (memory instanceof LongTermMemory) {
+            builder.importance(((LongTermMemory) memory).getImportance());
+        } else {
+            // 默认重要性
+            builder.importance(5.0);
+        }
+
+        return builder.build();
+    }
+
+    /**
+     * 获取 Memory 的内容
+     */
+    private String getMemoryContent(Memory memory) {
+        if (memory instanceof ShortTermMemory) {
+            return ((ShortTermMemory) memory).getContext();
+        } else if (memory instanceof LongTermMemory) {
+            return ((LongTermMemory) memory).getSummary();
+        } else if (memory instanceof KnowledgeMemory) {
+            return ((KnowledgeMemory) memory).getContent();
+        }
+        return "";
     }
 
     /**
@@ -264,7 +316,58 @@ public class SharedMemoryManager {
         stats.put("knowledgeCount", knowledgeCache.size());
         stats.put("tagIndexSize", tagIndex.size());
         stats.put("keywordIndexSize", keywordIndex.size());
+
+        // 添加 MemoryBank 统计
+        Map<String, Object> bankStats = memoryBank.getStats();
+        stats.putAll(bankStats);
+
+        // 添加内存使用监控
+        long totalMemory = Runtime.getRuntime().totalMemory();
+        long freeMemory = Runtime.getRuntime().freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        double memoryUsageRatio = (double) usedMemory / MAX_MEMORY_USAGE;
+
+        stats.put("memoryUsed", formatBytes(usedMemory));
+        stats.put("memoryTotal", formatBytes(totalMemory));
+        stats.put("memoryMax", formatBytes(MAX_MEMORY_USAGE));
+        stats.put("memoryUsagePercent", String.format("%.2f%%", memoryUsageRatio * 100));
+
+        // 超过阈值时发出警告
+        if (memoryUsageRatio > MEMORY_WARNING_THRESHOLD) {
+            LOG.warn("[WARN] 内存使用率过高: {}/{} ({}%)",
+                    formatBytes(usedMemory),
+                    formatBytes(MAX_MEMORY_USAGE),
+                    String.format("%.2f", memoryUsageRatio * 100));
+        }
+
         return stats;
+    }
+
+    /**
+     * 格式化字节数
+     */
+    private String formatBytes(long bytes) {
+        if (bytes < 1024) {
+            return bytes + " B";
+        } else if (bytes < 1024 * 1024) {
+            return String.format("%.2f KB", bytes / 1024.0);
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return String.format("%.2f MB", bytes / (1024.0 * 1024));
+        } else {
+            return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        }
+    }
+
+    /**
+     * 检查内存使用是否超过限制
+     *
+     * @return true 如果内存使用超过限制
+     */
+    public boolean isMemoryOverLimit() {
+        long totalMemory = Runtime.getRuntime().totalMemory();
+        long freeMemory = Runtime.getRuntime().freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        return usedMemory > MAX_MEMORY_USAGE;
     }
 
     // ========== 工作记忆方法 ==========
@@ -344,6 +447,42 @@ public class SharedMemoryManager {
         WorkingMemory memory = workingCache.remove(taskId);
         if (memory != null) {
             LOG.debug("工作记忆已移除: taskId={}", taskId);
+        }
+    }
+
+    /**
+     * 移除短期记忆
+     *
+     * @param key 键
+     */
+    public void removeShortTerm(String key) {
+        Memory memory = shortTermCache.remove(key);
+        if (memory != null) {
+            LOG.debug("短期记忆已移除: key={}", key);
+        }
+    }
+
+    /**
+     * 移除长期记忆
+     *
+     * @param key 键
+     */
+    public void removeLongTerm(String key) {
+        Memory memory = longTermCache.remove(key);
+        if (memory != null) {
+            LOG.debug("长期记忆已移除: key={}", key);
+        }
+    }
+
+    /**
+     * 移除知识记忆
+     *
+     * @param key 键
+     */
+    public void removeKnowledge(String key) {
+        Memory memory = knowledgeCache.remove(key);
+        if (memory != null) {
+            LOG.debug("知识记忆已移除: key={}", key);
         }
     }
 
@@ -528,6 +667,7 @@ public class SharedMemoryManager {
 
     /**
      * 清理过期记忆
+     * 性能优化：添加内存使用检查
      */
     private void cleanupExpiredMemories() {
         int removed = 0;
@@ -543,6 +683,52 @@ public class SharedMemoryManager {
         if (removed > 0) {
             LOG.info("清理了 {} 条过期记忆", removed);
         }
+
+        // 检查内存使用情况
+        checkMemoryUsage();
+    }
+
+    /**
+     * 检查内存使用情况
+     */
+    private void checkMemoryUsage() {
+        long totalMemory = Runtime.getRuntime().totalMemory();
+        long freeMemory = Runtime.getRuntime().freeMemory();
+        long usedMemory = totalMemory - freeMemory;
+        double memoryUsageRatio = (double) usedMemory / MAX_MEMORY_USAGE;
+
+        if (memoryUsageRatio > MEMORY_WARNING_THRESHOLD) {
+            LOG.warn("[WARN] 内存使用警告: 已使用 {}/{} ({}%)",
+                    formatBytes(usedMemory),
+                    formatBytes(MAX_MEMORY_USAGE),
+                    String.format("%.2f", memoryUsageRatio * 100));
+
+            // 如果超过限制，触发紧急清理
+            if (memoryUsageRatio > 1.0) {
+                LOG.error("[ERROR] 内存使用超过限制，触发紧急清理");
+                emergencyMemoryCleanup();
+            }
+        }
+    }
+
+    /**
+     * 紧急内存清理
+     */
+    private void emergencyMemoryCleanup() {
+        LOG.warn("开始紧急内存清理...");
+
+        // 清理所有短期记忆
+        int cleared = shortTermCache.size();
+        shortTermCache.clear();
+
+        // 清理索引
+        tagIndex.clear();
+        keywordIndex.clear();
+
+        LOG.warn("紧急清理完成，清理了 {} 条短期记忆", cleared);
+
+        // 建议垃圾回收
+        System.gc();
     }
 
     /**
@@ -621,23 +807,55 @@ public class SharedMemoryManager {
     }
 
     /**
-     * 异步持久化到文件（使用 MemoryStore）
+     * 异步持久化到文件（使用 MemoryBank）
      */
     private void persistAsync(Memory memory) {
-        memoryStore.store(memory);
+        Observation obs = convertMemoryToObservation(memory);
+        memoryBank.addObservation(obs);
     }
 
     /**
-     * 启动时加载持久化的记忆（使用 MemoryStore）
+     * 启动时加载持久化的记忆
      */
     private void initStorage() {
         try {
-            // 加载各类记忆到内存缓存（工作记忆不持久化，跳过）
-            loadMemories(Memory.MemoryType.SHORT_TERM);
-            loadMemories(Memory.MemoryType.LONG_TERM);
-            loadMemories(Memory.MemoryType.KNOWLEDGE);
+            // 从持久化存储加载所有观察
+            List<Observation> observations = fileStore.loadAll();
+            LOG.info("从存储加载了 {} 条观察", observations.size());
 
-            Map<String, Integer> stats = memoryStore.getStats();
+            // 将 Observation 转换并缓存到对应的 Memory 类型
+            for (Observation obs : observations) {
+                // 根据类型转换
+                Memory memory = null;
+                if (obs.getType() == Observation.ObservationType.GENERAL) {
+                    ShortTermMemory stm = new ShortTermMemory();
+                    stm.setId(obs.getId());
+                    stm.setContext(obs.getContent());
+                    stm.setTimestamp(obs.getTimestamp());
+                    memory = stm;
+                } else if (obs.getType() == Observation.ObservationType.TASK_RESULT) {
+                    LongTermMemory ltm = new LongTermMemory();
+                    ltm.setId(obs.getId());
+                    ltm.setSummary(obs.getContent());
+                    ltm.setTimestamp(obs.getTimestamp());
+                    ltm.setImportance((float) obs.getImportance());
+                    ltm.setTags(new ArrayList<>());
+                    memory = ltm;
+                } else if (obs.getType() == Observation.ObservationType.ARCHITECTURE) {
+                    KnowledgeMemory km = new KnowledgeMemory();
+                    km.setId(obs.getId());
+                    km.setContent(obs.getContent());
+                    km.setTimestamp(obs.getTimestamp());
+                    km.setKeywords(new ArrayList<>());
+                    memory = km;
+                }
+
+                if (memory != null && !memory.isExpired()) {
+                    store(memory);
+                }
+            }
+
+            Map<String, Object> stats = memoryBank.getStats();
             LOG.info("共享记忆加载完成: {}", stats);
 
         } catch (Exception e) {
@@ -646,24 +864,16 @@ public class SharedMemoryManager {
     }
 
     /**
-     * 从 MemoryStore 加载指定类型的记忆
+     * 加载指定类型的记忆（已弃用，使用 initStorage 替代）
      */
+    @Deprecated
     private void loadMemories(Memory.MemoryType type) {
-        List<Memory> memories = memoryStore.loadAll(type);
-        Map<String, Memory> cache = getCacheByType(type);
-
-        for (Memory memory : memories) {
-            if (!memory.isExpired()) {
-                cache.put(memory.getId(), memory);
-                buildIndex(memory);
-            }
-        }
+        // 不再使用，已整合到 initStorage 中
     }
 
     /**
      * 根据类型获取缓存
      */
-    @SuppressWarnings("unchecked")
     private Map<String, Memory> getCacheByType(Memory.MemoryType type) {
         switch (type) {
             case WORKING:

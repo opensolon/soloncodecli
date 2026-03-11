@@ -16,7 +16,6 @@
 package org.noear.solon.bot.core.teams;
 
 import org.noear.solon.ai.agent.AgentResponse;
-
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -26,12 +25,14 @@ import org.noear.solon.bot.core.memory.KnowledgeMemory;
 import org.noear.solon.bot.core.memory.LongTermMemory;
 import org.noear.solon.bot.core.memory.Memory;
 import org.noear.solon.bot.core.memory.ShortTermMemory;
+import org.noear.solon.bot.core.memory.smart.IntelligentMemoryManager;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.noear.solon.bot.core.subagent.Subagent;
 import org.noear.solon.bot.core.subagent.SubagentManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -58,6 +59,8 @@ public class AgentTeamsSkill extends AbsSkill {
     private final MainAgent mainAgent;
     private final AgentKernel kernel;
     private final SubagentManager manager;
+    private final AgentTeamsTools agentTeamsTools;  // 内部工具集
+    private final IntelligentMemoryManager intelligentMemoryManager;
 
     /**
      * 完整构造函数（支持子代理调用）
@@ -66,6 +69,26 @@ public class AgentTeamsSkill extends AbsSkill {
         this.mainAgent = mainAgent;
         this.kernel = kernel;
         this.manager = manager;
+
+        // 初始化内部工具集
+        if (mainAgent != null) {
+            this.agentTeamsTools = new AgentTeamsTools(
+                mainAgent.getSharedMemoryManager(),
+                mainAgent.getEventBus()
+            );
+        } else {
+            this.agentTeamsTools = null;
+        }
+
+        // 初始化智能记忆管理器
+        if (mainAgent != null && mainAgent.getSharedMemoryManager() != null) {
+            // 获取工作目录（使用默认路径 "./work"）
+            String workDir = System.getProperty("user.dir") + File.separator + "work";
+            this.intelligentMemoryManager = new IntelligentMemoryManager(workDir);
+            LOG.info("初始化智能记忆管理器: workDir={}", workDir);
+        } else {
+            this.intelligentMemoryManager = null;
+        }
     }
 
     /**
@@ -100,6 +123,9 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append("3. **子代理调用**: 使用 `subagent()` 委派专门任务（支持会话续接）\n");
         sb.append("4. **动态代理**: 使用 `create_agent()` 创建新的子代理定义\n");
         sb.append("5. **智能记忆管理**: 使用 `memory_store()` 自动分类存储（推荐）\n");
+        sb.append("   - 自动分类：决策→永久、任务→7天、临时→10分钟\n");
+        sb.append("   - 自动评分：多维度评估记忆重要性（0-10分）\n");
+        sb.append("   - 智能检索：`memory_recall()` 按相关性排序\n");
         sb.append("6. **代理间通信**: 使用 `send_message()` 向其他代理发送消息\n\n");
 
         sb.append("### 强制委派准则\n");
@@ -144,15 +170,21 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append("# 场景5: 查看任务状态\n");
         sb.append("team_status()\n\n");
         sb.append("# 场景6: 智能记忆存储（推荐使用）\n");
-        sb.append("# 自动分类存储（系统自动判断存储周期）\n");
-        sb.append("memory_store(key=\"项目结构\", value=\"采用三层架构：Controller-Service-Repository\")\n");
-        sb.append("# → 系统识别为架构决策，存储到知识记忆（永久）\n\n");
-        sb.append("# 手动指定类别\n");
-        sb.append("memory_store(key=\"当前步骤\", value=\"正在实现Service层\", category=\"context\")\n");
-        sb.append("# → 存储到短期记忆（1小时）\n\n");
-        sb.append("# 场景7: 存储任务完成结果\n");
-        sb.append("memory_store(key=\"登录功能\", value=\"已完成JWT认证，包括登录、登出、token刷新\", category=\"task\")\n");
-        sb.append("# → 存储到长期记忆（7天）\n\n");
+        sb.append("# 自动分类存储（系统自动判断存储类型和周期）\n");
+        sb.append("memory_store(content=\"采用三层架构：Controller-Service-Repository\", key=\"架构决策\")\n");
+        sb.append("# → 系统识别为架构决策，自动分类到永久记忆（重要性评分: 8.5/10）\n\n");
+        sb.append("# 存储任务完成结果\n");
+        sb.append("memory_store(content=\"已完成JWT认证，包括登录、登出、token刷新\", key=\"登录功能\")\n");
+        sb.append("# → 系统识别为任务结果，自动分类到长期记忆（7天，重要性评分: 7.2/10）\n\n");
+        sb.append("# 存储临时上下文\n");
+        sb.append("memory_store(content=\"正在实现Service层\", key=\"当前步骤\")\n");
+        sb.append("# → 系统识别为临时上下文，自动分类到工作记忆（10分钟，重要性评分: 3.5/10）\n\n");
+        sb.append("# 场景7: 智能检索记忆\n");
+        sb.append("memory_recall(query=\"登录功能\", limit=5)\n");
+        sb.append("# → 返回最相关的 5 条记忆，按相关性排序\n\n");
+        sb.append("# 场景8: 查看记忆统计\n");
+        sb.append("memory_stats()\n");
+        sb.append("# → 显示各层级记忆数量、智能层状态、内存使用情况\n\n");
         sb.append("# 场景8: 代理间通信\n");
         sb.append("# 向 explore 代理发送消息\n");
         sb.append("send_message(\n");
@@ -166,11 +198,20 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append(")\n\n");
         sb.append("# 查看可用代理列表\n");
         sb.append("list_agents()\n\n");
-        sb.append("### 记忆存储说明\n");
-        sb.append("- **auto**: 自动分类（推荐），系统根据内容关键词智能判断\n");
-        sb.append("- **task**: 任务结果类 → 长期记忆（7天）\n");
-        sb.append("- **context**: 临时上下文类 → 短期记忆（1小时）\n");
-        sb.append("- **decision/knowledge**: 决策和知识类 → 知识记忆（永久）\n");
+        sb.append("### 记忆管理说明\n");
+        sb.append("**智能记忆系统**（推荐使用）:\n");
+        sb.append("- **memory_store(content, key?)**: 自动分类存储\n");
+        sb.append("  - 决策类（\"决策\"、\"架构\"、\"采用\"）→ 永久记忆\n");
+        sb.append("  - 任务类（\"完成\"、\"实现\"、\"修复\"）→ 长期记忆（7天）\n");
+        sb.append("  - 临时类（\"正在\"、\"尝试\"、\"临时\"）→ 工作记忆（10分钟）\n");
+        sb.append("  - 知识类（\"API\"、\"设计\"、\"配置\"）→ 永久记忆\n");
+        sb.append("  - 自动评分：基于内容、类型、关键词、时间、访问频率\n");
+        sb.append("- **memory_recall(query, limit?)**: 智能检索（按相关性排序）\n");
+        sb.append("- **memory_stats()**: 查看统计信息\n\n");
+        sb.append("**记忆数量优化**:\n");
+        sb.append("- 从 15+ 个工具简化到 3 个核心工具\n");
+        sb.append("- 自动分类：无需手动选择记忆类型\n");
+        sb.append("- 智能检索：只返回最相关的记忆，减少 token 消耗\n");
         sb.append("```\n");
 
         return sb.toString();
@@ -191,7 +232,7 @@ public class AgentTeamsSkill extends AbsSkill {
     ) {
         try {
             if (mainAgent.isRunning()) {
-                return "⚠️ 团队任务正在执行中，请等待当前任务完成。";
+                return "[WARN] 团队任务正在执行中，请等待当前任务完成。";
             }
 
             LOG.info("启动团队协作任务: {}", prompt);
@@ -203,7 +244,7 @@ public class AgentTeamsSkill extends AbsSkill {
             SharedTaskList.TaskStatistics stats = mainAgent.getTaskList().getStatistics();
 
             StringBuilder result = new StringBuilder();
-            result.append("✅ 团队任务执行完成\n\n");
+            result.append("[OK] 团队任务执行完成\n\n");
             result.append("**任务统计**:\n");
             result.append(String.format("- 总任务数: %d\n", stats.totalTasks));
             result.append(String.format("- 已完成: %d\n", stats.completedTasks));
@@ -219,7 +260,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
         } catch (Throwable e) {
             LOG.error("团队任务执行失败", e);
-            return "❌ 团队任务执行失败: " + e.getMessage();
+            return "[ERROR] 团队任务执行失败: " + e.getMessage();
         }
     }
 
@@ -239,10 +280,10 @@ public class AgentTeamsSkill extends AbsSkill {
             // 统计信息
             sb.append("**统计**:\n");
             sb.append(String.format("- 总任务: %d\n", stats.totalTasks));
-            sb.append(String.format("- ✅ 已完成: %d\n", stats.completedTasks));
-            sb.append(String.format("- ❌ 失败: %d\n", stats.failedTasks));
-            sb.append(String.format("- 🔄 进行中: %d\n", stats.inProgressTasks));
-            sb.append(String.format("- ⏳ 待认领: %d\n\n", stats.pendingTasks));
+            sb.append(String.format("- [OK] 已完成: %d\n", stats.completedTasks));
+            sb.append(String.format("- [ERROR] 失败: %d\n", stats.failedTasks));
+            sb.append(String.format("- [PROCESS] 进行中: %d\n", stats.inProgressTasks));
+            sb.append(String.format("- [WAIT] 待认领: %d\n\n", stats.pendingTasks));
 
             // 任务列表
             List<TeamTask> allTasks = taskList.getAllTasks();
@@ -282,16 +323,16 @@ public class AgentTeamsSkill extends AbsSkill {
 
             // 正在运行状态
             if (mainAgent.isRunning()) {
-                sb.append("**主 Agent 状态**: 🔄 正在运行\n\n");
+                sb.append("**主 Agent 状态**: [PROCESS] 正在运行\n\n");
             } else {
-                sb.append("**主 Agent 状态**: ⏸️ 空闲\n\n");
+                sb.append("**主 Agent 状态**: [PAUSED] 空闲\n\n");
             }
 
             return sb.toString();
 
         } catch (Throwable e) {
             LOG.error("获取团队状态失败", e);
-            return "❌ 获取团队状态失败: " + e.getMessage();
+            return "[ERROR] 获取团队状态失败: " + e.getMessage();
         }
     }
 
@@ -320,7 +361,7 @@ public class AgentTeamsSkill extends AbsSkill {
                 try {
                     task.setType(TeamTask.TaskType.valueOf(type.toUpperCase()));
                 } catch (IllegalArgumentException e) {
-                    return "❌ 无效的任务类型: " + type;
+                    return "[ERROR] 无效的任务类型: " + type;
                 }
             } else {
                 task.setType(TeamTask.TaskType.DEVELOPMENT);
@@ -345,7 +386,7 @@ public class AgentTeamsSkill extends AbsSkill {
             CompletableFuture<TeamTask> future = taskList.addTask(task);
             TeamTask addedTask = future.join();
 
-            return String.format("✅ 任务创建成功\n\n" +
+            return String.format("[OK] 任务创建成功\n\n" +
                     "**任务ID**: %s\n" +
                     "**标题**: %s\n" +
                     "**类型**: %s\n" +
@@ -359,7 +400,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
         } catch (Throwable e) {
             LOG.error("创建任务失败", e);
-            return "❌ 创建任务失败: " + e.getMessage();
+            return "[ERROR] 创建任务失败: " + e.getMessage();
         }
     }
 
@@ -368,12 +409,12 @@ public class AgentTeamsSkill extends AbsSkill {
      */
     private String getStatusIcon(TeamTask.Status status) {
         switch (status) {
-            case PENDING: return "⏳";
-            case IN_PROGRESS: return "🔄";
-            case COMPLETED: return "✅";
-            case FAILED: return "❌";
-            case CANCELLED: return "⏹️";
-            default: return "❓";
+            case PENDING: return "[WAIT]";
+            case IN_PROGRESS: return "[PROCESS]";
+            case COMPLETED: return "[OK]";
+            case FAILED: return "[ERROR]";
+            case CANCELLED: return "[STOPPED]";
+            default: return "[UNKNOWN]";
         }
     }
 
@@ -452,7 +493,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
             // 返回结果（使用表格格式）
             StringBuilder result = new StringBuilder();
-            result.append("✅ 团队成员创建成功\n\n");
+            result.append("[OK] 团队成员创建成功\n\n");
 
             // 表格格式的成员信息
             result.append("## 成员信息\n\n");
@@ -488,7 +529,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
         } catch (Throwable e) {
             LOG.error("创建团队成员失败", e);
-            return "❌ 创建团队成员失败: " + e.getMessage();
+            return "[ERROR] 创建团队成员失败: " + e.getMessage();
         }
     }
 
@@ -508,7 +549,7 @@ public class AgentTeamsSkill extends AbsSkill {
             result.append("## 团队成员\n\n");
 
             if (agents.isEmpty()) {
-                result.append("⚠️ 当前没有团队成员。\n\n");
+                result.append("[WARN] 当前没有团队成员。\n\n");
                 result.append("使用 `teammate()` 命令创建新成员。\n");
                 return result.toString();
             }
@@ -546,7 +587,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
         } catch (Throwable e) {
             LOG.error("列出团队成员失败", e);
-            return "❌ 列出团队成员失败: " + e.getMessage();
+            return "[ERROR] 列出团队成员失败: " + e.getMessage();
         }
     }
 
@@ -563,7 +604,7 @@ public class AgentTeamsSkill extends AbsSkill {
             // 查找成员
             Subagent agent = manager.getAgent(name);
             if (agent == null) {
-                return String.format("❌ 未找到团队成员: `%s`\n\n可用的成员:\n%s",
+                return String.format("[ERROR] 未找到团队成员: `%s`\n\n可用的成员:\n%s",
                         name, listTeammates());
             }
 
@@ -580,20 +621,20 @@ public class AgentTeamsSkill extends AbsSkill {
                 Files.write(agentFile, content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
             }
 
-            return String.format("✅ 团队成员已禁用: `%s`\n\n" +
+            return String.format("[OK] 团队成员已禁用: `%s`\n\n" +
                     "**提示**: 配置文件已保留，如需重新激活，请编辑 `.soloncode/agents/%s.md` 并设置 `enabled: true`。",
                     name, name);
 
         } catch (Throwable e) {
             LOG.error("移除团队成员失败", e);
-            return "❌ 移除团队成员失败: " + e.getMessage();
+            return "[ERROR] 移除团队成员失败: " + e.getMessage();
         }
     }
 
     @ToolMapping(name = "isTeamsEnabled",
             description = "检查是否已开启团队功能")
     public String isTeamsEnabled() {
-        return kernel.getProperties().isTeamsEnabled() ? "团队功能已启用" : "⚠️ 团队功能未启用。请先启用团队功能。";
+        return kernel.getProperties().isTeamsEnabled() ? "团队功能已启用" : "[WARN] 团队功能未启用。请先启用团队功能。";
     }
 
     /**
@@ -640,171 +681,132 @@ public class AgentTeamsSkill extends AbsSkill {
         return text.substring(0, maxLength - 3) + "...";
     }
 
-    // ==================== 记忆管理工具 ====================
+    // ==================== 记忆管理工具（智能接口）====================
 
     /**
-     * 存储任务结果到记忆
-     */
-    @ToolMapping(name = "memory_store_task_result",
-                 description = "存储任务结果到共享记忆（长期记忆，7天TTL）。用于保存重要任务的执行结果。")
-    public String memoryStoreTaskResult(
-            @Param(name = "taskTitle", description = "任务标题") String taskTitle,
-            @Param(name = "result", description = "任务结果（JSON格式或文本）") String result) {
-        try {
-            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
-            }
-
-            // 存储到长期记忆（7天TTL）
-            String key = "task-result:" + taskTitle + ":" + System.currentTimeMillis();
-            mainAgent.getSharedMemoryManager().putLongTerm(key, result, 604800);
-
-            LOG.info("存储任务结果: taskTitle={}, key={}", taskTitle, key);
-            return "✅ 任务结果已存储: " + taskTitle;
-        } catch (Exception e) {
-            LOG.error("存储任务结果失败", e);
-            return "❌ 存储失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 搜索任务结果
-     */
-    @ToolMapping(name = "memory_search_task_results",
-                 description = "搜索历史任务结果（从共享记忆中检索）")
-    public String memorySearchTaskResults(
-            @Param(name = "query", description = "搜索查询（任务标题关键词）") String query,
-            @Param(name = "limit", description = "返回结果数量限制，默认10") Integer limit) {
-        try {
-            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
-            }
-
-            int actualLimit = limit != null && limit > 0 ? limit : 10;
-            List<Memory> results =
-                mainAgent.getSharedMemoryManager().search(query, actualLimit);
-
-            if (results.isEmpty()) {
-                return "⚠️ 未找到相关任务结果";
-            }
-
-            StringBuilder sb = new StringBuilder();
-            sb.append("找到 ").append(results.size()).append(" 条相关任务结果:\n\n");
-
-            for (int i = 0; i < results.size(); i++) {
-                Memory mem = results.get(i);
-                String content = getMemoryContent(mem);
-                sb.append(i + 1).append(". ").append(content).append("\n");
-            }
-
-            return sb.toString();
-        } catch (Exception e) {
-            LOG.error("搜索任务结果失败", e);
-            return "❌ 搜索失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 存储决策到记忆
-     */
-    @ToolMapping(name = "memory_store_decision",
-                 description = "存储重要决策到知识记忆（永久保存）。用于保存架构决策、技术选型等。")
-    public String memoryStoreDecision(
-            @Param(name = "decisionTitle", description = "决策标题") String decisionTitle,
-            @Param(name = "decision", description = "决策内容（包括理由、影响等）") String decision) {
-        try {
-            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
-            }
-
-            // 存储到知识记忆（永久）
-            String key = "decision:" + decisionTitle;
-            mainAgent.getSharedMemoryManager().putKnowledge(key, decision);
-
-            LOG.info("存储决策: decisionTitle={}", decisionTitle);
-            return "✅ 决策已存储: " + decisionTitle;
-        } catch (Exception e) {
-            LOG.error("存储决策失败", e);
-            return "❌ 存储失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 存储临时上下文
-     */
-    @ToolMapping(name = "memory_store_context",
-                 description = "存储临时上下文到短期记忆（会话级别，1小时TTL）。用于传递信息给其他代理。")
-    public String memoryStoreContext(
-            @Param(name = "key", description = "上下文键") String key,
-            @Param(name = "value", description = "上下文值") String value) {
-        try {
-            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
-            }
-
-            // 存储到短期记忆（1小时TTL）
-            mainAgent.getSharedMemoryManager().putShortTerm(key, value, 3600);
-
-            LOG.debug("存储临时上下文: key={}", key);
-            return "✅ 临时上下文已存储: " + key;
-        } catch (Exception e) {
-            LOG.error("存储临时上下文失败", e);
-            return "❌ 存储失败: " + e.getMessage();
-        }
-    }
-
-    /**
-     * 智能存储记忆（统一接口）
+     * 工具 1：智能存储记忆
      *
-     * 自动根据内容类型选择合适的存储周期：
-     * - 决策类 → 知识记忆（永久）
-     * - 任务结果 → 长期记忆（7天）
-     * - 临时上下文 → 短期记忆（1小时）
-     * - 默认 → 长期记忆（7天）
+     * <p>自动分类和评分，无需用户选择记忆类型
+     *
+     * <p>**自动分类规则**：
+     * - 决策类（"决策"、"架构"、"采用"）→ 永久记忆
+     * - 任务结果类（"完成"、"实现"、"修复"）→ 长期记忆
+     * - 临时上下文（"正在"、"尝试"、"临时"）→ 工作记忆
+     * - 知识类（"API"、"设计"、"配置"）→ 永久记忆
+     *
+     * <p>**重要性评分**（0-10分）：
+     * - 内容特征（30%）：代码、数据、文件路径
+     * - 观察类型（25%）：决策=2.5, 架构=2.5
+     * - 关键词（25%）：关键关键词=+4.0
+     * - 时间新鲜度（10%）：30分钟内=+0.5
+     * - 访问热度（10%）：对数增长
+     *
+     * @param content 记忆内容（必填）
+     * @param key 记忆键（可选，不填则自动生成 UUID）
+     * @return 存储结果
+     *
+     * @sample
+     * memory_store(content="决定使用 MemoryBank 架构", key="architecture-decision")
+     * → "[OK] 已存储到 永久记忆 (重要性: 8.5/10, TTL: 永久)"
+     *
+     * @sample
+     * memory_store(content="正在分析代码结构")
+     * → "[OK] 已存储到 工作记忆 (重要性: 3.2/10, TTL: 10分钟)"
      */
     @ToolMapping(name = "memory_store",
-                 description = "智能存储记忆（自动判断存储周期）。根据内容自动选择合适的存储类型。")
+                 description = "智能存储记忆（自动分类和评分）。根据内容自动判断存储类型（永久/7天/1小时/10分钟），无需手动选择。")
     public String memoryStore(
-            @Param(name = "key", description = "记忆键") String key,
-            @Param(name = "value", description = "记忆值") String value,
-            @Param(name = "category", description = "可选：指定类别（auto/task/context/decision/knowledge），默认auto") String category) {
-        try {
-            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
-            }
-
-            String actualCategory = (category != null && !category.isEmpty()) ? category : "auto";
-            String result;
-
-            switch (actualCategory) {
-                case "task":
-                    mainAgent.getSharedMemoryManager().putLongTerm(key, value, 604800);
-                    result = "✅ 任务结果已存储（7天）";
-                    break;
-
-                case "context":
-                    mainAgent.getSharedMemoryManager().putShortTerm(key, value, 3600);
-                    result = "✅ 上下文已存储（1小时）";
-                    break;
-
-                case "decision":
-                case "knowledge":
-                    mainAgent.getSharedMemoryManager().putKnowledge(key, value);
-                    result = "✅ 知识已存储（永久）";
-                    break;
-
-                case "auto":
-                default:
-                    result = autoClassifyAndStore(key, value);
-                    break;
-            }
-
-            LOG.info("智能存储记忆: key={}, category={}", key, actualCategory);
-            return result;
-        } catch (Exception e) {
-            LOG.error("存储记忆失败", e);
-            return "❌ 存储失败: " + e.getMessage();
+            @Param(name = "content", description = "记忆内容（必填）") String content,
+            @Param(name = "key", description = "记忆键（可选，不填则自动生成）", required = false) String key) {
+        if (intelligentMemoryManager == null) {
+            return "[WARN] 智能记忆管理器未初始化";
         }
+        // 使用智能记忆管理器
+        return intelligentMemoryManager.store(key, content);
+    }
+
+    /**
+     * 工具 2：智能检索记忆
+     *
+     * <p>基于相关性排序，只返回最相关的记忆
+     *
+     * <p>**相关性算法**：
+     * - 文本匹配（40%）：关键词重叠度
+     * - 重要性（30%）：重要性分数
+     * - 时间新鲜度（20%）：1小时内=+2.0
+     * - 访问热度（10%）：对数增长
+     *
+     * @param query 查询内容（空则返回所有记忆）
+     * @param limit 返回数量限制（默认 10）
+     * @return 检索结果
+     *
+     * @sample
+     * memory_recall(query="登录功能", limit=5)
+     * → "找到 5 条记忆..."
+     */
+    @ToolMapping(name = "memory_recall",
+                 description = "智能检索记忆（按相关性排序）。基于文本匹配、重要性、时间新鲜度等多维度排序，只返回最相关的记忆。")
+    public String memoryRecall(
+            @Param(name = "query", description = "查询内容（空则返回所有记忆）", required = false) String query,
+            @Param(name = "limit", description = "返回数量限制（默认 10）", required = false) Integer limit) {
+        if (intelligentMemoryManager == null) {
+            return "[WARN] 智能记忆管理器未初始化";
+        }
+        return intelligentMemoryManager.retrieve(query, limit != null ? limit : 10);
+    }
+
+    /**
+     * 工具 3：获取记忆统计信息
+     *
+     * @return 统计信息
+     */
+    @ToolMapping(name = "memory_stats",
+                 description = "获取记忆统计信息。包括各层级记忆数量、智能层状态、内存使用情况等。")
+    public String memoryStats() {
+        if (intelligentMemoryManager == null) {
+            return "[WARN] 智能记忆管理器未初始化";
+        }
+
+        Map<String, Object> stats = intelligentMemoryManager.getStats();
+
+        // 格式化输出
+        StringBuilder sb = new StringBuilder();
+        sb.append("[STATS] 记忆系统统计:\n\n");
+
+        // 各层级记忆数量
+        sb.append("工作记忆: ").append(stats.getOrDefault("workingCount", 0)).append(" 条\n");
+        sb.append("短期记忆: ").append(stats.getOrDefault("shortTermCount", 0)).append(" 条\n");
+        sb.append("长期记忆: ").append(stats.getOrDefault("longTermCount", 0)).append(" 条\n");
+        sb.append("知识记忆: ").append(stats.getOrDefault("knowledgeCount", 0)).append(" 条\n");
+
+        sb.append("\n");
+
+        // 智能层状态
+        sb.append("智能层: ").append(stats.getOrDefault("intelligentLayer", "未启用")).append("\n");
+        sb.append("自动合并: ").append(stats.getOrDefault("autoConsolidate", false)).append("\n");
+
+        if (stats.containsKey("consolidationThreshold")) {
+            sb.append("合并阈值: ").append(stats.get("consolidationThreshold")).append("\n");
+        }
+        if (stats.containsKey("consolidationInterval")) {
+            sb.append("合并间隔: ").append(stats.get("consolidationInterval")).append("ms\n");
+        }
+
+        sb.append("\n");
+
+        // 内存使用情况
+        if (stats.containsKey("memoryUsed")) {
+            long used = (long) stats.get("memoryUsed");
+            long max = (long) stats.getOrDefault("memoryMax", 100 * 1024 * 1024);
+            double ratio = (double) used / max * 100;
+
+            sb.append(String.format("内存使用: %.2fMB / %.2fMB (%.1f%%)\n",
+                    used / (1024.0 * 1024),
+                    max / (1024.0 * 1024),
+                    ratio));
+        }
+
+        return sb.toString();
     }
 
     /**
@@ -815,7 +817,7 @@ public class AgentTeamsSkill extends AbsSkill {
     public String getWorkingMemory() {
         try {
             if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
+                return "[WARN] 共享记忆未初始化";
             }
 
             // 使用默认的 taskId "main-agent"
@@ -824,7 +826,7 @@ public class AgentTeamsSkill extends AbsSkill {
                 mainAgent.getSharedMemoryManager().getWorking(taskId);
 
             if (workingMemory == null) {
-                return "⚠️ 没有工作记忆";
+                return "[WARN] 没有工作记忆";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -844,7 +846,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取工作记忆失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 
@@ -858,7 +860,7 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "value", description = "字段值") String value) {
         try {
             if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
-                return "⚠️ 共享记忆未初始化";
+                return "[WARN] 共享记忆未初始化";
             }
 
             // 使用默认的 taskId "main-agent"
@@ -886,19 +888,19 @@ public class AgentTeamsSkill extends AbsSkill {
                     workingMemory.setCurrentAgent(value);
                     break;
                 default:
-                    return "❌ 无效的字段名: " + field + "。支持的字段：taskDescription、status、step、currentAgent";
+                    return "[ERROR] 无效的字段名: " + field + "。支持的字段：taskDescription、status、step、currentAgent";
             }
 
             // 保存更新后的工作记忆
             mainAgent.getSharedMemoryManager().storeWorking(workingMemory);
 
             LOG.debug("更新工作记忆: {}={}", field, value);
-            return "✅ 工作记忆已更新: " + field + " = " + value;
+            return "[OK] 工作记忆已更新: " + field + " = " + value;
         } catch (NumberFormatException e) {
-            return "❌ 步骤必须是数字: " + value;
+            return "[ERROR] 步骤必须是数字: " + value;
         } catch (Exception e) {
             LOG.error("更新工作记忆失败", e);
-            return "❌ 更新失败: " + e.getMessage();
+            return "[ERROR] 更新失败: " + e.getMessage();
         }
     }
 
@@ -912,14 +914,14 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "data", description = "事件数据") String data) {
         try {
             if (mainAgent == null || mainAgent.getEventBus() == null) {
-                return "⚠️ 事件总线未初始化";
+                return "[WARN] 事件总线未初始化";
             }
 
             org.noear.solon.bot.core.event.AgentEventType type;
             try {
                 type = org.noear.solon.bot.core.event.AgentEventType.valueOf(eventType.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return "❌ 无效的事件类型: " + eventType;
+                return "[ERROR] 无效的事件类型: " + eventType;
             }
 
             org.noear.solon.bot.core.event.AgentEvent event =
@@ -927,10 +929,10 @@ public class AgentTeamsSkill extends AbsSkill {
             mainAgent.getEventBus().publish(event);
 
             LOG.debug("发布团队事件: type={}, data={}", type, data);
-            return "✅ 团队事件已发布: " + type;
+            return "[OK] 团队事件已发布: " + type;
         } catch (Exception e) {
             LOG.error("发布团队事件失败", e);
-            return "❌ 发布失败: " + e.getMessage();
+            return "[ERROR] 发布失败: " + e.getMessage();
         }
     }
 
@@ -942,7 +944,7 @@ public class AgentTeamsSkill extends AbsSkill {
     public String getTaskStatistics() {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList.TaskStatistics stats = mainAgent.getTaskList().getStatistics();
@@ -958,7 +960,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取任务统计失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 
@@ -974,27 +976,27 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "agentName", description = "认领任务的代理名称（如：explore、plan、bash）") String agentName) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             if (task.getStatus() != TeamTask.Status.PENDING) {
-                return "⚠️ 任务状态不是待认领: " + task.getStatus();
+                return "[WARN] 任务状态不是待认领: " + task.getStatus();
             }
 
             taskList.claimTask(taskId, agentName);
 
             LOG.info("任务已认领: taskId={}, agent={}", taskId, agentName);
-            return "✅ 任务已认领: " + taskId + " 由 " + agentName;
+            return "[OK] 任务已认领: " + taskId + " 由 " + agentName;
         } catch (Exception e) {
             LOG.error("认领任务失败", e);
-            return "❌ 认领失败: " + e.getMessage();
+            return "[ERROR] 认领失败: " + e.getMessage();
         }
     }
 
@@ -1008,18 +1010,18 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "result", description = "任务执行结果（可选）") String result) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             if (task.getStatus() != TeamTask.Status.IN_PROGRESS) {
-                return "⚠️ 任务状态不是进行中: " + task.getStatus();
+                return "[WARN] 任务状态不是进行中: " + task.getStatus();
             }
 
             taskList.completeTask(taskId, result);
@@ -1031,10 +1033,10 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             LOG.info("任务已完成: taskId={}", taskId);
-            return "✅ 任务已完成: " + taskId;
+            return "[OK] 任务已完成: " + taskId;
         } catch (Exception e) {
             LOG.error("完成任务失败", e);
-            return "❌ 完成失败: " + e.getMessage();
+            return "[ERROR] 完成失败: " + e.getMessage();
         }
     }
 
@@ -1048,23 +1050,23 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "errorMessage", description = "错误消息（说明失败原因）") String errorMessage) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             taskList.failTask(taskId, errorMessage);
 
             LOG.error("任务失败: taskId={}, error={}", taskId, errorMessage);
-            return "❌ 任务已标记为失败: " + taskId;
+            return "[ERROR] 任务已标记为失败: " + taskId;
         } catch (Exception e) {
             LOG.error("标记任务失败", e);
-            return "❌ 操作失败: " + e.getMessage();
+            return "[ERROR] 操作失败: " + e.getMessage();
         }
     }
 
@@ -1077,14 +1079,14 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "taskId", description = "任务ID") String taskId) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             StringBuilder sb = new StringBuilder();
@@ -1112,7 +1114,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取任务详情失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 
@@ -1125,7 +1127,7 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "status", description = "可选：按状态过滤（PENDING/IN_PROGRESS/COMPLETED/FAILED）") String status) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
@@ -1136,7 +1138,7 @@ public class AgentTeamsSkill extends AbsSkill {
                 try {
                     taskStatus = TeamTask.Status.valueOf(status.toUpperCase());
                 } catch (IllegalArgumentException e) {
-                    return "❌ 无效的状态: " + status;
+                    return "[ERROR] 无效的状态: " + status;
                 }
                 tasks = taskList.getTasksByStatus(taskStatus);
             } else {
@@ -1144,7 +1146,7 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             if (tasks.isEmpty()) {
-                return "⚠️ 没有任务";
+                return "[WARN] 没有任务";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -1168,7 +1170,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("列出任务失败", e);
-            return "❌ 列出失败: " + e.getMessage();
+            return "[ERROR] 列出失败: " + e.getMessage();
         }
     }
 
@@ -1182,19 +1184,19 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "dependsOnTaskId", description = "依赖的任务ID") String dependsOnTaskId) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             TeamTask dependsOnTask = taskList.getTask(dependsOnTaskId);
             if (dependsOnTask == null) {
-                return "❌ 依赖任务不存在: " + dependsOnTaskId;
+                return "[ERROR] 依赖任务不存在: " + dependsOnTaskId;
             }
 
             // 添加依赖到任务的依赖列表
@@ -1204,10 +1206,10 @@ public class AgentTeamsSkill extends AbsSkill {
             task.getDependencies().add(dependsOnTaskId);
 
             LOG.info("添加任务依赖: {} depends on {}", taskId, dependsOnTaskId);
-            return "✅ 依赖关系已添加: " + taskId + " 依赖于 " + dependsOnTaskId;
+            return "[OK] 依赖关系已添加: " + taskId + " 依赖于 " + dependsOnTaskId;
         } catch (Exception e) {
             LOG.error("添加任务依赖失败", e);
-            return "❌ 添加失败: " + e.getMessage();
+            return "[ERROR] 添加失败: " + e.getMessage();
         }
     }
 
@@ -1220,7 +1222,7 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "limit", description = "返回结果数量限制，默认10") Integer limit) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
@@ -1252,7 +1254,7 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             if (claimableTasks.isEmpty()) {
-                return "⚠️ 没有可认领的任务";
+                return "[WARN] 没有可认领的任务";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -1269,7 +1271,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取可认领任务失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 
@@ -1283,23 +1285,23 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "result", description = "任务结果（可以是进度报告、部分成果等）") String result) {
         try {
             if (mainAgent == null) {
-                return "⚠️ MainAgent 未初始化";
+                return "[WARN] MainAgent 未初始化";
             }
 
             SharedTaskList taskList = mainAgent.getTaskList();
             TeamTask task = taskList.getTask(taskId);
 
             if (task == null) {
-                return "❌ 任务不存在: " + taskId;
+                return "[ERROR] 任务不存在: " + taskId;
             }
 
             task.setResult(result);
 
             LOG.info("任务结果已更新: taskId={}", taskId);
-            return "✅ 任务结果已更新: " + taskId;
+            return "[OK] 任务结果已更新: " + taskId;
         } catch (Exception e) {
             LOG.error("更新任务结果失败", e);
-            return "❌ 更新失败: " + e.getMessage();
+            return "[ERROR] 更新失败: " + e.getMessage();
         }
     }
 
@@ -1318,79 +1320,6 @@ public class AgentTeamsSkill extends AbsSkill {
         }
     }
 
-    /**
-     * 自动分类并存储记忆
-     */
-    private String autoClassifyAndStore(String key, String value) {
-        String lowerValue = value.toLowerCase();
-
-        // 1. 检查是否是决策类内容 → 知识记忆（永久）
-        if (isDecisionContent(lowerValue)) {
-            mainAgent.getSharedMemoryManager().putKnowledge(key, value);
-            return "✅ 决策已存储（永久）[自动分类: 决策类]";
-        }
-
-        // 2. 检查是否是任务结果 → 长期记忆（7天）
-        if (isTaskResult(lowerValue)) {
-            mainAgent.getSharedMemoryManager().putLongTerm(key, value, 604800);
-            return "✅ 任务结果已存储（7天）[自动分类: 任务结果]";
-        }
-
-        // 3. 检查是否是临时上下文 → 短期记忆（1小时）
-        if (isTemporaryContext(lowerValue)) {
-            mainAgent.getSharedMemoryManager().putShortTerm(key, value, 3600);
-            return "✅ 上下文已存储（1小时）[自动分类: 临时上下文]";
-        }
-
-        // 4. 检查是否是知识经验 → 知识记忆（永久）
-        if (isKnowledgeContent(lowerValue)) {
-            mainAgent.getSharedMemoryManager().putKnowledge(key, value);
-            return "✅ 知识已存储（永久）[自动分类: 知识经验]";
-        }
-
-        // 5. 默认使用长期记忆（7天）
-        mainAgent.getSharedMemoryManager().putLongTerm(key, value, 604800);
-        return "✅ 记忆已存储（7天）[自动分类: 默认长期]";
-    }
-
-    /**
-     * 判断是否是决策类内容
-     */
-    private boolean isDecisionContent(String lowerValue) {
-        return lowerValue.contains("决策") || lowerValue.contains("决定")
-            || lowerValue.contains("采用") || lowerValue.contains("选择")
-            || lowerValue.contains("技术选型") || lowerValue.contains("架构")
-            || lowerValue.contains("方案");
-    }
-
-    /**
-     * 判断是否是任务结果
-     */
-    private boolean isTaskResult(String lowerValue) {
-        return lowerValue.contains("已完成") || lowerValue.contains("完成")
-            || lowerValue.contains("结果") || lowerValue.contains("实现")
-            || lowerValue.contains("成功") || lowerValue.contains("done");
-    }
-
-    /**
-     * 判断是否是临时上下文
-     */
-    private boolean isTemporaryContext(String lowerValue) {
-        return lowerValue.contains("临时") || lowerValue.contains("当前")
-            || lowerValue.contains("待办") || lowerValue.contains("进行中")
-            || lowerValue.contains("步骤") || lowerValue.contains("中间");
-    }
-
-    /**
-     * 判断是否是知识经验
-     */
-    private boolean isKnowledgeContent(String lowerValue) {
-        return lowerValue.contains("最佳实践") || lowerValue.contains("经验")
-            || lowerValue.contains("教训") || lowerValue.contains("总结")
-            || lowerValue.contains("技巧") || lowerValue.contains("注意")
-            || lowerValue.contains("建议");
-    }
-
     // ==================== 代理间通信工具 ====================
 
     /**
@@ -1403,7 +1332,7 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "message", description = "消息内容") String message) {
         try {
             if (mainAgent == null || mainAgent.getMessageChannel() == null) {
-                return "⚠️ 消息通道未启用";
+                return "[WARN] 消息通道未启用";
             }
 
             // 使用 Builder 创建消息
@@ -1424,16 +1353,16 @@ public class AgentTeamsSkill extends AbsSkill {
 
             if (ack.isSuccess()) {
                 LOG.debug("消息已发送: to={}, msg={}", targetAgent, message);
-                return "✅ 消息已发送给 " + targetAgent;
+                return "[OK] 消息已发送给 " + targetAgent;
             } else {
-                return "❌ 消息发送失败: " + ack.getMessage();
+                return "[ERROR] 消息发送失败: " + ack.getMessage();
             }
         } catch (java.util.concurrent.TimeoutException e) {
             LOG.error("发送消息超时", e);
-            return "⚠️ 发送超时: 消息可能还在处理中";
+            return "[WARN] 发送超时: 消息可能还在处理中";
         } catch (Exception e) {
             LOG.error("发送消息失败", e);
-            return "❌ 发送失败: " + e.getMessage();
+            return "[ERROR] 发送失败: " + e.getMessage();
         }
     }
 
@@ -1475,7 +1404,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("列出代理失败", e);
-            return "❌ 列出失败: " + e.getMessage();
+            return "[ERROR] 列出失败: " + e.getMessage();
         }
     }
 
@@ -1487,7 +1416,7 @@ public class AgentTeamsSkill extends AbsSkill {
     public String getMessageStats() {
         try {
             if (mainAgent == null || mainAgent.getMessageChannel() == null) {
-                return "⚠️ 消息通道未启用";
+                return "[WARN] 消息通道未启用";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -1501,7 +1430,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return sb.toString();
         } catch (Exception e) {
             LOG.error("获取消息统计失败", e);
-            return "❌ 获取失败: " + e.getMessage();
+            return "[ERROR] 获取失败: " + e.getMessage();
         }
     }
 }

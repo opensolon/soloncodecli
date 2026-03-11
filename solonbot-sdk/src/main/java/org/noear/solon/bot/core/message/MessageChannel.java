@@ -54,6 +54,9 @@ public class MessageChannel {
     // 消息持久化路径
     private final String messageStorePath;
 
+    // 性能优化：消息队列大小限制
+    private static final int MAX_PENDING_MESSAGES = 1000;  // 每个 Agent 最多 1000 条待处理消息
+
     /**
      * 构造函数（使用默认配置）
      */
@@ -325,16 +328,34 @@ public class MessageChannel {
 
     /**
      * 将消息放入待处理队列（支持泛型）
+     * 性能优化：添加队列大小限制
      */
     private <T> CompletableFuture<MessageAck> queueMessage(AgentMessage<T> message) {
         String to = message.getTo();
         Queue<AgentMessage<?>> queue = pendingMessages.computeIfAbsent(to, k -> new LinkedList<>());
+
+        // 检查队列大小限制
+        if (queue.size() >= MAX_PENDING_MESSAGES) {
+            LOG.warn("消息队列已满: to={}, maxSize={}, messageId={}",
+                    to, MAX_PENDING_MESSAGES, message.getId());
+            CompletableFuture<MessageAck> failedFuture = new CompletableFuture<>();
+            failedFuture.complete(new MessageAck(
+                    message.getId(),
+                    to,
+                    false,
+                    "Message queue full (max: " + MAX_PENDING_MESSAGES + ")",
+                    null
+            ));
+            return failedFuture;
+        }
+
         queue.offer(message);
 
         // 持久化消息
         persistMessage(message);
 
-        LOG.debug("消息已加入待处理队列: to={}, messageId={}", to, message.getId());
+        LOG.debug("消息已加入待处理队列: to={}, messageId={}, queueSize={}",
+                to, message.getId(), queue.size());
 
         CompletableFuture<MessageAck> future = new CompletableFuture<>();
         boolean requireAck = message.getBooleanMetadata("requireAck", false);

@@ -253,7 +253,7 @@ public class TaskSkill extends AbsSkill {
 
             // 5. 返回结果
             StringBuilder result = new StringBuilder();
-            result.append("✅ 子代理创建成功！\n\n");
+            result.append("[OK] 子代理创建成功！\n\n");
             result.append(String.format("**代码**: %s\n", code));
             result.append(String.format("**名称**: %s\n", name));
             result.append(String.format("**描述**: %s\n", description));
