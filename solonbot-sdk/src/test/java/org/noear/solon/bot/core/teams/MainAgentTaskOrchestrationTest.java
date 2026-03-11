@@ -16,16 +16,14 @@
 package org.noear.solon.bot.core.teams;
 
 import org.noear.solon.ai.agent.AgentSessionProvider;
-import org.noear.solon.ai.agent.AgentSession;
-import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.bot.core.event.EventBus;
 import org.noear.solon.bot.core.memory.SharedMemoryManager;
-import org.noear.solon.bot.core.message.MessageChannel;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Paths;
 import java.util.List;
 
 /**
@@ -45,20 +43,14 @@ public class MainAgentTaskOrchestrationTest {
         // 创建必要的组件
         EventBus eventBus = new EventBus();
         SharedTaskList taskList = new SharedTaskList(eventBus);
-        SharedMemoryManager memoryManager = new SharedMemoryManager(eventBus);
-        SubAgentMetadata config = SubAgentMetadata.builder()
-                .code("main-agent")
-                .name("主代理")
-                .description("测试主代理")
-                .build();
+        SharedMemoryManager memoryManager = new SharedMemoryManager(Paths.get("./work"));
+        SubAgentMetadata config = new SubAgentMetadata();
+        config.setCode("main-agent");
+        config.setName("主代理");
+        config.setDescription("测试主代理");
 
         // 创建模拟的 SessionProvider
-        AgentSessionProvider sessionProvider = new AgentSessionProvider() {
-            @Override
-            public AgentSession getSession(String userId) {
-                return null;
-            }
-        };
+        AgentSessionProvider sessionProvider = userId -> null;
 
         // 创建 MainAgent
         MainAgent mainAgent = new MainAgent(

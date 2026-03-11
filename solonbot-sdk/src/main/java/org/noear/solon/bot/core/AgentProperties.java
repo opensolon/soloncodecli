@@ -96,8 +96,6 @@ public class AgentProperties implements Serializable {
     public Map<String, String> subAgentModels;
 
     private Map<String, ApiServerParameters> restApis;
-    private Map<String, McpServerParameters> mcpServers;
-    private ChatConfig chatModel;
     @Deprecated
     private Map<String, String> mountPool;
     private Map<String, String> skillPools;
