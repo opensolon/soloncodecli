@@ -22,6 +22,7 @@ import org.noear.solon.ai.chat.skill.AbsSkill;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.bot.core.AgentKernel;
+import org.noear.solon.bot.core.memory.LongTermMemory;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.noear.solon.bot.core.subagent.Subagent;
 import org.noear.solon.bot.core.subagent.SubagentManager;
@@ -31,10 +32,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -124,18 +122,16 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append("    name=\"security-expert\",\n");
         sb.append("    role=\"安全专家\",\n");
         sb.append("    description=\"专注于安全审计、漏洞检测\",\n");
-        sb.append("    teamName=\"myteam\",              # 指定团队名称\n");
-        sb.append("    expertise=\"security,auth,encryption\",\n");
-        sb.append("    model=\"gpt-4\"\n");
+        sb.append("    teamName=\"myteam\"              # 指定团队名称\n");
         sb.append(")\n");
-        sb.append("# 生成文件: myteam-security-expert.md\n\n");
+        sb.append("# 生成文件: .soloncode/agentsTeams/myteam/security-expert.md\n\n");
         sb.append("# 场景2: 创建子代理（不指定团队）\n");
         sb.append("teammate(\n");
         sb.append("    name=\"db-optimizer\",\n");
         sb.append("    role=\"数据库优化专家\",\n");
         sb.append("    description=\"SQL 查询优化\"\n");
         sb.append(")\n");
-        sb.append("# 生成文件: db-optimizer.md\n\n");
+        sb.append("# 生成文件: .soloncode/agents/db-optimizer.md\n\n");
         sb.append("# 场景3: 查看所有成员\n");
         sb.append("teammates()\n\n");
         sb.append("# 场景4: 启动团队协作任务\n");
@@ -404,20 +400,21 @@ public class AgentTeamsSkill extends AbsSkill {
             String agentDefinition = metadata.toYamlFrontmatterWithPrompt(finalPrompt);
 
             // 保存到文件
-            Path agentsDir = Paths.get(__cwd, ".soloncode", "agents");
-            Files.createDirectories(agentsDir);
-
-            // 文件命名：{teamName}-{name}.md 或 {name}.md
-            String fileName;
+            Path agentFile;
             if (teamName != null && !teamName.isEmpty()) {
-                fileName = teamName + "-" + name + ".md";
-                LOG.info("创建团队成员: 团队={}, 角色={}, 文件={}", teamName, name, fileName);
+                // 团队成员：保存到 .soloncode/agentsTeams/{teamName}/{name}.md
+                Path teamsDir = Paths.get(__cwd, ".soloncode", "agentsTeams", teamName);
+                Files.createDirectories(teamsDir);
+                agentFile = teamsDir.resolve(name + ".md");
+                LOG.info("创建团队成员: 团队={}, 角色={}, 文件={}", teamName, name, agentFile);
             } else {
-                fileName = name + ".md";
-                LOG.info("创建子代理: 角色={}, 文件={}", name, fileName);
+                // 普通子代理：保存到 .soloncode/agents/{name}.md
+                Path agentsDir = Paths.get(__cwd, ".soloncode", "agents");
+                Files.createDirectories(agentsDir);
+                agentFile = agentsDir.resolve(name + ".md");
+                LOG.info("创建子代理: 角色={}, 文件={}", name, agentFile);
             }
 
-            Path agentFile = agentsDir.resolve(fileName);
             Files.write(agentFile, agentDefinition.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
             // 返回结果（使用表格格式）
@@ -434,6 +431,9 @@ public class AgentTeamsSkill extends AbsSkill {
 
             if (teamName != null && !teamName.isEmpty()) {
                 result.append(String.format("| **所属团队** | %s |\n", teamName));
+                result.append(String.format("| **文件路径** | `.soloncode/agentsTeams/%s/%s.md` |\n", teamName, name));
+            } else {
+                result.append(String.format("| **文件路径** | `.soloncode/agents/%s.md` |\n", name));
             }
 
             if (expertise != null && !expertise.isEmpty()) {
@@ -444,7 +444,6 @@ public class AgentTeamsSkill extends AbsSkill {
                 result.append(String.format("| **模型** | %s |\n", model));
             }
 
-            result.append(String.format("| **文件** | `%s` |\n", agentFile));
             result.append(String.format("| **状态** | 🟢 已激活 |\n"));
 
             result.append("\n**使用方法**:\n");
@@ -482,18 +481,19 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             // 表格格式的成员列表
-            result.append("| 名称 | 角色 | 描述 | 状态 | 模型 |\n");
-            result.append("|------|------|------|------|------|\n");
+            result.append("| 名称 | 角色 | 描述 | 团队 | 状态 | 模型 |\n");
+            result.append("|------|------|------|------|------|------|\n");
 
             for (Subagent agent : agents) {
                 String name = String.format("`%s`", agent.getType());
                 String role = agent.getClass().getSimpleName().replace("Subagent", "");
                 String desc = truncate(agent.getDescription(), 30);
+                String team = agent.getMetadata().hasTeamName() ? agent.getMetadata().getTeamName() : "-";
                 String status = "🟢 活跃";
                 String model = agent.getMetadata().getModel() != null ? agent.getMetadata().getModel()  : "默认";
 
-                result.append(String.format("| %s | %s | %s | %s | %s |\n",
-                        name, role, desc, status, model));
+                result.append(String.format("| %s | %s | %s | %s | %s | %s |\n",
+                        name, role, desc, team, status, model));
             }
 
             result.append("\n**总计**: " + agents.size() + " 位活跃成员\n\n");
@@ -605,5 +605,602 @@ public class AgentTeamsSkill extends AbsSkill {
             return text;
         }
         return text.substring(0, maxLength - 3) + "...";
+    }
+
+    // ==================== 记忆管理工具 ====================
+
+    /**
+     * 存储任务结果到记忆
+     */
+    @ToolMapping(name = "memory_store_task_result",
+                 description = "存储任务结果到共享记忆（长期记忆，7天TTL）。用于保存重要任务的执行结果。")
+    public String memoryStoreTaskResult(
+            @Param(name = "taskTitle", description = "任务标题") String taskTitle,
+            @Param(name = "result", description = "任务结果（JSON格式或文本）") String result) {
+        try {
+            if (mainAgent == null || mainAgent.getSharedMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            // 存储到长期记忆（7天TTL）
+            String key = "task-result:" + taskTitle + ":" + System.currentTimeMillis();
+            LongTermMemory ltm = new LongTermMemory(
+                    "系统采用 JWT + Redis 实现分布式会话",
+                    "plan",
+                    Collections.singletonList(key)
+            );
+            mainAgent.getSharedMemoryManager().getLongTermMemory().put(
+                key,
+                result,
+                604800  // 7天
+            );
+
+            LOG.info("存储任务结果: taskTitle={}, key={}", taskTitle, key);
+            return "✅ 任务结果已存储: " + taskTitle;
+        } catch (Exception e) {
+            LOG.error("存储任务结果失败", e);
+            return "❌ 存储失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 搜索任务结果
+     */
+    @ToolMapping(name = "memory_search_task_results",
+                 description = "搜索历史任务结果（从共享记忆中检索）")
+    public String memorySearchTaskResults(
+            @Param(name = "query", description = "搜索查询（任务标题关键词）") String query,
+            @Param(name = "limit", description = "返回结果数量限制，默认10") Integer limit) {
+        try {
+            if (mainAgent == null || mainAgent.getMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            int actualLimit = limit != null && limit > 0 ? limit : 10;
+            List<org.noear.solon.bot.core.memory.Memory> results =
+                mainAgent.getMemoryManager().search(query, actualLimit);
+
+            if (results.isEmpty()) {
+                return "⚠️ 未找到相关任务结果";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("找到 ").append(results.size()).append(" 条相关任务结果:\n\n");
+
+            for (int i = 0; i < results.size(); i++) {
+                org.noear.solon.bot.core.memory.Memory mem = results.get(i);
+                sb.append(i + 1).append(". ").append(mem.getContext()).append("\n");
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("搜索任务结果失败", e);
+            return "❌ 搜索失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 存储决策到记忆
+     */
+    @ToolMapping(name = "memory_store_decision",
+                 description = "存储重要决策到知识记忆（永久保存）。用于保存架构决策、技术选型等。")
+    public String memoryStoreDecision(
+            @Param(name = "decisionTitle", description = "决策标题") String decisionTitle,
+            @Param(name = "decision", description = "决策内容（包括理由、影响等）") String decision) {
+        try {
+            if (mainAgent == null || mainAgent.getMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            // 存储到知识记忆（永久）
+            String key = "decision:" + decisionTitle;
+            mainAgent.getMemoryManager().getKnowledgeMemory().put(key, decision);
+
+            LOG.info("存储决策: decisionTitle={}", decisionTitle);
+            return "✅ 决策已存储: " + decisionTitle;
+        } catch (Exception e) {
+            LOG.error("存储决策失败", e);
+            return "❌ 存储失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 存储临时上下文
+     */
+    @ToolMapping(name = "memory_store_context",
+                 description = "存储临时上下文到短期记忆（会话级别，1小时TTL）。用于传递信息给其他代理。")
+    public String memoryStoreContext(
+            @Param(name = "key", description = "上下文键") String key,
+            @Param(name = "value", description = "上下文值") String value) {
+        try {
+            if (mainAgent == null || mainAgent.getMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            // 存储到短期记忆（1小时TTL）
+            mainAgent.getMemoryManager().getShortTermMemory().put(key, value, 3600);
+
+            LOG.debug("存储临时上下文: key={}", key);
+            return "✅ 临时上下文已存储: " + key;
+        } catch (Exception e) {
+            LOG.error("存储临时上下文失败", e);
+            return "❌ 存储失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取工作记忆状态
+     */
+    @ToolMapping(name = "get_working_memory",
+                 description = "获取当前工作记忆状态（包括当前任务、决策、状态、进度等）")
+    public String getWorkingMemory() {
+        try {
+            if (mainAgent == null || mainAgent.getMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            org.noear.solon.bot.core.memory.WorkingMemory workingMemory =
+                mainAgent.getMemoryManager().getWorkingMemory();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 工作记忆状态\n\n");
+
+            if (workingMemory.getCurrentTask() != null) {
+                sb.append("**当前任务**: ").append(workingMemory.getCurrentTask()).append("\n");
+            }
+            if (workingMemory.getDecision() != null) {
+                sb.append("**最新决策**: ").append(workingMemory.getDecision()).append("\n");
+            }
+            if (workingMemory.getStatus() != null) {
+                sb.append("**状态**: ").append(workingMemory.getStatus()).append("\n");
+            }
+            if (workingMemory.getProgress() != null) {
+                sb.append("**进度**: ").append(workingMemory.getProgress()).append("\n");
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("获取工作记忆失败", e);
+            return "❌ 获取失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 更新工作记忆状态
+     */
+    @ToolMapping(name = "update_working_memory",
+                 description = "更新工作记忆状态（设置当前任务、决策、状态或进度）")
+    public String updateWorkingMemory(
+            @Param(name = "field", description = "字段名称（currentTask/decision/status/progress）") String field,
+            @Param(name = "value", description = "字段值") String value) {
+        try {
+            if (mainAgent == null || mainAgent.getMemoryManager() == null) {
+                return "⚠️ 共享记忆未初始化";
+            }
+
+            org.noear.solon.bot.core.memory.WorkingMemory workingMemory =
+                mainAgent.getMemoryManager().getWorkingMemory();
+
+            switch (field.toLowerCase()) {
+                case "currenttask":
+                    workingMemory.setCurrentTask(value);
+                    break;
+                case "decision":
+                    workingMemory.setDecision(value);
+                    break;
+                case "status":
+                    workingMemory.setStatus(value);
+                    break;
+                case "progress":
+                    workingMemory.setProgress(value);
+                    break;
+                default:
+                    return "❌ 无效的字段名: " + field;
+            }
+
+            LOG.debug("更新工作记忆: {}={}", field, value);
+            return "✅ 工作记忆已更新: " + field + " = " + value;
+        } catch (Exception e) {
+            LOG.error("更新工作记忆失败", e);
+            return "❌ 更新失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 发布团队事件
+     */
+    @ToolMapping(name = "publish_team_event",
+                 description = "发布团队事件（通知其他代理任务状态变化）")
+    public String publishTeamEvent(
+            @Param(name = "eventType", description = "事件类型（TASK_COMPLETED/TASK_FAILED/INFO等）") String eventType,
+            @Param(name = "data", description = "事件数据") String data) {
+        try {
+            if (mainAgent == null || mainAgent.getEventBus() == null) {
+                return "⚠️ 事件总线未初始化";
+            }
+
+            org.noear.solon.bot.core.event.AgentEventType type;
+            try {
+                type = org.noear.solon.bot.core.event.AgentEventType.valueOf(eventType.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return "❌ 无效的事件类型: " + eventType;
+            }
+
+            org.noear.solon.bot.core.event.AgentEvent event =
+                new org.noear.solon.bot.core.event.AgentEvent(type, data, null);
+            mainAgent.getEventBus().publish(event);
+
+            LOG.debug("发布团队事件: type={}, data={}", type, data);
+            return "✅ 团队事件已发布: " + type;
+        } catch (Exception e) {
+            LOG.error("发布团队事件失败", e);
+            return "❌ 发布失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取任务统计信息
+     */
+    @ToolMapping(name = "get_task_statistics",
+                 description = "获取任务统计信息（总任务数、已完成、失败、进行中、待认领等）")
+    public String getTaskStatistics() {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList.TaskStatistics stats = mainAgent.getTaskList().getStatistics();
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 任务统计\n\n");
+            sb.append("**总任务数**: ").append(stats.totalTasks).append("\n");
+            sb.append("**已完成**: ").append(stats.completedTasks).append("\n");
+            sb.append("**失败**: ").append(stats.failedTasks).append("\n");
+            sb.append("**进行中**: ").append(stats.inProgressTasks).append("\n");
+            sb.append("**待认领**: ").append(stats.pendingTasks).append("\n");
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("获取任务统计失败", e);
+            return "❌ 获取失败: " + e.getMessage();
+        }
+    }
+
+    // ==================== 任务管理工具 ====================
+
+    /**
+     * 认领任务
+     */
+    @ToolMapping(name = "claim_task",
+                 description = "认领待处理的任务（将任务状态从PENDING改为IN_PROGRESS）")
+    public String claimTask(
+            @Param(name = "taskId", description = "任务ID") String taskId,
+            @Param(name = "agentName", description = "认领任务的代理名称（如：explore、plan、bash）") String agentName) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            if (task.getStatus() != TeamTask.TaskStatus.PENDING) {
+                return "⚠️ 任务状态不是待认领: " + task.getStatus();
+            }
+
+            taskList.claimTask(taskId, agentName);
+
+            LOG.info("任务已认领: taskId={}, agent={}", taskId, agentName);
+            return "✅ 任务已认领: " + taskId + " 由 " + agentName;
+        } catch (Exception e) {
+            LOG.error("认领任务失败", e);
+            return "❌ 认领失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 完成任务
+     */
+    @ToolMapping(name = "complete_task",
+                 description = "标记任务为已完成（将任务状态改为COMPLETED）")
+    public String completeTask(
+            @Param(name = "taskId", description = "任务ID") String taskId,
+            @Param(name = "result", description = "任务执行结果（可选）") String result) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            if (task.getStatus() != TeamTask.TaskStatus.IN_PROGRESS) {
+                return "⚠️ 任务状态不是进行中: " + task.getStatus();
+            }
+
+            taskList.completeTask(taskId);
+
+            // 如果提供了结果，存储到记忆
+            if (result != null && !result.isEmpty()) {
+                String key = "task-result:" + task.getTitle() + ":" + System.currentTimeMillis();
+                mainAgent.getMemoryManager().getLongTermMemory().put(key, result, 604800);
+            }
+
+            LOG.info("任务已完成: taskId={}", taskId);
+            return "✅ 任务已完成: " + taskId;
+        } catch (Exception e) {
+            LOG.error("完成任务失败", e);
+            return "❌ 完成失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 标记任务失败
+     */
+    @ToolMapping(name = "fail_task",
+                 description = "标记任务为失败（将任务状态改为FAILED）")
+    public String failTask(
+            @Param(name = "taskId", description = "任务ID") String taskId,
+            @Param(name = "errorMessage", description = "错误消息（说明失败原因）") String errorMessage) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            taskList.failTask(taskId, errorMessage);
+
+            LOG.error("任务失败: taskId={}, error={}", taskId, errorMessage);
+            return "❌ 任务已标记为失败: " + taskId;
+        } catch (Exception e) {
+            LOG.error("标记任务失败", e);
+            return "❌ 操作失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取任务详情
+     */
+    @ToolMapping(name = "get_task_details",
+                 description = "获取任务的详细信息（包括ID、标题、描述、状态、依赖等）")
+    public String getTaskDetails(
+            @Param(name = "taskId", description = "任务ID") String taskId) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 任务详情\n\n");
+            sb.append("**ID**: ").append(task.getId()).append("\n");
+            sb.append("**标题**: ").append(task.getTitle()).append("\n");
+            sb.append("**描述**: ").append(task.getDescription()).append("\n");
+            sb.append("**类型**: ").append(task.getType()).append("\n");
+            sb.append("**状态**: ").append(task.getStatus()).append("\n");
+            sb.append("**优先级**: ").append(task.getPriority()).append("\n");
+
+            if (task.getClaimedBy() != null) {
+                sb.append("**认领者**: ").append(task.getClaimedBy()).append("\n");
+            }
+
+            if (task.getDependencies() != null && !task.getDependencies().isEmpty()) {
+                sb.append("**依赖任务**: ");
+                sb.append(String.join(", ", task.getDependencies())).append("\n");
+            }
+
+            if (task.getResult() != null) {
+                sb.append("**结果**: ").append(task.getResult()).append("\n");
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("获取任务详情失败", e);
+            return "❌ 获取失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 列出所有任务
+     */
+    @ToolMapping(name = "list_all_tasks",
+                 description = "列出所有任务（包括待认领、进行中、已完成、失败的任务）")
+    public String listAllTasks(
+            @Param(name = "status", description = "可选：按状态过滤（PENDING/IN_PROGRESS/COMPLETED/FAILED）") String status) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            List<TeamTask> tasks;
+
+            if (status != null && !status.isEmpty()) {
+                TeamTask.TaskStatus taskStatus;
+                try {
+                    taskStatus = TeamTask.TaskStatus.valueOf(status.toUpperCase());
+                } catch (IllegalArgumentException e) {
+                    return "❌ 无效的状态: " + status;
+                }
+                tasks = taskList.getTasksByStatus(taskStatus);
+            } else {
+                tasks = taskList.getAllTasks();
+            }
+
+            if (tasks.isEmpty()) {
+                return "⚠️ 没有任务";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 任务列表 (").append(tasks.size()).append(" 个任务)\n\n");
+
+            for (TeamTask task : tasks) {
+                String statusIcon = getStatusIcon(task.getStatus());
+                sb.append(String.format("%s **%s** (ID: %s)\n",
+                        statusIcon, task.getTitle(), task.getId()));
+                sb.append(String.format("  - 类型: %s\n", task.getType()));
+                sb.append(String.format("  - 优先级: %d\n", task.getPriority()));
+                sb.append(String.format("  - 状态: %s\n", task.getStatus()));
+
+                if (task.getClaimedBy() != null) {
+                    sb.append(String.format("  - 认领者: %s\n", task.getClaimedBy()));
+                }
+
+                sb.append("\n");
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("列出任务失败", e);
+            return "❌ 列出失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 添加任务依赖
+     */
+    @ToolMapping(name = "add_task_dependency",
+                 description = "为任务添加依赖关系（任务将等待依赖任务完成后才能开始）")
+    public String addTaskDependency(
+            @Param(name = "taskId", description = "任务ID") String taskId,
+            @Param(name = "dependsOnTaskId", description = "依赖的任务ID") String dependsOnTaskId) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            TeamTask dependsOnTask = taskList.getTask(dependsOnTaskId);
+            if (dependsOnTask == null) {
+                return "❌ 依赖任务不存在: " + dependsOnTaskId;
+            }
+
+            taskList.addDependency(taskId, dependsOnTaskId);
+
+            LOG.info("添加任务依赖: {} depends on {}", taskId, dependsOnTaskId);
+            return "✅ 依赖关系已添加: " + taskId + " 依赖于 " + dependsOnTaskId;
+        } catch (Exception e) {
+            LOG.error("添加任务依赖失败", e);
+            return "❌ 添加失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取可认领的任务
+     */
+    @ToolMapping(name = "get_claimable_tasks",
+                 description = "获取当前可以认领的任务（所有依赖已完成的状态为PENDING的任务）")
+    public String getClaimableTasks(
+            @Param(name = "limit", description = "返回结果数量限制，默认10") Integer limit) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            List<TeamTask> pendingTasks = taskList.getTasksByStatus(TeamTask.TaskStatus.PENDING);
+
+            // 过滤出依赖已完成的任务
+            List<TeamTask> claimableTasks = new java.util.ArrayList<>();
+            for (TeamTask task : pendingTasks) {
+                if (taskList.areDependenciesCompleted(task)) {
+                    claimableTasks.add(task);
+                }
+            }
+
+            int actualLimit = limit != null && limit > 0 ? limit : 10;
+            if (claimableTasks.size() > actualLimit) {
+                claimableTasks = claimableTasks.subList(0, actualLimit);
+            }
+
+            if (claimableTasks.isEmpty()) {
+                return "⚠️ 没有可认领的任务";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("## 可认领任务 (").append(claimableTasks.size()).append(" 个任务)\n\n");
+
+            for (TeamTask task : claimableTasks) {
+                sb.append(String.format("- **%s** (ID: %s)\n", task.getTitle(), task.getId()));
+                sb.append(String.format("  - 类型: %s\n", task.getType()));
+                sb.append(String.format("  - 优先级: %d\n", task.getPriority()));
+                sb.append(String.format("  - 描述: %s\n\n",
+                        truncate(task.getDescription(), 100)));
+            }
+
+            return sb.toString();
+        } catch (Exception e) {
+            LOG.error("获取可认领任务失败", e);
+            return "❌ 获取失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 更新任务结果
+     */
+    @ToolMapping(name = "update_task_result",
+                 description = "更新任务的执行结果（用于部分完成或阶段性成果）")
+    public String updateTaskResult(
+            @Param(name = "taskId", description = "任务ID") String taskId,
+            @Param(name = "result", description = "任务结果（可以是进度报告、部分成果等）") String result) {
+        try {
+            if (mainAgent == null) {
+                return "⚠️ MainAgent 未初始化";
+            }
+
+            SharedTaskList taskList = mainAgent.getTaskList();
+            TeamTask task = taskList.getTask(taskId);
+
+            if (task == null) {
+                return "❌ 任务不存在: " + taskId;
+            }
+
+            task.setResult(result);
+
+            LOG.info("任务结果已更新: taskId={}", taskId);
+            return "✅ 任务结果已更新: " + taskId;
+        } catch (Exception e) {
+            LOG.error("更新任务结果失败", e);
+            return "❌ 更新失败: " + e.getMessage();
+        }
+    }
+
+    /**
+     * 获取状态图标
+     */
+    private String getStatusIcon(TeamTask.TaskStatus status) {
+        switch (status) {
+            case PENDING: return "⏳";
+            case IN_PROGRESS: return "🔄";
+            case COMPLETED: return "✅";
+            case FAILED: return "❌";
+            default: return "❓";
+        }
     }
 }

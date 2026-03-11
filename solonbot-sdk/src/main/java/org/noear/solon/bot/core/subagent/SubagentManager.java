@@ -103,8 +103,9 @@ public class SubagentManager {
      * 注册自定义 agents 池
      *
      * @param dir agents 目录路径，可以是绝对路径或相对路径
+     * @param recursive 是否递归扫描子目录（用于团队成员目录）
      */
-    public void agentPool(Path dir) {
+    public void agentPool(Path dir, boolean recursive) {
         if (dir == null) {
             return;
         }
@@ -115,36 +116,71 @@ public class SubagentManager {
             return;
         }
 
-        try (Stream<Path> stream = Files.list(path)) {
-            List<Path> files = stream.filter(p -> p.toString().endsWith(".md"))
-                    .collect(Collectors.toList());
+        if (!Files.isDirectory(path)) {
+            LOG.warn("代理池路径不是目录: {}", dir);
+            return;
+        }
 
-            for (Path file : files) {
-                try {
-                    String fileName = file.getFileName().toString();
-                    List<String> fullContent = Files.readAllLines(file, StandardCharsets.UTF_8);
+        try {
+            if (recursive) {
+                // 递归扫描子目录（用于团队成员）
+                Files.walk(path)
+                        .filter(p -> p.toString().endsWith(".md"))
+                        .forEach(file -> loadAgentFile(file));
+            } else {
+                // 只扫描当前目录
+                try (Stream<Path> stream = Files.list(path)) {
+                    List<Path> files = stream.filter(p -> p.toString().endsWith(".md"))
+                            .collect(Collectors.toList());
 
-                    // 解析文件：拆分元数据和 Prompt
-                    SubAgentMetadata.PromptWithMetadata parsed = SubAgentMetadata.fromFileLines(fullContent);
-
-                    String subagentType = parsed.getMetadata().getName();
-                    if (subagentType == null || subagentType.isEmpty()) {
-                        subagentType = fileName.substring(0, fileName.length() - 3);
+                    for (Path file : files) {
+                        loadAgentFile(file);
                     }
-
-                    AbsSubagent subagent = (AbsSubagent) subagentMap.computeIfAbsent(subagentType,
-                            k -> new GeneralPurposeSubagent(mainAgent, k));
-
-                    // 设置解析后的属性
-                    subagent.setDescription(parsed.getMetadata().getDescription());
-                    subagent.setSystemPrompt(parsed.getPrompt());
-                    subagent.refresh();
-                } catch (IOException e) {
-                    LOG.error("读取代理文件失败: {}", file, e);
                 }
             }
         } catch (IOException e) {
             LOG.error("扫描代理池目录失败: {}", dir, e);
+        }
+    }
+
+    /**
+     * 注册自定义 agents 池（不递归）
+     *
+     * @param dir agents 目录路径，可以是绝对路径或相对路径
+     */
+    public void agentPool(Path dir) {
+        agentPool(dir, false);
+    }
+
+    /**
+     * 从文件加载子代理定义
+     *
+     * @param file 代理定义文件路径
+     */
+    private void loadAgentFile(Path file) {
+        try {
+            String fileName = file.getFileName().toString();
+            List<String> fullContent = Files.readAllLines(file, StandardCharsets.UTF_8);
+
+            // 解析文件：拆分元数据和 Prompt
+            SubAgentMetadata.PromptWithMetadata parsed = SubAgentMetadata.fromFileLines(fullContent);
+
+            String subagentType = parsed.getMetadata().getName();
+            if (subagentType == null || subagentType.isEmpty()) {
+                subagentType = fileName.substring(0, fileName.length() - 3);
+            }
+
+            AbsSubagent subagent = (AbsSubagent) subagentMap.computeIfAbsent(subagentType,
+                    k -> new GeneralPurposeSubagent(mainAgent, k));
+
+            // 设置解析后的属性
+            subagent.setDescription(parsed.getMetadata().getDescription());
+            subagent.setSystemPrompt(parsed.getPrompt());
+            subagent.refresh();
+
+            LOG.debug("加载子代理: {} 从 {}", subagentType, file);
+        } catch (IOException e) {
+            LOG.error("读取代理文件失败: {}", file, e);
         }
     }
 }

@@ -60,6 +60,7 @@ public class AgentKernel {
     public final static String SOLONCODE_SESSIONS = ".soloncode/sessions/";
     public final static String SOLONCODE_SKILLS = ".soloncode/skills/";
     public final static String SOLONCODE_AGENTS = ".soloncode/agents/";
+    public final static String SOLONCODE_AGENTS_TEAMS = ".soloncode/agentsTeams/";
     public final static String SOLONCODE_DOWNLOADS = ".soloncode/downloads/";
     public final static String SOLONCODE_MEMORY = ".soloncode/memory/";
 
@@ -172,6 +173,8 @@ public class AgentKernel {
             subagentManager.agentPool(Paths.get(properties.getWorkDir(), AgentKernel.OPENCODE_AGENTS));
             // 注册 claude agents
             subagentManager.agentPool(Paths.get(properties.getWorkDir(), AgentKernel.CLAUDE_AGENTS));
+            // 注册 soloncode agentsTeams（递归扫描团队成员目录）
+            subagentManager.agentPool(Paths.get(properties.getWorkDir(), AgentKernel.SOLONCODE_AGENTS_TEAMS), true);
 
             // SubagentSkill 会通过 @ToolMapping 自动注册为工具
             agentBuilder.defaultSkillAdd(new TaskSkill(this, subagentManager));
@@ -255,6 +258,10 @@ public class AgentKernel {
                     cliSkills.getPoolManager()
             );
             LOG.debug("MainAgent 已创建");
+
+            // 5.1 初始化 MainAgent（需要传入 ChatModel）
+            this.mainAgent.initialize(chatModel);
+            LOG.debug("MainAgent 已初始化");
 
             // 6. 创建 AgentTeamsSkill 并注册到主 Agent
             AgentTeamsSkill agentTeamsSkill = new AgentTeamsSkill(

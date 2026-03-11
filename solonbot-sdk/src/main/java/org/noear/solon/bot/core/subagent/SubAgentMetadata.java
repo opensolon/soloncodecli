@@ -73,6 +73,9 @@ public class SubAgentMetadata {
     // 隔离配置
     private String isolation;  // worktree
 
+    // 团队配置
+    private String teamName;  // 所属团队名称（用于团队成员）
+
     /**
      * 从系统提示词中解析元数据
      *
@@ -169,6 +172,9 @@ public class SubAgentMetadata {
                         break;
                     case "isolation":
                         metadata.isolation = value;
+                        break;
+                    case "teamName":
+                        metadata.teamName = value;
                         break;
                     // hooks 字段暂不解析（需要复杂的对象解析）
                 }
@@ -340,6 +346,11 @@ public class SubAgentMetadata {
             yaml.append("isolation: ").append(isolation).append("\n");
         }
 
+        // 团队配置
+        if (hasTeamName()) {
+            yaml.append("teamName: ").append(teamName).append("\n");
+        }
+
         yaml.append("---");
 
         return yaml.toString();
@@ -405,5 +416,9 @@ public class SubAgentMetadata {
 
     public boolean hasIsolation() {
         return isolation != null && !isolation.isEmpty();
+    }
+
+    public boolean hasTeamName() {
+        return teamName != null && !teamName.isEmpty();
     }
 }

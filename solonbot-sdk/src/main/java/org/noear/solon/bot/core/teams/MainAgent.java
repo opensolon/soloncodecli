@@ -15,6 +15,7 @@
  */
 package org.noear.solon.bot.core.teams;
 
+import lombok.Getter;
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
@@ -55,6 +56,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author bai
  * @since 3.9.5
  */
+@Getter
 public class MainAgent {
     private static final Logger LOG = LoggerFactory.getLogger(MainAgent.class);
 
@@ -120,8 +122,20 @@ public class MainAgent {
                 });
             }
 
+            // 基础技能
             builder.defaultSkillAdd(skillProvider.getTerminalSkill());
             builder.defaultSkillAdd(skillProvider.getExpertSkill());
+
+            // Agent Teams 工具集（记忆、事件、消息）
+            AgentTeamsTools teamsTools = new AgentTeamsTools(
+                    sharedMemoryManager,
+                    eventBus,
+                    messageChannel
+            );
+            builder.defaultSkillAdd(teamsTools);
+
+            // 子代理调用工具（需要从外部传入或创建）
+            // TaskSkill 会在 AgentKernel 中添加到主 Agent
 
             // 设置较大的步数（主代理需要协调多个任务）
             builder.maxSteps(50);
@@ -706,19 +720,6 @@ public class MainAgent {
         return running.get();
     }
 
-    /**
-     * 获取配置
-     */
-    public SubAgentMetadata getConfig() {
-        return config;
-    }
-
-    /**
-     * 获取共享任务列表
-     */
-    public SharedTaskList getTaskList() {
-        return taskList;
-    }
 
     /**
      * 清理资源
