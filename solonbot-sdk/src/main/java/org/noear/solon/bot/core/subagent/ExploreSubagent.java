@@ -16,9 +16,16 @@
 package org.noear.solon.bot.core.subagent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
+import org.noear.solon.ai.agent.react.intercept.summarize.CompositeSummarizationStrategy;
+import org.noear.solon.ai.agent.react.intercept.summarize.HierarchicalSummarizationStrategy;
+import org.noear.solon.ai.agent.react.intercept.summarize.KeyInfoExtractionStrategy;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.core.LuceneSkill;
 import org.noear.solon.bot.core.tool.CodeSearchTool;
+import org.noear.solon.bot.core.tool.WebfetchTool;
+import org.noear.solon.bot.core.tool.WebsearchTool;
 
 import java.util.Arrays;
 
@@ -41,11 +48,20 @@ public class ExploreSubagent extends AbsSubagent {
                 .getToolAry("ls", "read", "grep", "glob"));
 
         builder.defaultSkillAdd(mainAgent.getCliSkills().getExpertSkill());
+
+
         builder.defaultSkillAdd(LuceneSkill.getInstance());
+
+        // 添加网络工具
+        builder.defaultToolAdd(WebfetchTool.getInstance());
+        builder.defaultToolAdd(WebsearchTool.getInstance());
         builder.defaultToolAdd(CodeSearchTool.getInstance());
+
+        builder.defaultInterceptorAdd(mainAgent.getSummarizationInterceptor());
 
         // 设置最大步数（探索任务通常需要较少步数）
         builder.maxSteps(15);
+        builder.maxStepsExtensible(true);
 
         // 设置会话窗口大小
         builder.sessionWindowSize(5);
@@ -73,19 +89,13 @@ public class ExploreSubagent extends AbsSubagent {
 
     @Override
     protected String getDefaultDescription() {
-        return "快速探索子代理，专门用于查找文件、分析和理解代码结构和回答代码库问题";
+        return "快速探索子代理，专门用于 **本地项目** 查找文件、分析和理解代码结构和回答代码库问题";
     }
 
     @Override
     protected String getDefaultSystemPrompt() {
         return "## 探索子代理 (只读侦察兵)\n\n" +
-                "你是一个代码库调研专家。**你的终极目标是深度理解代码，严禁任何形式的修改。**\n\n" +
-                "### 搜索策略指南\n" +
-                "1. **符号定位 (Lucene)**：查找类名、方法名或接口定义时，优先使用 Lucene。\n" +
-                "2. **模式匹配 (Glob)**：按文件名后缀或路径模式查找文件时使用 Glob。\n" +
-                "3. **关键字检索 (Grep)**：在文件内容中搜索特定文本或字符串时使用 Grep。\n" +
-                "4. **深度调研 (CodeSearch)**：遇到不熟悉的第三方库 API 或编程模式时，调用此工具获取外部背景。\n" +
-                "5. **内容阅读 (Read)**：在得出结论前，必须阅读相关文件的核心代码。\n\n" +
+                "你是一个本地代码库调研专家。**你的终极目标是深度理解代码，严禁任何形式的修改。**\n\n" +
 
                 "### 核心原则\n" +
                 "- **禁止修改**：你没有修改文件的权限，严禁尝试写操作。\n" +

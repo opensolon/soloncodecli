@@ -56,7 +56,6 @@ public class SubagentManager {
         addSubagent(new GeneralPurposeSubagent(mainAgent));
 
         addSubagent(new BashSubagent(mainAgent));
-        addSubagent(new SolonGuideSubagent(mainAgent));
     }
 
 

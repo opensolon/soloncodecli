@@ -1,5 +1,6 @@
 package org.noear.solon.bot.core;
 
+import com.microsoft.playwright.Playwright;
 import lombok.Getter;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
@@ -9,6 +10,7 @@ import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActRequest;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
@@ -17,6 +19,8 @@ import org.noear.solon.bot.core.goalker.GoalKeeperIntegration;
 import org.noear.solon.bot.core.memory.SharedMemoryManager;
 import org.noear.solon.bot.core.message.MessageChannel;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
+import org.noear.solon.ai.skills.restapi.RestApiSkill;
+import org.noear.solon.bot.core.config.ApiServerParameters;
 import org.noear.solon.bot.core.subagent.SubagentManager;
 import org.noear.solon.bot.core.subagent.TaskSkill;
 import org.noear.solon.bot.core.teams.AgentTeamsSkill;
@@ -30,6 +34,7 @@ import org.noear.solon.bot.core.tool.WebsearchTool;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.mcp.client.McpProviders;
 import org.noear.solon.core.util.Assert;
+import org.noear.solon.core.util.ClassUtil;
 import org.noear.solon.core.util.IoUtil;
 import org.noear.solon.core.util.ResourceUtil;
 import org.noear.solon.lang.Preview;
@@ -43,6 +48,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -65,6 +71,7 @@ public class AgentKernel {
     public final static String SOLONCODE_AGENTS = ".soloncode/agents/";
     public final static String SOLONCODE_AGENTS_TEAMS = ".soloncode/agentsTeams/";
     public final static String SOLONCODE_DOWNLOADS = ".soloncode/downloads/";
+    public final static String SOLONCODE_BROWSER = ".soloncode/browser/";
     public final static String SOLONCODE_MEMORY = ".soloncode/memory/";
 
     public final static String OPENCODE_SKILLS = ".opencode/skills/";
@@ -80,9 +87,14 @@ public class AgentKernel {
     private final LuceneSkill luceneSkill = new LuceneSkill();
 
     private final ReActAgent reActAgent;
+
     private final McpProviders mcpProviders;
+    private final RestApiSkill restApis;
+
     private final Consumer<ReActAgent.Builder> configurator;
     private final CliSkillProvider cliSkills = new CliSkillProvider();
+
+    private final SummarizationInterceptor summarizationInterceptor;
 
     private SubagentManager subagentManager;
 
@@ -94,7 +106,7 @@ public class AgentKernel {
     private MessageChannel messageChannel;
 
     public String getVersion() {
-        return "v0.0.20";
+        return "v0.0.22";
     }
 
     public String getName() {
@@ -105,11 +117,26 @@ public class AgentKernel {
         return properties;
     }
 
+    public SummarizationInterceptor getSummarizationInterceptor() {
+        return summarizationInterceptor;
+    }
+
     public AgentKernel(ChatModel chatModel, AgentProperties properties, AgentSessionProvider sessionProvider, Consumer<ReActAgent.Builder> configurator) {
         this.chatModel = chatModel;
         this.properties = properties;
         this.sessionProvider = sessionProvider;
         this.configurator = configurator;
+
+        if(Assert.isNotEmpty(properties.getRestApis())) {
+            restApis = new RestApiSkill();
+            for (Map.Entry<String, ApiServerParameters> entry : properties.getRestApis().entrySet()) {
+                restApis.addApi(entry.getValue().getDocUrl(),
+                        entry.getValue().getApiBaseUrl(),
+                        entry.getValue().getHeaders());
+            }
+        } else {
+            restApis = null;
+        }
 
         try {
             if (Assert.isNotEmpty(properties.getMcpServers())) {
@@ -162,7 +189,7 @@ public class AgentKernel {
         agentBuilder.defaultSkillAdd(codeSkill);
         agentBuilder.defaultSkillAdd(luceneSkill);
 
-        if(properties.isBrowserEnabled()) {
+        if(properties.isBrowserEnabled() && ClassUtil.hasClass(()-> Playwright.class)) {
             agentBuilder.defaultSkillAdd(new BrowserSkill());
         }
 
@@ -189,9 +216,14 @@ public class AgentKernel {
         }
 
         //上下文摘要
-        SummarizationInterceptor summarizationInterceptor = new SummarizationInterceptor(
+        SummarizationStrategy strategy = new CompositeSummarizationStrategy()
+                .addStrategy(new KeyInfoExtractionStrategy(chatModel))      // 提取干货（去水）
+                .addStrategy(new HierarchicalSummarizationStrategy(chatModel)); // 滚动更新摘要
+
+        summarizationInterceptor = new SummarizationInterceptor(
                 properties.getSummaryWindowSize(),
-                new HierarchicalSummarizationStrategy(chatModel));
+                properties.getSummaryWindowToken(),
+                strategy);
 
         agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
 
@@ -213,6 +245,10 @@ public class AgentKernel {
             for (McpClientProvider mcpProvider : mcpProviders.getProviders().values()) {
                 agentBuilder.defaultToolAdd(mcpProvider);
             }
+        }
+
+        if(restApis != null){
+            agentBuilder.defaultSkillAdd(restApis);
         }
 
         if (configurator != null) {

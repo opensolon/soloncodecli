@@ -24,12 +24,13 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.bot.codecli.portal.CliShellNew;
 import org.noear.solon.bot.codecli.portal.CliShellOld;
 import org.noear.solon.bot.core.AgentProperties;
 import org.noear.solon.bot.codecli.portal.AcpLink;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.codecli.portal.WebGate;
+import org.noear.solon.bot.core.BrowserManager;
+import org.noear.solon.core.event.AppStopEndEvent;
 
 import java.nio.file.Paths;
 import java.util.Map;
@@ -57,6 +58,10 @@ public class App {
                 app.enableHttp(true);
                 app.enableWebSocket(true);
             }
+
+            app.onEvent(AppStopEndEvent.class, e->{
+                BrowserManager.closeAll();
+            });
         });
 
         AgentProperties config = Solon.context().getBean(AgentProperties.class);

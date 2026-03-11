@@ -16,6 +16,8 @@
 package org.noear.solon.bot.core.subagent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.summarize.HierarchicalSummarizationStrategy;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.core.LuceneSkill;
 import org.noear.solon.bot.core.tool.CodeSearchTool;
@@ -98,14 +100,17 @@ public class GeneralPurposeSubagent extends AbsSubagent {
         builder.defaultToolAdd(WebsearchTool.getInstance());
         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
+        builder.defaultInterceptorAdd(mainAgent.getSummarizationInterceptor());
+
         // 如果主 CodeAgent 有代码搜索能力，也可以添加
         // 这里可以根据需要动态添加工具
 
         // 设置最大步数（通用任务可能需要更多步数）
         builder.maxSteps(25);
+        builder.maxStepsExtensible(true);
 
         // 设置会话窗口大小
-        builder.sessionWindowSize(10);
+        builder.sessionWindowSize(5);
     }
 
     @Override
@@ -115,13 +120,14 @@ public class GeneralPurposeSubagent extends AbsSubagent {
 
     @Override
     protected String getDefaultDescription() {
-        return "通用子代理，擅长研究复杂问题、搜索代码和执行多步骤任务";
+        return "通用子代理，擅长研究复杂问题、执行多步骤任务";
     }
 
     @Override
     protected String getDefaultSystemPrompt() {
         return "## 通用任务代理\n\n" +
                 "你是一个全能型执行专家，负责处理复杂、多步骤且需要综合能力的开发任务。\n\n" +
+
                 "### 工具使用策略\n" +
                 "1. **本地搜索 (内部)**：定位项目内代码、符号或文件时，优先使用 Lucene 或内置的 grep/glob。\n" +
                 "2. **全网调研 (外部)**：遇到新技术、查阅第三方 SDK 文档或寻找业界最佳实践时，使用 CodeSearch 或 WebSearch。\n" +

@@ -19,9 +19,9 @@ import lombok.Getter;
 import lombok.Setter;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.mcp.client.McpServerParameters;
-import org.noear.solon.annotation.BindProps;
-import org.noear.solon.annotation.Configuration;
+import org.noear.solon.bot.core.config.ApiServerParameters;
 
+import java.io.Serializable;
 import java.util.Map;
 
 /**
@@ -32,14 +32,16 @@ import java.util.Map;
  */
 @Getter
 @Setter
-public class AgentProperties {
+public class AgentProperties implements Serializable {
     private String workDir = "./work/";
 
     private int maxSteps = 30;
     private boolean maxStepsAutoExtensible = false;
 
     private int sessionWindowSize = 10;
-    private int summaryWindowSize = 15;
+
+    private int summaryWindowSize = 12;
+    private int summaryWindowToken = 15000;
 
     private boolean sandboxMode = true;
     private boolean thinkPrinted = false;
@@ -93,6 +95,9 @@ public class AgentProperties {
      */
     public Map<String, String> subAgentModels;
 
+    private Map<String, ApiServerParameters> restApis;
+    private Map<String, McpServerParameters> mcpServers;
+    private ChatConfig chatModel;
     @Deprecated
     private Map<String, String> mountPool;
     private Map<String, String> skillPools;

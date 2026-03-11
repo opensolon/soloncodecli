@@ -20,6 +20,7 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
+import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
@@ -69,9 +70,9 @@ public class TaskSkill extends AbsSkill {
     @Override
     public String getInstruction(Prompt prompt) {
         StringBuilder sb = new StringBuilder();
-        sb.append("## 战略调度协议 (Orchestration Protocol)\n");
-        sb.append("你拥有派生专项子代理的能力。对于重型或涉及全局认知的任务，你必须扮演【调度员】而非【执行者】。\n\n");
+        sb.append("处理复杂的、多步骤的任务，必须委派子代理（Subagent）执行\n\n");
 
+        sb.append("可用的代理类型及其拥有的工具：\n");
         // ========== 新增：禁止模拟工作规则 ==========
         sb.append("### ⚠️ 核心规则（强制执行）\n\n");
         sb.append("#### 🚫 禁止行为\n");
@@ -99,8 +100,7 @@ public class TaskSkill extends AbsSkill {
         sb.append("请根据任务语义匹配最合适的 `subagent_type`：\n");
         sb.append("<available_agents>\n");
         for (Subagent agent : manager.getAgents()) {
-            sb.append(String.format("  <agent subagent_type=\"%s\" capability=\"%s\" />\n",
-                    agent.getType(), agent.getDescription()));
+            sb.append(String.format("  - \"%s\": %s\n", agent.getType(), agent.getDescription()));
         }
         sb.append("</available_agents>\n\n");
 
@@ -115,7 +115,7 @@ public class TaskSkill extends AbsSkill {
 
     @ToolMapping(name = "task",
                  description = "【强制使用】派生并分派任务给专项子代理。所有实际开发工作（代码编写、文件创建、测试执行等）必须使用此工具委派给子代理完成，禁止在主对话中模拟执行或虚假声称完成。子代理会实际创建文件并返回真实结果。")
-    public String handle(
+    public String task(
             @Param(name = "subagent_type", description = "子代理类型") String subagent_type,
             @Param(name = "prompt",description = "具体指令。必须包含任务目标、关键类名或必要的背景上下文。") String prompt,
             @Param(name = "description", required = false, description = "简短的任务描述（3-5个词），给用户看") String description,
@@ -156,6 +156,8 @@ public class TaskSkill extends AbsSkill {
                 ReActChunk chunk1 = (ReActChunk) agent.stream(__cwd, finalSessionId, Prompt.of(prompt))
                         .doOnNext(chunk -> {
                             if(chunk instanceof ActionChunk) {
+                                __parentTrace.getOptions().getStreamSink().next(chunk);
+                            } else if(chunk instanceof ReasonChunk){
                                 __parentTrace.getOptions().getStreamSink().next(chunk);
                             }
                         })

@@ -16,6 +16,8 @@
 package org.noear.solon.bot.core.subagent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
+import org.noear.solon.ai.agent.react.intercept.summarize.HierarchicalSummarizationStrategy;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.bot.core.LuceneSkill;
 import org.noear.solon.bot.core.tool.CodeSearchTool;
@@ -44,16 +46,21 @@ public class PlanSubagent extends AbsSubagent {
                 .getToolAry("ls", "read", "grep", "glob"));
 
         builder.defaultSkillAdd(mainAgent.getCliSkills().getExpertSkill());
+
         builder.defaultSkillAdd(LuceneSkill.getInstance());
+
         builder.defaultToolAdd(WebsearchTool.getInstance());
         builder.defaultToolAdd(WebfetchTool.getInstance());
         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
+        builder.defaultInterceptorAdd(mainAgent.getSummarizationInterceptor());
+
         // 设置最大步数（计划任务通常需要较少步数）
         builder.maxSteps(20);
+        builder.maxStepsExtensible(true);
 
         // 设置会话窗口大小
-        builder.sessionWindowSize(8);
+        builder.sessionWindowSize(5);
     }
 
     @Override
