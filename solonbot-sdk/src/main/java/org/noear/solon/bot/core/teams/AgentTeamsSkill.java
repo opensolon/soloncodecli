@@ -40,6 +40,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Collectors;
 
 /**
  * Agent Teams 技能
@@ -62,7 +63,6 @@ public class AgentTeamsSkill extends AbsSkill {
     private final MainAgent mainAgent;
     private final AgentKernel kernel;
     private final SubagentManager manager;
-    private final AgentTeamsTools agentTeamsTools;  // 内部工具集
     private final IntelligentMemoryManager intelligentMemoryManager;
 
     /**
@@ -72,16 +72,6 @@ public class AgentTeamsSkill extends AbsSkill {
         this.mainAgent = mainAgent;
         this.kernel = kernel;
         this.manager = manager;
-
-        // 初始化内部工具集
-        if (mainAgent != null) {
-            this.agentTeamsTools = new AgentTeamsTools(
-                mainAgent.getSharedMemoryManager(),
-                mainAgent.getEventBus()
-            );
-        } else {
-            this.agentTeamsTools = null;
-        }
 
         // 初始化智能记忆管理器
         if (mainAgent != null && mainAgent.getSharedMemoryManager() != null) {
@@ -155,14 +145,19 @@ public class AgentTeamsSkill extends AbsSkill {
 
         sb.append("### 核心能力\n");
         sb.append("1. **团队协作任务**: 使用 `team_task()` 启动多代理协作\n");
-        sb.append("2. **任务管理**: 查看、创建团队任务\n");
+        sb.append("2. **任务管理**: \n");
+        sb.append("   - `create_task()` 创建任务，`team_status()` 查看状态\n");
+        sb.append("   - `claim_task()` 认领，`complete_task()` 完成，`fail_task()` 失败\n");
+        sb.append("   - `list_all_tasks()` 列出所有，`get_claimable_tasks()` 获取可认领\n");
         sb.append("3. **子代理调用**: 使用 `task()` 委派专门任务（支持会话续接）【强制使用】\n");
-        sb.append("4. **动态代理**: 使用 `create_agent()` 创建新的子代理定义\n");
+        sb.append("4. **团队成员管理**: 使用 `teammate()` 创建，`teammates()` 列出，`remove_teammate()` 移除\n");
         sb.append("5. **智能记忆管理**: 使用 `memory_store()` 自动分类存储（推荐）\n");
         sb.append("   - 自动分类：决策→永久、任务→7天、临时→10分钟\n");
         sb.append("   - 自动评分：多维度评估记忆重要性（0-10分）\n");
         sb.append("   - 智能检索：`memory_recall()` 按相关性排序\n");
-        sb.append("6. **代理间通信**: 使用 `send_message()` 向其他代理发送消息\n\n");
+        sb.append("6. **工作记忆**: `get_working_memory()` 查看，`update_working_memory()` 更新\n");
+        sb.append("7. **代理间通信**: 使用 `send_message()` 发送消息，`list_agents()` 查看可用代理\n");
+        sb.append("8. **团队命名**: 使用 `suggest_team_name()` 获取命名建议\n\n");
 
         sb.append("### 强制委派准则\n");
         sb.append("- **项目认知**: 探索项目、分析架构 → 委派给子代理\n");
@@ -187,6 +182,55 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append("1. **创建成员**: 使用 `teammate()` 创建新的团队成员\n");
         sb.append("2. **列出成员**: 使用 `teammates()` 查看所有团队成员（表格格式）\n");
         sb.append("3. **移除成员**: 使用 `remove_teammate()` 移除团队成员\n\n");
+
+        sb.append("### 团队成员配置选项\n\n");
+        sb.append("**基本配置**:\n");
+        sb.append("- `name`: 成员唯一标识（如：security-expert）\n");
+        sb.append("- `role`: 角色描述（如：安全专家）\n");
+        sb.append("- `description`: 详细职责描述\n");
+        sb.append("- `teamName`: 团队名称（可选，自动生成）\n\n");
+
+        sb.append("**技能与工具配置**:\n");
+        sb.append("- `expertise`: 专业领域（如：security,auth,encryption）\n");
+        sb.append("- `skills`: 启用的技能列表（如：expert,terminal,lucene）\n");
+        sb.append("- `tools`: 启用的工具列表（如：read,write,edit,browser）\n");
+        sb.append("- `disallowedTools`: 禁用的工具列表\n");
+        sb.append("- `mcpServers`: 启用的 MCP 服务器\n");
+        sb.append("- `includeAgentTeamsTools`: 引入记忆管理工具（默认true）\n\n");
+
+        sb.append("**可用工具参考**:\n");
+        sb.append("- **文件操作**: `read`, `write`, `edit`, `ls`, `find`（由子代理提供）\n");
+        sb.append("- **浏览器**: `browser_screenshot`, `browser_interact`, `browser_navigate`（由子代理提供）\n");
+        sb.append("- **记忆管理**: `memory_store`, `memory_recall`, `memory_stats`\n");
+        sb.append("- **工作记忆**: `get_working_memory`, `update_working_memory`\n");
+        sb.append("- **任务管理**: `create_task`, `team_status`, `claim_task`, `complete_task`, `list_all_tasks`\n");
+        sb.append("- **团队协作**: `task`（子代理调用）, `teammate`, `teammates`, `remove_teammate`\n");
+        sb.append("- **代理通信**: `send_message`, `list_agents`, `get_message_stats`\n");
+        sb.append("- **团队命名**: `suggest_team_name`\n\n");
+
+        sb.append("**使用示例**:\n");
+        sb.append("```bash\n");
+        sb.append("# 创建带记忆管理工具的成员\n");
+        sb.append("teammate(\n");
+        sb.append("    name=\"analyst\",\n");
+        sb.append("    role=\"数据分析师\",\n");
+        sb.append("    description=\"负责数据分析和报告生成\",\n");
+        sb.append("    skills=\"expert,lucene\",\n");
+        sb.append("    tools=\"read,write,ls\"\n");
+        sb.append(")\n\n");
+        sb.append("# 创建带浏览器工具的成员\n");
+        sb.append("teammate(\n");
+        sb.append("    name=\"browser-bot\",\n");
+        sb.append("    role=\"浏览器自动化专家\",\n");
+        sb.append("    tools=\"browser_screenshot,browser_interact,browser_navigate\"\n");
+        sb.append(")\n\n");
+        sb.append("# 创建禁用某些工具的成员\n");
+        sb.append("teammate(\n");
+        sb.append("    name=\"read-only-expert\",\n");
+        sb.append("    role=\"只读代码审查专家\",\n");
+        sb.append("    disallowedTools=\"write,edit,bash\"\n");
+        sb.append(")\n");
+        sb.append("```\n\n");
 
         sb.append("### 任务链协调：如何将结果传递给下一个 subagent\n\n");
         sb.append("**⚠️ 重要：完成任务链协调的三种方法**\n\n");
@@ -230,14 +274,14 @@ public class AgentTeamsSkill extends AbsSkill {
         sb.append("    teamName=\"myteam\"              # 指定团队名称\n");
         sb.append(")\n");
         sb.append("# 生成文件: .soloncode/agentsTeams/myteam/security-expert.md\n\n");
-        sb.append("# 场景2: 创建成员（不指定团队，自动生成）\n");
+        sb.append("# 场景2: 创建成员（不指定团队，智能生成）\n");
         sb.append("teammate(\n");
         sb.append("    name=\"db-optimizer\",\n");
         sb.append("    role=\"db-optimizer\",\n");
         sb.append("    description=\"SQL 查询优化\"\n");
         sb.append(")\n");
-        sb.append("# 自动生成团队名: team-1736640123456\n");
-        sb.append("# 生成文件: .soloncode/agentsTeams/team-1736640123456/db-optimizer.md\n");
+        sb.append("# 智能生成团队名: database-team (根据关键词自动识别)\n");
+        sb.append("# 生成文件: .soloncode/agentsTeams/database-team/db-optimizer.md\n");
         sb.append("# 团队名会保存到内存，后续创建会自动使用同一团队\n\n");
         sb.append("# 场景3: 查看所有成员\n");
         sb.append("teammates()\n\n");
@@ -570,11 +614,16 @@ public class AgentTeamsSkill extends AbsSkill {
             @Param(name = "name", description = "团队成员唯一标识（如：security-expert）") String name,
             @Param(name = "role", description = "角色描述（如：安全专家）") String role,
             @Param(name = "description", description = "详细职责描述") String description,
-            @Param(name = "teamName", required = false, description = "团队名称（如：myteam）。如果不指定，将自动生成（格式：team-{timestamp}）") String teamName,
+            @Param(name = "teamName", required = false, description = "团队名称（如：myteam）。如果不指定，将根据角色和描述智能生成语义化名称（如：database-team、security-squad）") String teamName,
             @Param(name = "systemPrompt", required = false, description = "系统提示词，定义行为模式") String systemPrompt,
             @Param(name = "expertise", required = false, description = "专业领域，逗号分隔（如：security,auth,encryption）") String expertise,
             @Param(name = "model", required = false, description = "使用的模型（如：默认）") String model,
             @Param(name = "searchContext", required = false, description = "是否联网搜索相关上下文（默认false）") Boolean searchContext,
+            @Param(name = "tools", required = false, description = "启用的工具列表，逗号分隔（如：read,write,edit,browser）") String tools,
+            @Param(name = "disallowedTools", required = false, description = "禁用的工具列表，逗号分隔") String disallowedTools,
+            @Param(name = "skills", required = false, description = "启用的技能列表，逗号分隔（如：expert,terminal,lucene）") String skills,
+            @Param(name = "mcpServers", required = false, description = "启用的 MCP 服务器，逗号分隔") String mcpServers,
+            @Param(name = "includeAgentTeamsTools", required = false, description = "是否引入 AgentTeamsTool 的记忆管理工具（memory_store, memory_recall等），默认true") Boolean includeAgentTeamsTools,
             String __cwd
     ) {
         try {
@@ -630,9 +679,56 @@ public class AgentTeamsSkill extends AbsSkill {
                 metadata.setSkills(Arrays.asList(expertise.split(",\\s*")));
             }
 
+            // 设置启用的工具
+            if (tools != null && !tools.isEmpty()) {
+                metadata.setTools(Arrays.asList(tools.split(",\\s*")));
+            }
+
+            // 设置禁用的工具
+            if (disallowedTools != null && !disallowedTools.isEmpty()) {
+                metadata.setDisallowedTools(Arrays.asList(disallowedTools.split(",\\s*")));
+            }
+
+            // 设置启用的技能
+            if (skills != null && !skills.isEmpty()) {
+                // 合并 expertise 定义的技能和 skills 参数定义的技能
+                List<String> allSkills = new ArrayList<>();
+                if (metadata.getSkills() != null) {
+                    allSkills.addAll(metadata.getSkills());
+                }
+                allSkills.addAll(Arrays.asList(skills.split(",\\s*")));
+                metadata.setSkills(allSkills);
+            }
+
+            // 设置 MCP 服务器
+            if (mcpServers != null && !mcpServers.isEmpty()) {
+                metadata.setMcpServers(Arrays.asList(mcpServers.split(",\\s*")));
+            }
+
             // 设置模型
             if (model != null && !model.isEmpty()) {
                 metadata.setModel(model);
+            }
+
+            // 是否引入 AgentTeamsTool 的记忆管理工具
+            boolean includeTools = (includeAgentTeamsTools != null && includeAgentTeamsTools) ||
+                                  (includeAgentTeamsTools == null);  // 默认启用
+
+            if (includeTools) {
+                // 如果用户没有明确指定 tools，则自动添加记忆管理工具
+                if ((tools == null || tools.isEmpty()) &&
+                    (metadata.getTools() == null || metadata.getTools().isEmpty())) {
+                    // 自动添加记忆管理相关工具
+                    List<String> defaultTools = Arrays.asList(
+                        "memory_store",
+                        "memory_recall",
+                        "memory_stats",
+                        "working_memory_set",
+                        "working_memory_get"
+                    );
+                    metadata.setTools(defaultTools);
+                    LOG.info("已自动引入 AgentTeamsTool 记忆管理工具");
+                }
             }
 
             // 生成系统提示词（如果没有提供）
@@ -684,6 +780,30 @@ public class AgentTeamsSkill extends AbsSkill {
 
             if (model != null && !model.isEmpty()) {
                 result.append(String.format("| **模型** | %s |\n", model));
+            }
+
+            // 显示启用的技能
+            if (metadata.getSkills() != null && !metadata.getSkills().isEmpty()) {
+                result.append(String.format("| **技能** | %s |\n",
+                        String.join(", ", metadata.getSkills())));
+            }
+
+            // 显示启用的工具
+            if (metadata.getTools() != null && !metadata.getTools().isEmpty()) {
+                result.append(String.format("| **工具** | %s |\n",
+                        String.join(", ", metadata.getTools())));
+            }
+
+            // 显示禁用的工具
+            if (metadata.getDisallowedTools() != null && !metadata.getDisallowedTools().isEmpty()) {
+                result.append(String.format("| **禁用工具** | %s |\n",
+                        String.join(", ", metadata.getDisallowedTools())));
+            }
+
+            // 显示 MCP 服务器
+            if (metadata.getMcpServers() != null && !metadata.getMcpServers().isEmpty()) {
+                result.append(String.format("| **MCP服务** | %s |\n",
+                        String.join(", ", metadata.getMcpServers())));
             }
 
             result.append(String.format("| **状态** | 🟢 已激活 |\n"));
@@ -1646,5 +1766,164 @@ public class AgentTeamsSkill extends AbsSkill {
             LOG.error("获取消息统计失败", e);
             return "[ERROR] 获取失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 为团队提供命名建议
+     */
+    @ToolMapping(name = "suggest_team_name",
+            description = "为现有团队或即将创建的团队提供更好的命名建议。分析团队成员的角色和职责，生成语义化的团队名。")
+    public String suggestTeamName(
+            @Param(name = "oldTeamName", required = false,
+                    description = "现有团队名（可选）。如果提供，将分析该团队的成员并给出改进建议") String oldTeamName,
+            @Param(name = "role", required = false,
+                    description = "主要角色（可选）。如：security-expert") String role,
+            @Param(name = "description", required = false,
+                    description = "团队描述（可选）。如：专注于系统安全") String description
+    ) {
+        StringBuilder result = new StringBuilder();
+
+        if (oldTeamName != null && !oldTeamName.isEmpty()) {
+            // 分析现有团队
+            result.append(analyzeExistingTeam(oldTeamName));
+        } else {
+            // 为新团队生成建议
+            result.append(generateSuggestions(role, description));
+        }
+
+        return result.toString();
+    }
+
+    /**
+     * 分析现有团队并提供建议
+     */
+    private String analyzeExistingTeam(String oldTeamName) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("## 团队名称分析\n\n");
+
+        // 检查是否是旧的时间戳格式（如 team-1736640123456）
+        // 注意：新版本已改用智能生成，此处仅用于迁移旧数据
+        if (oldTeamName.matches("^team-\\d+$")) {
+            sb.append("⚠️ **当前团队名**: `").append(oldTeamName).append("`\n\n");
+            sb.append("**问题**: 检测到旧版本时间戳格式，已不够语义化。\n");
+            sb.append("**说明**: 新版本已改用智能语义化生成（如 database-team、security-squad）。\n\n");
+
+            // 获取该团队的成员
+            List<String> memberNames = getTeamMembers(oldTeamName);
+            if (!memberNames.isEmpty()) {
+                sb.append("**当前成员**:\n");
+                for (String member : memberNames) {
+                    sb.append("  - ").append(member).append("\n");
+                }
+                sb.append("\n");
+
+                // 生成建议
+                String suggestedName = TeamNameGenerator.suggestBetterName(oldTeamName, memberNames);
+                if (suggestedName != null) {
+                    sb.append("✅ **建议团队名**: `").append(suggestedName).append("`\n\n");
+                    sb.append("**建议描述**: ")
+                            .append(TeamNameGenerator.getTeamDescription(suggestedName))
+                            .append("\n\n");
+                }
+            }
+
+            sb.append("**如何重命名**:\n");
+            sb.append("使用 `create_team` 工具创建新团队，并指定语义化的 teamName。\n");
+        } else {
+            sb.append("✅ **当前团队名**: `").append(oldTeamName).append("`\n\n");
+
+            // 检查团队名是否有效
+            if (!TeamNameGenerator.isValidTeamName(oldTeamName)) {
+                sb.append("⚠️ **问题**: 团队名格式不符合规范（只允许小写字母、数字和连字符）\n\n");
+                String normalized = TeamNameGenerator.normalizeTeamName(oldTeamName);
+                sb.append("✅ **规范化建议**: `").append(normalized).append("`\n\n");
+            } else {
+                sb.append("✅ 团队名格式正确！\n\n");
+
+                // 提取领域
+                String domain = TeamNameGenerator.extractDomainFromTeamName(oldTeamName);
+                if (domain != null) {
+                    sb.append("**识别的领域**: ").append(domain).append("\n\n");
+                    sb.append("**团队描述**: ")
+                            .append(TeamNameGenerator.getTeamDescription(oldTeamName))
+                            .append("\n\n");
+                }
+            }
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * 为新团队生成命名建议
+     */
+    private String generateSuggestions(String role, String description) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("## 团队命名建议\n\n");
+
+        if (role == null && description == null) {
+            sb.append("请提供角色或描述信息，以便生成更准确的团队名建议。\n\n");
+            sb.append("**示例**:\n");
+            sb.append("```\n");
+            sb.append("suggest_team_name(role=\"security-expert\", description=\"专注于安全审计\")\n");
+            sb.append("```\n\n");
+
+            sb.append("**常见领域示例**:\n");
+            sb.append("- `security-squad` - 安全专家团队\n");
+            sb.append("- `database-team` - 数据库专家团队\n");
+            sb.append("- `frontend-experts` - 前端开发团队\n");
+            sb.append("- `backend-force` - 后端开发团队\n");
+            sb.append("- `devops-alliance` - 运维自动化团队\n");
+            sb.append("- `testing-guild` - 质量保证团队\n");
+            sb.append("- `architecture-lab` - 架构设计团队\n");
+            sb.append("- `ai-collective` - 人工智能团队\n");
+
+            return sb.toString();
+        }
+
+        // 生成建议
+        String teamName = TeamNameGenerator.generateTeamName(
+                role != null ? role : "expert",
+                description != null ? description : "",
+                null
+        );
+
+        sb.append("**基于输入生成的建议**:\n\n");
+        sb.append("```\n");
+        sb.append("团队名: ").append(teamName).append("\n");
+        sb.append("描述: ").append(TeamNameGenerator.getTeamDescription(teamName)).append("\n");
+        sb.append("```\n\n");
+
+        // 生成多个备选方案
+        sb.append("**其他备选方案**:\n\n");
+        String taskGoal = description != null ? description : role;
+        for (int i = 0; i < 3; i++) {
+            String alternative = TeamNameGenerator.generateTeamName(
+                    role + "-" + i,
+                    description,
+                    taskGoal
+            );
+            sb.append((i + 1)).append(". `").append(alternative).append("` - ")
+                    .append(TeamNameGenerator.getTeamDescription(alternative))
+                    .append("\n");
+        }
+
+        sb.append("\n**使用方法**:\n");
+        sb.append("在创建团队成员时使用 `teamName=\"").append(teamName).append("\"` 参数。\n");
+
+        return sb.toString();
+    }
+
+    /**
+     * 获取团队成员
+     */
+    private List<String> getTeamMembers(String teamName) {
+        return manager.getAgents().stream()
+                .filter(agent -> agent.getMetadata().hasTeamName() &&
+                        agent.getMetadata().getTeamName().equals(teamName))
+                .map(agent -> agent.getMetadata().getCode())
+                .collect(Collectors.toList());
     }
 }
