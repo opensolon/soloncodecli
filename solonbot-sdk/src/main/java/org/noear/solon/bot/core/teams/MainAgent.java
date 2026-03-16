@@ -17,16 +17,13 @@ package org.noear.solon.bot.core.teams;
 
 import lombok.Getter;
 import org.noear.solon.ai.agent.AgentChunk;
-import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.bot.core.AgentKernel;
-import org.noear.solon.bot.core.CliSkillProvider;
 import org.noear.solon.bot.core.PoolManager;
-import org.noear.solon.bot.core.SystemPrompt;
 import org.noear.solon.bot.core.event.AgentEvent;
 import org.noear.solon.bot.core.event.AgentEventType;
 import org.noear.solon.bot.core.event.EventBus;
@@ -40,7 +37,6 @@ import org.noear.solon.bot.core.message.MessageAck;
 import org.noear.solon.bot.core.message.MessageChannel;
 import org.noear.solon.bot.core.subagent.SubAgentMetadata;
 import org.noear.solon.bot.core.subagent.SubagentManager;
-import org.noear.solon.bot.core.subagent.TaskSkill;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -96,6 +92,8 @@ public class MainAgent {
 
     // 性能优化：使用 CountDownLatch 替代轮询
     private volatile CountDownLatch taskCompletionLatch;
+
+
 
     public MainAgent(SubAgentMetadata config,
                      AgentSessionProvider sessionProvider,
@@ -386,7 +384,7 @@ public class MainAgent {
             payload.put("tasks", tasks);
 
             AgentMessage<Map<String, Object>> message = AgentMessage.<Map<String, Object>>of(payload)
-                    .from(config.getCode())
+                    .from(config.getName())
                     .to("*")
                     .type("task_notification")
                     .build();
@@ -659,7 +657,7 @@ public class MainAgent {
     private void registerMessageHandler() {
         if (messageChannel != null) {
             messageHandlerId = messageChannel.registerHandler(
-                    config.getCode(),
+                    config.getName(),
                     this::handleMessage
             );
             LOG.info("MainAgent 消息处理器已注册");
@@ -719,7 +717,7 @@ public class MainAgent {
     private void publishEvent(AgentEventType eventType, Object payload, String taskId) {
         if (eventBus != null) {
             EventMetadata metadata = EventMetadata.builder()
-                    .sourceAgent(config.getCode())
+                    .sourceAgent(config.getName())
                     .taskId(taskId)
                     .priority(5)
                     .build();
@@ -883,7 +881,7 @@ public class MainAgent {
 
         // 注销消息处理器
         if (messageChannel != null && messageHandlerId != null) {
-            messageChannel.unregisterHandler(config.getCode(), messageHandlerId);
+            messageChannel.unregisterHandler(config.getName(), messageHandlerId);
             LOG.info("MainAgent 消息处理器已注销");
         }
     }

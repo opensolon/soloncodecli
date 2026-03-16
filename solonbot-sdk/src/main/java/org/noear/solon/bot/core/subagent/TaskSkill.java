@@ -17,32 +17,25 @@ package org.noear.solon.bot.core.subagent;
 
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
-import org.noear.solon.ai.agent.react.ReActChunk;
 import org.noear.solon.ai.agent.react.ReActTrace;
-import org.noear.solon.ai.agent.react.task.ActionChunk;
-import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.ai.chat.ChatSession;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.AbsSkill;
-import org.noear.solon.ai.chat.tool.AbsTool;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.bot.core.AgentKernel;
 import org.noear.solon.core.util.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.BufferedWriter;
-import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.Duration;
 import java.util.Arrays;
-import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -57,11 +50,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class TaskSkill extends AbsSkill {
     private static final Logger LOG = LoggerFactory.getLogger(TaskSkill.class);
-
-    // 子代理执行超时配置（单位：毫秒）
-    private static final long SUBAGENT_SYNC_TIMEOUT_MS = 120_000;
-    private static final long SUBAGENT_STREAM_TIMEOUT_MS = 180_000;
-    private static final long FIRST_CHUNK_TIMEOUT_MS = 45_000;
 
     private final AgentKernel mainAgent;
     private final SubagentManager manager;
@@ -95,18 +83,18 @@ public class TaskSkill extends AbsSkill {
         StringBuilder sb = new StringBuilder();
         sb.append("处理复杂的、多步骤的任务，必须委派子代理（Subagent）执行\n\n");
 
-        sb.append("### ⚠️ 核心规则（强制执行）\n\n");
-        sb.append("#### 🚫 禁止行为\n");
+        sb.append("###  核心规则（强制执行）\n\n");
+        sb.append("####  禁止行为\n");
         sb.append("1. **禁止模拟工作**：严禁不断更新状态而无实际产出\n");
         sb.append("2. **必须有实际产出**：代码任务必须生成文件，使用 ls/read 验证\n\n");
 
-        sb.append("#### ✅ 必须行为\n");
+        sb.append("####  必须行为\n");
         sb.append("1. **强制使用 task() 工具**：所有实际工作必须通过 task() 完成\n\n");
 
         sb.append("### 可用的子代理注册表\n");
         sb.append("<available_agents>\n");
         for (Subagent agent : manager.getAgents()) {
-            sb.append(String.format("  - \"%s\": %s\n", agent.getType(), agent.getDescription()));
+            sb.append(String.format("  - \"%s\": %s\n", agent.name(), agent.getDescription()));
         }
         sb.append("</available_agents>\n\n");
 
@@ -118,8 +106,8 @@ public class TaskSkill extends AbsSkill {
     }
 
     @ToolMapping(name = "task",
-                 description = "【强制使用】派生并分派任务给专项子代理。所有实际开发工作必须使用此工具委派给子代理完成。")
-    public String task(
+                 description = "【强制使用】派生并分派任务给专项子代理。所有实际开发工作必须使用此工具委派给子代理完成。返回 Mono<String> 用于异步处理。")
+    public Mono<String> task(
             @Param(name = "subagentType", description = "子代理类型") String subagentType,
             @Param(name = "prompt", description = "具体指令。必须包含任务目标、关键类名或必要的背景上下文。") String prompt,
             @Param(name = "description", required = false, description = "简短的任务描述") String description,
@@ -130,35 +118,37 @@ public class TaskSkill extends AbsSkill {
         AgentSession __parentSession = mainAgent.getSession(__sessionId);
         ReActTrace __parentTrace = ReActTrace.getCurrent(__parentSession.getSnapshot());
 
-        try {
-            Subagent agent = manager.getAgent(subagentType);
-            if (agent == null) {
-                return "ERROR: 未知的子代理类型 '" + subagentType + "'。";
+        // 检查子代理是否存在
+        Subagent agent = manager.getAgent(subagentType);
+        if (agent == null) {
+            return Mono.just("ERROR: 未知的子代理类型 '" + subagentType + "'。");
+        }
+
+        String finalSessionId = Assert.isEmpty(taskId)
+                ? "subagent_" + subagentType
+                : taskId;
+
+        LOG.info("分派任务 -> 类型: {}, 会话: {}, 描述: {}", subagentType, finalSessionId, description);
+
+        // 使用 Mono.fromCallable 包装阻塞操作
+        return Mono.fromCallable(() -> {
+            // 获取执行许可
+            boolean acquired;
+            try {
+                acquired = acquirePermit(subagentType);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("获取执行许可被中断", e);
             }
 
-            String finalSessionId = Assert.isEmpty(taskId)
-                    ? "subagent_" + subagentType
-                    : taskId;
-
-            LOG.info("分派任务 -> 类型: {}, 会话: {}, 描述: {}", subagentType, finalSessionId, description);
-
-            if (!acquirePermit(subagentType)) {
-                return "ERROR: 等待子代理执行许可超时。当前可能有太多子代理在执行。";
+            if (!acquired) {
+                throw new RuntimeException("等待子代理执行许可超时。当前可能有太多子代理在执行。");
             }
-
-            String result = null;
 
             try {
-                if (__parentTrace.getOptions().getStreamSink() == null) {
-                    // 同步模式
-                    AgentResponse response = agent.call(__cwd, finalSessionId, Prompt.of(prompt));
-                    result = response.getContent();
-                    __parentTrace.getMetrics().addMetrics(response.getMetrics());
-                } else {
-                    // 流式模式
-                    result = executeStream(agent, __cwd, finalSessionId, Prompt.of(prompt),
-                            __parentTrace, subagentType);
-                }
+                AgentResponse response = agent.call(__cwd, finalSessionId, Prompt.of(prompt));
+                String result = response.getContent();
+                __parentTrace.getMetrics().addMetrics(response.getMetrics());
 
                 LOG.info("子代理任务完成: {}", finalSessionId);
 
@@ -171,15 +161,25 @@ public class TaskSkill extends AbsSkill {
                         "</task_result>",
                         finalSessionId, subagentType, result != null ? result : "(无输出)"
                 );
-
+            } catch (Throwable e) {
+                LOG.error("子代理调用异常: type={}, error={}", subagentType, e.getMessage(), e);
+                throw new RuntimeException("子代理调用失败: " + e.getMessage(), e);
             } finally {
                 releasePermit(subagentType);
             }
-
-        } catch (Throwable e) {
-            LOG.error("子代理执行崩溃: type={}, error={}", subagentType, e.getMessage(), e);
-            return "ERROR: 子代理执行失败: " + e.getMessage();
-        }
+        })
+        .subscribeOn(Schedulers.boundedElastic()) // 在弹性线程池中执行，避免阻塞
+        .doOnSubscribe(subscription -> LOG.debug("开始异步执行子代理任务: type={}, sessionId={}", subagentType, finalSessionId))
+        .doOnError(error -> LOG.error("子代理执行失败: type={}, error={}", subagentType, error.getMessage(), error))
+        .onErrorResume(throwable -> {
+            // 捕获所有异常并返回错误消息
+            if (throwable instanceof RuntimeException &&
+                throwable.getMessage().contains("等待子代理执行许可超时")) {
+                return Mono.just("ERROR: " + throwable.getMessage());
+            }
+            LOG.error("子代理执行崩溃: type={}, error={}", subagentType, throwable.getMessage(), throwable);
+            return Mono.just("ERROR: 子代理执行失败: " + throwable.getMessage());
+        });
     }
 
     /**
@@ -227,85 +227,6 @@ public class TaskSkill extends AbsSkill {
                 subagentType, concurrencySemaphore.availablePermits());
     }
 
-    /**
-     * 执行流式子代理调用
-     */
-    private String executeStream(Subagent agent, String __cwd, String sessionId,
-                                  Prompt prompt, ReActTrace __parentTrace, String subagentType) {
-        try {
-            String promptStr = prompt.toString();
-            LOG.info("[子代理] 启动异步流式执行: type={}, sessionId={}, promptLength={}",
-                    subagentType, sessionId, promptStr != null ? promptStr.length() : 0);
-
-            final long[] firstChunkTime = {0};
-            final long[] lastChunkTime = {System.currentTimeMillis()};
-            final int[] chunkCount = {0};
-            final StringBuilder contentBuilder = new StringBuilder();
-
-            String result = agent.stream(__cwd, sessionId, prompt)
-                    .doOnSubscribe(s -> {
-                        LOG.info("[子代理] 流订阅成功: type={}, sessionId={}", subagentType, sessionId);
-                    })
-                    .doOnNext(chunk -> {
-                        long now = System.currentTimeMillis();
-                        if (chunkCount[0] == 0) {
-                            firstChunkTime[0] = now;
-                            long firstChunkDelay = now - lastChunkTime[0];
-                            LOG.info("[子代理] 收到首个chunk: type={}, delay={}ms, chunkType={}",
-                                    subagentType, firstChunkDelay, chunk.getClass().getSimpleName());
-                        }
-                        lastChunkTime[0] = now;
-                        chunkCount[0]++;
-
-                        LOG.debug("[子代理] 收到chunk: type={}, chunkType={}, total={}",
-                                subagentType, chunk.getClass().getSimpleName(), chunkCount[0]);
-
-                        if (chunk instanceof ActionChunk) {
-                            __parentTrace.getOptions().getStreamSink().next(chunk);
-                        } else if (chunk instanceof ReasonChunk) {
-                            __parentTrace.getOptions().getStreamSink().next(chunk);
-                        }
-
-                        if (chunk != null && chunk.hasContent()) {
-                            contentBuilder.append(chunk.getContent());
-                        }
-                    })
-                    .doOnComplete(() -> {
-                        long totalDuration = System.currentTimeMillis() - firstChunkTime[0];
-                        LOG.info("[子代理] 流完成: type={}, sessionId={}, totalChunks={}, totalDuration={}ms",
-                                subagentType, sessionId, chunkCount[0], totalDuration);
-                    })
-                    .doOnError(e -> {
-                        LOG.error("[子代理] 流错误: type={}, sessionId={}, error={}, chunksReceived={}",
-                                subagentType, sessionId, e.getMessage(), chunkCount[0]);
-                    })
-                    .subscribeOn(reactor.core.scheduler.Schedulers.boundedElastic())
-                    .then(Mono.fromCallable(() -> contentBuilder.toString()))
-                    .block(Duration.ofMillis(SUBAGENT_STREAM_TIMEOUT_MS));
-
-            LOG.info("[子代理] 执行成功: type={}, sessionId={}, chunks={}, resultLength={}",
-                    subagentType, sessionId, chunkCount[0],
-                    result != null ? result.length() : 0);
-
-            return result;
-
-        } catch (Exception e) {
-            String errorMsg = e.getMessage();
-            if (errorMsg != null && errorMsg.contains("Timeout")) {
-                LOG.error("[子代理] 执行超时: type={}, sessionId={}", subagentType, sessionId);
-                return "ERROR: 子代理执行超时。\n\n" +
-                       "可能原因：\n" +
-                       "1. LLM API 响应过慢或无响应\n" +
-                       "2. 子代理执行的任务过于复杂\n" +
-                       "3. 网络连接问题\n\n" +
-                       "建议：\n" +
-                       "- 简化任务描述\n" +
-                       "- 检查网络连接\n" +
-                       "- 查看子代理日志了解详情";
-            }
-            throw new RuntimeException(e);
-        }
-    }
 
     @ToolMapping(name = "create_agent",
                  description = "动态创建一个新的子代理。")
@@ -323,7 +244,6 @@ public class TaskSkill extends AbsSkill {
     ) {
         try {
             SubAgentMetadata metadata = new SubAgentMetadata();
-            metadata.setCode(code);
             metadata.setName(name);
             metadata.setDescription(description);
             metadata.setEnabled(true);
@@ -360,7 +280,7 @@ public class TaskSkill extends AbsSkill {
                 LOG.info("Agent 定义已保存到: {}", agentFile);
             }
 
-            AbsSubagent newAgent = new GeneralPurposeSubagent(mainAgent, code);
+            AbsSubagent newAgent = new GeneralPurposeSubagent(mainAgent, metadata);
             newAgent.setDescription(description);
             newAgent.setSystemPrompt(agentDefinition);
             newAgent.refresh();

@@ -23,6 +23,7 @@ import org.noear.solon.bot.core.config.ApiServerParameters;
 import org.noear.solon.bot.core.subagent.SubagentManager;
 import org.noear.solon.bot.core.subagent.TaskSkill;
 import org.noear.solon.bot.core.teams.AgentTeamsSkill;
+import org.noear.solon.bot.core.teams.AgentTeamsTools;
 import org.noear.solon.bot.core.teams.MainAgent;
 import org.noear.solon.bot.core.teams.SharedTaskList;
 import org.noear.solon.bot.core.tool.ApplyPatchTool;
@@ -304,8 +305,7 @@ public class AgentKernel {
 
             // 5. 创建 MainAgent 配置
             SubAgentMetadata mainAgentConfig = new SubAgentMetadata();
-            mainAgentConfig.setCode("main-agent");
-            mainAgentConfig.setName("主代理");
+            mainAgentConfig.setName("main-agent");
             mainAgentConfig.setDescription("Agent Teams 协调器，负责任务分解和团队协作");
             mainAgentConfig.setEnabled(true);
 
@@ -331,6 +331,7 @@ public class AgentKernel {
                     subagentManager
             );
             agentBuilder.defaultSkillAdd(agentTeamsSkill);
+            agentBuilder.defaultSkillAdd(new AgentTeamsTools(memoryManager, mainAgent.getEventBus()));
 
             LOG.info("AgentTeamsSkill 已注册");
 

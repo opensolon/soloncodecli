@@ -17,14 +17,17 @@ package org.noear.solon.bot.core.subagent;
 
 import lombok.Getter;
 import lombok.Setter;
+
 import org.noear.solon.Utils;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
-import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.*;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.bot.core.AgentKernel;
+import org.noear.solon.bot.core.teams.AgentTeamsTools;
 import org.noear.solon.core.util.Assert;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -32,6 +35,10 @@ import reactor.core.publisher.Flux;
 
 /**
  * 抽象子代理实现
+ *
+ * 增强功能：
+ * - 元数据验证
+ * - 元数据继承
  *
  * @author bai
  * @since 3.9.5
@@ -42,6 +49,7 @@ public abstract class AbsSubagent implements Subagent {
     private static final Logger LOG = LoggerFactory.getLogger(AbsSubagent.class);
 
     protected final AgentKernel mainAgent;
+    private volatile ReActAgent cachedAgent;
 
     protected String description;
     protected String systemPrompt;
@@ -49,7 +57,26 @@ public abstract class AbsSubagent implements Subagent {
 
 
     public AbsSubagent(AgentKernel mainAgent) {
+        this(mainAgent, null);
+    }
+
+    public AbsSubagent(AgentKernel mainAgent, SubAgentMetadata metadata) {
         this.mainAgent = mainAgent;
+        // 初始化默认元数据
+        this.metadata = metadata == null ? createDefaultMetadata() : metadata;
+
+        ReActAgent.Builder builder = ReActAgent.of(mainAgent.getChatModel());
+        if (mainAgent.getProperties().isTeamsEnabled()){
+            builder.defaultToolAdd(AgentTeamsTools.getInstance());
+        }
+        builder.instruction(getDefaultSystemPrompt());
+
+        // 应用元数据中的属性配置到builder
+        applyMetadataToBuilder(builder, metadata);
+
+        // 应用自定义配置
+        customize(builder);
+        cachedAgent = builder.build();
     }
 
     @Override
@@ -63,37 +90,32 @@ public abstract class AbsSubagent implements Subagent {
 
 
     @Override
-    public String getType() {
-        // 从类名推断类型
-        // 例如：ExploreSubagent -> explore
-        //       BashSubagent -> bash
-        String simpleName = this.getClass().getSimpleName();
-        if (simpleName.endsWith("Subagent") || simpleName.endsWith("SubAgent")) {
-            String type = simpleName.substring(0, simpleName.lastIndexOf("Subagent") != -1 ?
-                    simpleName.lastIndexOf("Subagent") : simpleName.lastIndexOf("SubAgent"));
-            return type.toLowerCase();
-        }
-        return simpleName.toLowerCase();
+    public SubAgentMetadata getMetadata() {
+        return metadata;
     }
 
-    public final void setDescription(String description) {
-        this.description = description;
-    }
-
-    public final String getSystemPrompt() {
-        if (Assert.isEmpty(systemPrompt)) {
-            return getDefaultSystemPrompt();
-        } else {
-            return systemPrompt;
-        }
-    }
-
-    public final void setSystemPrompt(String systemPrompt) {
-        this.systemPrompt = systemPrompt;
+    public String name(){
+        return cachedAgent.name();
     }
 
     /**
-     * 获取内置系描述（由子类实现）
+     * 创建默认元数据（由子类重写）
+     *
+     * 此方法在构造函数开始时调用，在 cachedAgent 构建之前。
+     * 元数据的名称会被用于配置 cachedAgent。
+     *
+     * @return 默认元数据
+     */
+    protected SubAgentMetadata createDefaultMetadata() {
+        return SubAgentMetadata.builder()
+                .name(name())                                // 设置代理名称
+                .description(getDefaultDescription())      // 设置描述
+                .build();
+    }
+
+
+    /**
+     * 获取内置描述（由子类实现）
      */
     protected abstract String getDefaultDescription();
 
@@ -102,14 +124,46 @@ public abstract class AbsSubagent implements Subagent {
      */
     protected abstract String getDefaultSystemPrompt();
 
-
     /**
-     * 定制
+     * 定制（由子类实现）
      */
     protected abstract void customize(ReActAgent.Builder builder);
 
+    /**
+     * 应用元数据属性到 Builder
+     *
+     * 将 metadata 中的配置属性应用到 ReActAgent.Builder，
+     * 包括最大步数、工具列表、技能列表等。
+     *
+     * @param builder ReActAgent 构建器
+     * @param metadata 元数据配置
+     */
+    protected void applyMetadataToBuilder(ReActAgent.Builder builder, SubAgentMetadata metadata) {
+        if (metadata == null) {
+            return;
+        }
 
-    private volatile ReActAgent cachedAgent;
+        // 应用最大步数
+        if (metadata.getMaxSteps() != null && metadata.getMaxSteps() > 0) {
+            builder.maxSteps(metadata.getMaxSteps());
+        }
+
+        // 应用最大步数自动扩展
+        if (metadata.getMaxStepsAutoExtensible() != null) {
+            builder.maxStepsExtensible(metadata.getMaxStepsAutoExtensible());
+        }
+
+        // 应用最大轮次
+        if (metadata.hasMaxTurns()) {
+            LOG.debug("元数据指定了最大轮次: {}", metadata.getMaxTurns());
+            // 可以作为最大步数的参考
+            if (metadata.getMaxSteps() == null) {
+                builder.maxSteps(metadata.getMaxTurns());
+            }
+        }
+    }
+
+
 
     protected void refresh() {
         Utils.locker().lock();
@@ -120,37 +174,12 @@ public abstract class AbsSubagent implements Subagent {
         }
     }
 
-    /**
-     * 初始化代理
-     */
-    protected ReActAgent getOrBuildAgent() {
-        if (cachedAgent == null) {
-            Utils.locker().lock();
-            try {
-                if (cachedAgent == null) {
-                    ReActAgent.Builder builder = ReActAgent.of(mainAgent.getChatModel());
-
-                    builder.name(getType())
-                            .systemPrompt(t -> getSystemPrompt());
-
-                    // 应用自定义配置
-                    customize(builder);
-
-                    cachedAgent = builder.build();
-                }
-            } finally {
-                Utils.locker().unlock();
-            }
-        }
-
-        return cachedAgent;
-    }
 
     @Override
     public AgentResponse call(String __cwd, String sessionId, Prompt prompt) throws Throwable {
         AgentSession session = mainAgent.getSession(sessionId);
 
-        return getOrBuildAgent().prompt(prompt)
+        return cachedAgent.prompt(prompt)
                 .session(session)
                 .options(o -> {
                     o.toolContextPut("__cwd", __cwd);
@@ -162,7 +191,7 @@ public abstract class AbsSubagent implements Subagent {
     public Flux<AgentChunk> stream(String __cwd, String sessionId, Prompt prompt) {
         AgentSession session = mainAgent.getSession(sessionId);
 
-        return getOrBuildAgent().prompt(prompt)
+        return cachedAgent.prompt(prompt)
                 .session(session)
                 .options(o -> {
                     o.toolContextPut("__cwd", __cwd);

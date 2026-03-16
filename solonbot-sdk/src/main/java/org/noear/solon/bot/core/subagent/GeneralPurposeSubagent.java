@@ -34,42 +34,28 @@ import java.util.Arrays;
  * @since 3.9.5
  */
 public class GeneralPurposeSubagent extends AbsSubagent {
-    private final String subagentType;
-    // 维护 metadata 字段
 
     public GeneralPurposeSubagent(AgentKernel mainAgent) {
-        this(mainAgent, null);
+        super(mainAgent);
     }
 
-    public GeneralPurposeSubagent(AgentKernel mainAgent, String subagentType) {
-        super(mainAgent);
-
-        if (Assert.isEmpty(subagentType)) {
-            this.subagentType = "general-purpose";
-        } else {
-            this.subagentType = subagentType;
-        }
-
-        // 初始化默认 metadata
-        this.metadata = createDefaultMetadata();
+    public GeneralPurposeSubagent(AgentKernel mainAgent, SubAgentMetadata metadata) {
+        super(mainAgent, metadata);
     }
 
     /**
-     * 创建默认的 metadata
+     * 创建默认元数据
+     *
+     * 通用代理需要更多的步数和自动扩展能力
      */
-    private SubAgentMetadata createDefaultMetadata() {
-        SubAgentMetadata metadata = new SubAgentMetadata();
-        metadata.setCode(this.subagentType);
-        metadata.setName("通用子代理");
-        metadata.setDescription(getDefaultDescription());
-        metadata.setEnabled(true);
-        metadata.setMaxTurns(25);
-        // 通用代理的工具：包含所有核心工具
-        metadata.setTools(Arrays.asList("ls", "read", "write", "edit", "grep", "glob", "bash",
-                "websearch", "webfetch", "codesearch"));
-        // 通用代理的技能：包含所有核心技能
-        metadata.setSkills(Arrays.asList("terminal", "expert", "lucene", "todo", "code"));
-        return metadata;
+    @Override
+    protected SubAgentMetadata createDefaultMetadata() {
+        return SubAgentMetadata.builder()
+                .name("general-purpose")
+                .description(getDefaultDescription())
+                .maxSteps(25)
+                .maxStepsAutoExtensible(true)
+                .build();
     }
 
     /**
@@ -80,13 +66,6 @@ public class GeneralPurposeSubagent extends AbsSubagent {
         this.metadata = metadata;
     }
 
-    /**
-     * 获取 metadata（返回维护的字段）
-     */
-    @Override
-    public SubAgentMetadata getMetadata() {
-        return metadata;
-    }
 
     @Override
     protected void customize(ReActAgent.Builder builder) {
@@ -102,21 +81,13 @@ public class GeneralPurposeSubagent extends AbsSubagent {
 
         builder.defaultInterceptorAdd(mainAgent.getSummarizationInterceptor());
 
-        // 如果主 CodeAgent 有代码搜索能力，也可以添加
-        // 这里可以根据需要动态添加工具
-
-        // 设置最大步数（通用任务可能需要更多步数）
-        builder.maxSteps(25);
-        builder.maxStepsExtensible(true);
-
         // 设置会话窗口大小
         builder.sessionWindowSize(5);
+
+        // 注意：maxSteps 和 maxStepsExtensible 现在通过元数据配置
+        // 在 applyMetadataToBuilder() 中应用
     }
 
-    @Override
-    public String getType() {
-        return this.subagentType;
-    }
 
     @Override
     protected String getDefaultDescription() {

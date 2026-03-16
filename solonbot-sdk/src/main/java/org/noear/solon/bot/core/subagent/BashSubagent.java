@@ -16,6 +16,7 @@
 package org.noear.solon.bot.core.subagent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.react.ReActAgentConfig;
 import org.noear.solon.bot.core.AgentKernel;
 
 import java.util.Arrays;
@@ -33,6 +34,21 @@ public class BashSubagent extends AbsSubagent {
     }
 
     /**
+     * 创建默认元数据
+     *
+     * Bash 代理主要用于执行命令，步数根据任务复杂度变化
+     */
+    @Override
+    protected SubAgentMetadata createDefaultMetadata() {
+        return SubAgentMetadata.builder()
+                .name("bash")
+                .description(getDefaultDescription())
+                .maxSteps(20)
+                .maxStepsAutoExtensible(true)
+                .build();
+    }
+
+    /**
      * 初始化 Bash 代理
      */
     @Override
@@ -40,31 +56,6 @@ public class BashSubagent extends AbsSubagent {
         // 只添加终端技能的（bash 工具）
         builder.defaultToolAdd(mainAgent.getCliSkills().getTerminalSkill()
                 .getToolAry("ls", "read", "bash"));
-
-        // 设置最大步数
-        builder.maxSteps(10);
-
-        // 设置会话窗口大小
-        builder.sessionWindowSize(3);
-    }
-
-    @Override
-    public String getType() {
-        return "bash";
-    }
-
-    @Override
-    public SubAgentMetadata getMetadata() {
-        SubAgentMetadata metadata = new SubAgentMetadata();
-        metadata.setCode("bash");
-        metadata.setName("Bash 命令子代理");
-        metadata.setDescription(getDefaultDescription());
-        metadata.setEnabled(true);
-        metadata.setMaxTurns(10);
-        // Bash 代理的工具：基本文件操作、bash 命令
-        metadata.setTools(Arrays.asList("ls", "read", "bash"));
-        // Bash 代理没有额外的技能
-        return metadata;
     }
 
     @Override
