@@ -44,24 +44,18 @@ public class AgentManager {
     private final Map<String, AgentDefinition> agentMap = new ConcurrentHashMap<>();
 
     public AgentManager() {
-        // 添加预置的智能体类型（保持向后兼容）
-//        addSubagent(new ExploreSubagent(rootAgent));
-//        addSubagent(new PlanSubagent(rootAgent));
-//        addSubagent(new GeneralPurposeSubagent(rootAgent));
-//        addSubagent(new BashSubagent(rootAgent));
-
-        loadAgentFile(ResourceUtil.getResource( "defaults/agents/bash.md"));
-        loadAgentFile(ResourceUtil.getResource( "defaults/agents/explore.md"));
-        loadAgentFile(ResourceUtil.getResource( "defaults/agents/general-purpose.md"));
-        loadAgentFile(ResourceUtil.getResource( "defaults/agents/plan.md"));
+        loadAgentFile(ResourceUtil.getResource("defaults/agents/bash.md"));
+        loadAgentFile(ResourceUtil.getResource("defaults/agents/explore.md"));
+        loadAgentFile(ResourceUtil.getResource("defaults/agents/general-purpose.md"));
+        loadAgentFile(ResourceUtil.getResource("defaults/agents/plan.md"));
     }
 
-    public void addSubagent(AgentDefinition agentDefinition) {
+    public void addAgent(AgentDefinition agentDefinition) {
         agentMap.putIfAbsent(agentDefinition.getMetadata().getName(), agentDefinition);
     }
 
     /**
-     * 获取指定名称的子代理（支持自定义代理）
+     * 获取指定名称的代理（支持自定义代理）
      */
     public AgentDefinition getAgent(String agentName) {
         // 1. 首先尝试作为预定义类型
@@ -76,21 +70,21 @@ public class AgentManager {
 
 
     /**
-     * 检查子代理是否已注册
+     * 检查代理是否已注册
      */
     public boolean hasAgent(String agentName) {
         return agentMap.containsKey(agentName);
     }
 
     /**
-     * 获取所有已注册的子代理
+     * 获取所有已注册的代理
      */
     public Collection<AgentDefinition> getAgents() {
         return agentMap.values();
     }
 
     /**
-     * 清除所有子代理
+     * 清除所有代理
      */
     public void clear() {
         agentMap.clear();
@@ -109,12 +103,12 @@ public class AgentManager {
 
         Path path = dir.toAbsolutePath().normalize();
         if (!Files.exists(path)) {
-            LOG.warn("代理池目录不存在: {}", dir);
+            LOG.warn("Agent pool directory does not exist: {}", dir);
             return;
         }
 
         if (!Files.isDirectory(path)) {
-            LOG.warn("代理池路径不是目录: {}", dir);
+            LOG.warn("Agent pool path is not a directory: {}", dir);
             return;
         }
 
@@ -136,7 +130,7 @@ public class AgentManager {
                 }
             }
         } catch (IOException e) {
-            LOG.error("扫描代理池目录失败: {}", dir, e);
+            LOG.error("Failed to scan agent pool directory: {}", dir, e);
         }
     }
 
@@ -149,9 +143,11 @@ public class AgentManager {
         agentPool(dir, false);
     }
 
-
+    /**
+     * 从文件加载代理定义
+     */
     private void loadAgentFile(URL url) {
-        if(url == null){
+        if (url == null) {
             return;
         }
 
@@ -159,16 +155,13 @@ public class AgentManager {
     }
 
     /**
-     * 从文件加载子代理定义
-     *
-     * @param file 代理定义文件路径
+     * 从文件加载代理定义
      */
     private void loadAgentFile(Path file) {
         try {
             String fileName = file.getFileName().toString();
             List<String> fullContent = Files.readAllLines(file, StandardCharsets.UTF_8);
 
-            // 解析文件：拆分元数据和 Prompt
             AgentDefinition definition = AgentDefinition.fromMarkdown(fullContent);
 
             String agentTypeName = definition.getMetadata().getName();
@@ -179,9 +172,9 @@ public class AgentManager {
 
             agentMap.put(agentTypeName, definition);
 
-            LOG.debug("加载子代理: {} 从 {}", agentTypeName, file);
+            LOG.debug("Load agent succeeded: {}, file: {}", agentTypeName, file);
         } catch (IOException e) {
-            LOG.error("读取代理文件失败: {}", file, e);
+            LOG.error("Load agent failed, file: {}", file, e);
         }
     }
 }

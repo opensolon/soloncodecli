@@ -290,7 +290,7 @@ public class TaskSkill extends AbsSkill {
 //            GeneralPurposeSubagent newAgent = new GeneralPurposeSubagent(agentRuntime, definition);
 //            newAgent.refresh();
 
-            agentRuntime.getAgentManager().addSubagent(definition);
+            agentRuntime.getAgentManager().addAgent(definition);
 
             return "[OK] 子代理创建成功！\n\n" +
                     String.format("**代码**: %s\n", code) +

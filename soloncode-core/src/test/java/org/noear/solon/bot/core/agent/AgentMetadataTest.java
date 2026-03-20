@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * @author bai
  * @since 3.9.5
  */
-public class SubAgentMetadataTest {
+public class AgentMetadataTest {
 
     @Test
     public void testParseMetadataWithAllFields() {
