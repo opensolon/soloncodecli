@@ -1,8 +1,8 @@
 package org.noear.solon.codecli.core.agent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
-import org.noear.solon.ai.agent.util.Markdown;
-import org.noear.solon.ai.agent.util.MarkdownUtil;
+import org.noear.solon.ai.util.Markdown;
+import org.noear.solon.ai.util.MarkdownUtil;
 import org.noear.solon.codecli.core.AgentRuntime;
 import org.noear.solon.core.util.Assert;
 
