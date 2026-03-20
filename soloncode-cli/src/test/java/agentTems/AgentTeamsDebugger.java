@@ -16,16 +16,17 @@
 package agentTems;
 
 import lombok.extern.slf4j.Slf4j;
-import org.noear.solon.bot.core.AgentRuntime;
-import org.noear.solon.bot.core.teams.event.AgentEvent;
-import org.noear.solon.bot.core.teams.event.EventBus;
-import org.noear.solon.bot.core.teams.event.EventHandler;
-import org.noear.solon.bot.core.teams.event.EventMetadata;
-import org.noear.solon.bot.core.teams.memory.*;
-import org.noear.solon.bot.core.teams.message.AgentMessage;
-import org.noear.solon.bot.core.teams.message.MessageAck;
-import org.noear.solon.bot.core.teams.message.MessageChannel;
-import org.noear.solon.bot.core.teams.message.MessageHandler;
+import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.codecli.core.teams.event.AgentEvent;
+import org.noear.solon.codecli.core.teams.event.EventBus;
+import org.noear.solon.codecli.core.teams.event.EventHandler;
+import org.noear.solon.codecli.core.teams.event.EventMetadata;
+import org.noear.solon.codecli.core.teams.memory.*;
+import org.noear.solon.codecli.core.teams.message.AgentMessage;
+import org.noear.solon.codecli.core.teams.message.MessageAck;
+import org.noear.solon.codecli.core.teams.message.MessageChannel;
+import org.noear.solon.codecli.core.teams.message.MessageHandler;
 
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -311,8 +312,8 @@ public class AgentTeamsDebugger {
         System.out.println("【测试4】配置属性");
         System.out.println("-----------------------------------");
 
-        org.noear.solon.bot.core.AgentProperties props =
-            new org.noear.solon.bot.core.AgentProperties();
+        AgentProperties props =
+            new AgentProperties();
 
         // 4.1 验证默认值
         System.out.print("1. 验证默认配置... ");

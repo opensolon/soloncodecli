@@ -16,16 +16,16 @@
 package agentTems;
 
 import org.junit.jupiter.api.Test;
-import org.noear.solon.bot.core.AgentRuntime;
-import org.noear.solon.bot.core.AgentProperties;
-import org.noear.solon.bot.core.teams.SharedTaskList;
-import org.noear.solon.bot.core.teams.TeamTask;
-import org.noear.solon.bot.core.teams.event.*;
-import org.noear.solon.bot.core.teams.memory.*;
-import org.noear.solon.bot.core.teams.message.AgentMessage;
-import org.noear.solon.bot.core.teams.message.MessageAck;
-import org.noear.solon.bot.core.teams.message.MessageChannel;
-import org.noear.solon.bot.core.teams.message.MessageHandler;
+import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.codecli.core.teams.SharedTaskList;
+import org.noear.solon.codecli.core.teams.TeamTask;
+import org.noear.solon.codecli.core.teams.event.*;
+import org.noear.solon.codecli.core.teams.memory.*;
+import org.noear.solon.codecli.core.teams.message.AgentMessage;
+import org.noear.solon.codecli.core.teams.message.MessageAck;
+import org.noear.solon.codecli.core.teams.message.MessageChannel;
+import org.noear.solon.codecli.core.teams.message.MessageHandler;
 
 import java.nio.file.Paths;
 import java.util.Arrays;

@@ -40,7 +40,7 @@ import org.noear.solon.bot.codecli.portal.ui.CommandRegistry;
 import org.noear.solon.bot.codecli.portal.ui.SlashCommandCompleter;
 import org.noear.solon.bot.codecli.portal.ui.MarkdownRenderer;
 import org.noear.solon.bot.codecli.portal.ui.StatusBar;
-import org.noear.solon.bot.core.AgentRuntime;
+import org.noear.solon.codecli.core.AgentRuntime;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import org.slf4j.Logger;

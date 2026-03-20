@@ -16,7 +16,7 @@
 package org.noear.solon.bot.codecli.controller;
 
 import org.noear.snack4.ONode;
-import org.noear.solon.bot.core.AgentProperties;
+import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Inject;
 import org.noear.solon.annotation.Mapping;

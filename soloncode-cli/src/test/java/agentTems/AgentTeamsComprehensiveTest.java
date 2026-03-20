@@ -16,16 +16,16 @@
 package agentTems;
 
 import org.junit.jupiter.api.*;
-import org.noear.solon.bot.core.teams.event.*;
-import org.noear.solon.bot.core.teams.memory.LongTermMemory;
-import org.noear.solon.bot.core.teams.memory.Memory;
-import org.noear.solon.bot.core.teams.memory.SharedMemoryManager;
-import org.noear.solon.bot.core.teams.memory.ShortTermMemory;
-import org.noear.solon.bot.core.teams.message.AgentMessage;
-import org.noear.solon.bot.core.teams.message.MessageChannel;
-import org.noear.solon.bot.core.teams.message.MessageHandler;
-import org.noear.solon.bot.core.teams.SharedTaskList;
-import org.noear.solon.bot.core.teams.TeamTask;
+import org.noear.solon.codecli.core.teams.event.*;
+import org.noear.solon.codecli.core.teams.memory.LongTermMemory;
+import org.noear.solon.codecli.core.teams.memory.Memory;
+import org.noear.solon.codecli.core.teams.memory.SharedMemoryManager;
+import org.noear.solon.codecli.core.teams.memory.ShortTermMemory;
+import org.noear.solon.codecli.core.teams.message.AgentMessage;
+import org.noear.solon.codecli.core.teams.message.MessageChannel;
+import org.noear.solon.codecli.core.teams.message.MessageHandler;
+import org.noear.solon.codecli.core.teams.SharedTaskList;
+import org.noear.solon.codecli.core.teams.TeamTask;
 
 import java.nio.file.Paths;
 import java.util.*;
