@@ -63,8 +63,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @since 3.9.5
  */
 @Getter
-public class MainAgent {
-    private static final Logger LOG = LoggerFactory.getLogger(MainAgent.class);
+public class SupervisorAgent {
+    private static final Logger LOG = LoggerFactory.getLogger(SupervisorAgent.class);
 
     private final AgentMetadata config;
     private final AgentSessionProvider sessionProvider;
@@ -78,7 +78,7 @@ public class MainAgent {
     private GoalKeeperIntegration goalKeeper;
 
     // 新增：用于访问 subagent 功能
-    private final AgentRuntime rootAgent;
+    private final AgentRuntime agentRuntime;
 
     private final AtomicBoolean running = new AtomicBoolean(false);
 
@@ -96,8 +96,8 @@ public class MainAgent {
     /**
      * 完整构造函数（支持 subagent 功能）
      */
-    public MainAgent(
-            AgentRuntime rootAgent,
+    public SupervisorAgent(
+            AgentRuntime agentRuntime,
             AgentMetadata config,
             AgentSessionProvider sessionProvider,
             SharedMemoryManager sharedMemoryManager,
@@ -105,7 +105,7 @@ public class MainAgent {
             MessageChannel messageChannel,
             SharedTaskList taskList,
             String workDir) {
-        this.rootAgent = rootAgent;
+        this.agentRuntime = agentRuntime;
         this.config = config;
         this.sessionProvider = sessionProvider;
         this.sharedMemoryManager = sharedMemoryManager;
@@ -281,7 +281,7 @@ public class MainAgent {
         // 1. 启动目标守护（防止在多轮循环中偏离目标）
         String goalId = null;
         try {
-            if (rootAgent != null) {
+            if (agentRuntime != null) {
                 goalId = this.startGoalGuarding(prompt.getUserContent());
                 LOG.info("目标守护已启动: goalId={}, 目标={}", goalId, prompt.getUserContent());
             }
@@ -293,11 +293,11 @@ public class MainAgent {
             // 2. 发布主代理任务开始事件
             publishEvent(AgentEventType.MAIN_TASK_STARTED, prompt.getUserContent(), null);
 
-            AgentSession session = rootAgent.getSession("main_agent");
+            AgentSession session = agentRuntime.getSession("main_agent");
 
             // 2. 执行主代理内部的协调逻辑（流式输出）
             // 注意：任务分解现在由 Agent 通过工具自主决定
-            reactor.core.publisher.Flux<AgentChunk> responseStream = rootAgent.getReActAgent()
+            reactor.core.publisher.Flux<AgentChunk> responseStream = agentRuntime.getReActAgent()
                     .prompt(prompt)
                     .session(session)
                     .options(o -> {
@@ -824,9 +824,9 @@ public class MainAgent {
     }
 
     public AgentResponse call(String __cwd, String sessionId, Prompt prompt) throws Throwable {
-        AgentSession session = rootAgent.getSession(sessionId);
+        AgentSession session = agentRuntime.getSession(sessionId);
 
-        return rootAgent.getReActAgent()
+        return agentRuntime.getReActAgent()
                 .prompt(prompt)
                 .session(session)
                 .options(o -> {
@@ -836,9 +836,9 @@ public class MainAgent {
     }
 
     public Flux<AgentChunk> stream(String __cwd, String sessionId, Prompt prompt) {
-        AgentSession session = rootAgent.getSession(sessionId);
+        AgentSession session = agentRuntime.getSession(sessionId);
 
-        return rootAgent.getReActAgent().prompt(prompt)
+        return agentRuntime.getReActAgent().prompt(prompt)
                 .session(session)
                 .options(o -> {
                     o.toolContextPut("__cwd", __cwd);

@@ -22,23 +22,23 @@ import java.nio.file.Paths;
 public class TeamReActExtension implements ReActAgentExtension {
     private static final Logger LOG = LoggerFactory.getLogger(TeamReActExtension.class);
 
-    private final AgentRuntime rootAgent;
+    private final AgentRuntime agentRuntime;
     private final AgentProperties properties;
 
     // Agent Teams 相关组件
-    private MainAgent mainAgent;
+    private SupervisorAgent supervisorAgent;
     private EventBus eventBus;
     private SharedTaskList taskList;
     private SharedMemoryManager memoryManager;
     private MessageChannel messageChannel;
 
-    public TeamReActExtension(AgentRuntime rootAgent) {
-        this.rootAgent = rootAgent;
-        this.properties = rootAgent.getProperties();
+    public TeamReActExtension(AgentRuntime agentRuntime) {
+        this.agentRuntime = agentRuntime;
+        this.properties = agentRuntime.getProperties();
     }
 
     public String getTeamLeadInstruction() {
-        return mainAgent.getTeamLeadInstruction();
+        return supervisorAgent.getTeamLeadInstruction();
     }
 
     @Override
@@ -75,10 +75,10 @@ public class TeamReActExtension implements ReActAgentExtension {
             mainAgentConfig.setEnabled(true);
 
             // 6. 创建 MainAgent（传入 kernel 和 subagentManager 以支持 subagent 功能）
-            this.mainAgent = new MainAgent(
-                    rootAgent,
+            this.supervisorAgent = new SupervisorAgent(
+                    agentRuntime,
                     mainAgentConfig,
-                    rootAgent.getSessionProvider(),
+                    agentRuntime.getSessionProvider(),
                     memoryManager,
                     eventBus,
                     messageChannel,
@@ -90,11 +90,11 @@ public class TeamReActExtension implements ReActAgentExtension {
 
             // 6. 创建 AgentTeamsSkill 并注册到主 Agent
             AgentTeamsSkill agentTeamsSkill = new AgentTeamsSkill(
-                    rootAgent,
-                    mainAgent
+                    agentRuntime,
+                    supervisorAgent
             );
             agentBuilder.defaultSkillAdd(agentTeamsSkill);
-            agentBuilder.defaultSkillAdd(new AgentTeamsTools(memoryManager, mainAgent.getEventBus()));
+            agentBuilder.defaultSkillAdd(new AgentTeamsTools(memoryManager, supervisorAgent.getEventBus()));
 
             LOG.debug("AgentTeamsSkill 已注册");
 

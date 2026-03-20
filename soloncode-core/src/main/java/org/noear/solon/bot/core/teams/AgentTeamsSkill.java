@@ -70,15 +70,15 @@ public class AgentTeamsSkill extends AbsSkill {
     private static final Logger LOG = LoggerFactory.getLogger(AgentTeamsSkill.class);
     private static final String CURRENT_TEAM_KEY = "current_team_name"; // 当前团队名的内存键
 
-    private final AgentRuntime rootAgent;
-    private final MainAgent mainAgent;
+    private final AgentRuntime agentRuntime;
+    private final SupervisorAgent mainAgent;
     private final IntelligentMemoryManager intelligentMemoryManager;
 
     /**
      * 完整构造函数（支持子代理调用）
      */
-    public AgentTeamsSkill(AgentRuntime rootAgent, MainAgent mainAgent) {
-        this.rootAgent = rootAgent;
+    public AgentTeamsSkill(AgentRuntime agentRuntime, SupervisorAgent mainAgent) {
+        this.agentRuntime = agentRuntime;
         this.mainAgent = mainAgent;
 
         // 初始化智能记忆管理器
@@ -90,7 +90,7 @@ public class AgentTeamsSkill extends AbsSkill {
     }
 
     private AgentManager getAgentManager(){
-        return rootAgent.getAgentManager();
+        return agentRuntime.getAgentManager();
     }
 
 
@@ -407,7 +407,7 @@ public class AgentTeamsSkill extends AbsSkill {
             return Mono.just("[WARN] 团队任务正在执行中，请等待当前任务完成。\n");
         }
 
-        AgentSession __parentSession = rootAgent.getSession(__sessionId);
+        AgentSession __parentSession = agentRuntime.getSession(__sessionId);
         ReActTrace __parentTrace = ReActTrace.getCurrent(__parentSession.getSnapshot());
 
         String finalSessionId = Assert.isEmpty(taskId)
@@ -705,7 +705,7 @@ public class AgentTeamsSkill extends AbsSkill {
             String __cwd,
             String __sessionId) {
 
-        AgentSession __parentSession = rootAgent.getSession(__sessionId);
+        AgentSession __parentSession = agentRuntime.getSession(__sessionId);
         ReActTrace __parentTrace = ReActTrace.getCurrent(__parentSession.getSnapshot());
         try {
             if (mainAgent == null) {
@@ -1231,7 +1231,7 @@ public class AgentTeamsSkill extends AbsSkill {
     @ToolMapping(name = "isTeamsEnabled",
             description = "检查是否已开启团队功能")
     public String isTeamsEnabled() {
-        return rootAgent.getProperties().isTeamsEnabled() ? "团队功能已启用" : "[WARN] 团队功能未启用。请先启用团队功能。";
+        return agentRuntime.getProperties().isTeamsEnabled() ? "团队功能已启用" : "[WARN] 团队功能未启用。请先启用团队功能。";
     }
 
     /**
@@ -2490,7 +2490,7 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             // 4. 构建 TeamAgent
-            ChatModel chatModel = rootAgent.getChatModel();
+            ChatModel chatModel = agentRuntime.getChatModel();
 
                 TeamAgent.Builder teamBuilder = TeamAgent.of(chatModel)
                         .name(teamName)
@@ -2499,7 +2499,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
             // 5. 添加成员（从 Subagent 中提取底层的 ReActAgent）
             for (AgentDefinition agent : validAgents) {
-                teamBuilder.agentAdd(agent.create(rootAgent));
+                teamBuilder.agentAdd(agent.create(agentRuntime));
             }
 
             // 6. 配置协议
