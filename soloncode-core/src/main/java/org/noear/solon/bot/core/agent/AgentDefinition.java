@@ -1,9 +1,9 @@
 package org.noear.solon.bot.core.agent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
+import org.noear.solon.ai.agent.util.Markdown;
+import org.noear.solon.ai.agent.util.MarkdownUtil;
 import org.noear.solon.bot.core.AgentRuntime;
-import org.noear.solon.bot.core.util.Markdown;
-import org.noear.solon.bot.core.util.MarkdownUtil;
 import org.noear.solon.core.util.Assert;
 
 import java.util.Arrays;
