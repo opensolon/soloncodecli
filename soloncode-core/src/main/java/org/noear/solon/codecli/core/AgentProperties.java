@@ -48,7 +48,7 @@ public class AgentProperties implements Serializable {
 
     private boolean hitlEnabled = false;
     private boolean subagentEnabled = true;
-    private boolean agentTeamEnabled = true;
+    private boolean agentTeamEnabled = false;
     private boolean browserEnabled = true;
 
     private boolean cliEnabled = true;
