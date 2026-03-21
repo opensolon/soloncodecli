@@ -110,7 +110,7 @@ public class AgentDefinition {
         return buf.toString();
     }
 
-    public ReActAgent create(AgentRuntime agentRuntime) {
+    public ReActAgent.Builder builder(AgentRuntime agentRuntime) {
         return AgentFactory.create(agentRuntime, this);
     }
 }

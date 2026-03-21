@@ -34,8 +34,8 @@ import java.util.List;
  * @author bai
  * @since 3.9.5
  */
-public class SupervisorAgentTaskOrchestrationTest {
-    private static final Logger LOG = LoggerFactory.getLogger(SupervisorAgentTaskOrchestrationTest.class);
+public class MainAgentTaskOrchestrationTest {
+    private static final Logger LOG = LoggerFactory.getLogger(MainAgentTaskOrchestrationTest.class);
 
     public static void main(String[] args) {
         System.out.println("========== MainAgent 任务编排测试 ==========\n");
@@ -55,7 +55,7 @@ public class SupervisorAgentTaskOrchestrationTest {
         // 创建模拟的 SessionProvider
 
         // 创建 MainAgent
-        SupervisorAgent mainAgent = new SupervisorAgent(
+        MainAgent mainAgent = new MainAgent(
                 null,
                 agentDefinition,
                 memoryManager,
@@ -89,14 +89,14 @@ public class SupervisorAgentTaskOrchestrationTest {
     /**
      * 测试探索类任务创建
      */
-    private static void testExplorationTasks(SupervisorAgent mainAgent) {
+    private static void testExplorationTasks(MainAgent mainAgent) {
         System.out.println("=== 测试 1: 探索类任务创建 ===\n");
 
         Prompt prompt = Prompt.of("请探索这个代码库并分析结构");
 
         // 使用反射调用私有方法 analyzeAndCreateTasks
         try {
-            java.lang.reflect.Method method = SupervisorAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
+            java.lang.reflect.Method method = MainAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
             method.setAccessible(true);
             @SuppressWarnings("unchecked")
             List<TeamTask> tasks = (List<TeamTask>) method.invoke(mainAgent, prompt);
@@ -133,13 +133,13 @@ public class SupervisorAgentTaskOrchestrationTest {
     /**
      * 测试开发类任务创建
      */
-    private static void testDevelopmentTasks(SupervisorAgent mainAgent) {
+    private static void testDevelopmentTasks(MainAgent mainAgent) {
         System.out.println("=== 测试 2: 开发类任务创建 ===\n");
 
         Prompt prompt = Prompt.of("请实现用户认证功能");
 
         try {
-            java.lang.reflect.Method method = SupervisorAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
+            java.lang.reflect.Method method = MainAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
             method.setAccessible(true);
             @SuppressWarnings("unchecked")
             List<TeamTask> tasks = (List<TeamTask>) method.invoke(mainAgent, prompt);
@@ -176,13 +176,13 @@ public class SupervisorAgentTaskOrchestrationTest {
     /**
      * 测试依赖关系验证
      */
-    private static void testDependencyValidation(SupervisorAgent mainAgent) {
+    private static void testDependencyValidation(MainAgent mainAgent) {
         System.out.println("=== 测试 3: 依赖关系验证 ===\n");
 
         Prompt prompt = Prompt.of("开发并测试新功能");
 
         try {
-            java.lang.reflect.Method method = SupervisorAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
+            java.lang.reflect.Method method = MainAgent.class.getDeclaredMethod("analyzeAndCreateTasks", Prompt.class);
             method.setAccessible(true);
             @SuppressWarnings("unchecked")
             List<TeamTask> tasks = (List<TeamTask>) method.invoke(mainAgent, prompt);

@@ -19,6 +19,7 @@ import lombok.Getter;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
+import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.agent.react.task.ActionChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
@@ -62,8 +63,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @since 3.9.5
  */
 @Getter
-public class SupervisorAgent {
-    private static final Logger LOG = LoggerFactory.getLogger(SupervisorAgent.class);
+public class MainAgent {
+    private static final Logger LOG = LoggerFactory.getLogger(MainAgent.class);
 
     private final SharedMemoryManager sharedMemoryManager;
     private final EventBus eventBus;
@@ -90,11 +91,13 @@ public class SupervisorAgent {
 
     private static final long SUBAGENT_STREAM_TIMEOUT_MS = 180_000;
 
+    private final AgentTeamsSkill agentTeamsSkill;
+    private final SharedMemorySkill sharedMemorySkill;
 
     /**
      * 完整构造函数（支持 subagent 功能）
      */
-    public SupervisorAgent(
+    public MainAgent(
             AgentRuntime agentRuntime,
             AgentDefinition agentDefinition,
             SharedMemoryManager sharedMemoryManager,
@@ -110,6 +113,13 @@ public class SupervisorAgent {
         this.messageChannel = messageChannel;
         this.taskList = taskList;
         this.workDir = workDir;
+
+        this.agentTeamsSkill = new AgentTeamsSkill(
+                agentRuntime,
+                this
+        );
+        this.sharedMemorySkill =  new SharedMemorySkill(sharedMemoryManager, this.getEventBus());
+
 
         // 注册任务事件监听器
         registerTaskEventListeners();
@@ -185,7 +195,14 @@ public class SupervisorAgent {
 
             // 2. 执行主代理内部的协调逻辑（流式输出）
             // 注意：任务分解现在由 Agent 通过工具自主决定
-            reactor.core.publisher.Flux<AgentChunk> responseStream = agentDefinition.create(agentRuntime)
+
+           ReActAgent.Builder agentBuilder = agentDefinition.builder(agentRuntime);
+
+            agentBuilder.defaultSkillAdd(agentTeamsSkill);
+            agentBuilder.defaultSkillAdd(sharedMemorySkill);
+
+
+            Flux<AgentChunk> responseStream = agentBuilder.build()
                     .prompt(prompt)
                     .session(session)
                     .options(o -> {
@@ -714,7 +731,7 @@ public class SupervisorAgent {
     public AgentResponse call(String __cwd, String sessionId, Prompt prompt) throws Throwable {
         AgentSession session = agentRuntime.getSession(sessionId);
 
-        return agentDefinition.create(agentRuntime)
+        return agentDefinition.builder(agentRuntime).build()
                 .prompt(prompt)
                 .session(session)
                 .options(o -> {
@@ -726,7 +743,7 @@ public class SupervisorAgent {
     public Flux<AgentChunk> stream(String __cwd, String sessionId, Prompt prompt) {
         AgentSession session = agentRuntime.getSession(sessionId);
 
-        return agentDefinition.create(agentRuntime)
+        return agentDefinition.builder(agentRuntime).build()
                 .prompt(prompt)
                 .session(session)
                 .options(o -> {

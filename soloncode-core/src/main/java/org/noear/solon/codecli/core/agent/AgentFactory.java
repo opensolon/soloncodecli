@@ -16,7 +16,7 @@ public class AgentFactory {
     /**
      * 根据定义生成代理
      */
-    public static ReActAgent create(AgentRuntime agentRuntime, AgentDefinition agentDefinition) {
+    public static ReActAgent.Builder create(AgentRuntime agentRuntime, AgentDefinition agentDefinition) {
         ReActAgent.Builder builder = ReActAgent.of(agentRuntime.getChatModel());
 
         AgentMetadata metadata = agentDefinition.getMetadata();
@@ -123,6 +123,6 @@ public class AgentFactory {
             }
         }
 
-        return builder.build();
+        return builder;
     }
 }

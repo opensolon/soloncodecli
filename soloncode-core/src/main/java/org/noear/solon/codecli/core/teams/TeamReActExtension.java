@@ -26,7 +26,7 @@ public class TeamReActExtension implements ReActAgentExtension {
     private final AgentProperties properties;
 
     // Agent Teams 相关组件
-    private SupervisorAgent supervisorAgent;
+    private MainAgent supervisorAgent;
     private EventBus eventBus;
     private SharedTaskList taskList;
     private SharedMemoryManager memoryManager;
@@ -73,7 +73,7 @@ public class TeamReActExtension implements ReActAgentExtension {
                     .getAgent(AgentDefinition.AGENT_SUPERVISOR);
 
             // 6. 创建 MainAgent（传入 kernel 和 subagentManager 以支持 subagent 功能）
-            this.supervisorAgent = new SupervisorAgent(
+            this.supervisorAgent = new MainAgent(
                     agentRuntime,
                     agentDefinition,
                     memoryManager,
@@ -83,17 +83,6 @@ public class TeamReActExtension implements ReActAgentExtension {
                     properties.getWorkDir()
             );
 
-            LOG.debug("MainAgent 已创建");
-
-            // 6. 创建 AgentTeamsSkill 并注册到主 Agent
-            AgentTeamsSkill agentTeamsSkill = new AgentTeamsSkill(
-                    agentRuntime,
-                    supervisorAgent
-            );
-            agentBuilder.defaultSkillAdd(agentTeamsSkill);
-            agentBuilder.defaultSkillAdd(new SharedMemorySkill(memoryManager, supervisorAgent.getEventBus()));
-
-            LOG.debug("AgentTeamsSkill 已注册");
 
             LOG.debug("Agent Teams 模式初始化完成 [OK]");
 

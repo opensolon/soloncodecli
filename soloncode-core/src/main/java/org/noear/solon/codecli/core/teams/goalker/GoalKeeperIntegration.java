@@ -18,7 +18,7 @@ package org.noear.solon.codecli.core.teams.goalker;
 import org.noear.solon.ai.agent.AgentChunk;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.codecli.core.teams.memory.WorkingMemory;
-import org.noear.solon.codecli.core.teams.SupervisorAgent;
+import org.noear.solon.codecli.core.teams.MainAgent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,10 +36,10 @@ import java.util.List;
 public class GoalKeeperIntegration {
     private static final Logger LOG = LoggerFactory.getLogger(GoalKeeperIntegration.class);
 
-    private final SupervisorAgent mainAgent;
+    private final MainAgent mainAgent;
     private GoalKeeper currentGoalKeeper;
 
-    public GoalKeeperIntegration(SupervisorAgent mainAgent) {
+    public GoalKeeperIntegration(MainAgent mainAgent) {
         this.mainAgent = mainAgent;
     }
 

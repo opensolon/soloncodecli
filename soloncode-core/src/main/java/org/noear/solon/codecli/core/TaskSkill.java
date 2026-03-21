@@ -139,7 +139,7 @@ public class TaskSkill extends AbsSkill {
             String result = null;
 
             try {
-                ReActAgent agent = agentDefinition.create(agentRuntime);
+                ReActAgent agent = agentDefinition.builder(agentRuntime).build();
                 AgentSession session = agentRuntime.getSession(finalSessionId);
 
                 if (__parentTrace.getOptions().getStreamSink() == null) {

@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 
 /**
- * Agent Teams 工具集
+ * Agent Teams 共享记忆技能
  *
  * 提供 MainAgent 内部使用的核心工具：
  * - 记忆存储和读取
@@ -67,97 +67,20 @@ public class SharedMemorySkill extends AbsSkill {
 
     @Override
     public String description() {
-        return "Agent Teams 工具集：提供记忆存储、事件发布、消息传递等功能";
+        return "核心存储与事件工具：支持分层记忆(TTL控制)、工作记忆状态管理及系统事件发布。";
     }
 
     @Override
     public String getInstruction(Prompt prompt) {
         StringBuilder sb = new StringBuilder();
-        sb.append("## Agent Teams 内部工具集（底层API）\n\n");
-        sb.append("这是 MainAgent 内部使用的底层工具集，提供记忆管理和事件发布功能。\n\n");
-        sb.append("###  使用建议\n\n");
-        sb.append("**大多数情况下，推荐使用 AgentTeamsSkill 中的智能记忆工具**：\n");
-        sb.append("- `memory_store()`: 自动分类存储（系统自动判断存储类型和重要性）\n");
-        sb.append("- `memory_recall()`: 智能检索（按相关性排序，自动合并重复内容）\n");
-        sb.append("- `memory_stats()`: 查看统计信息\n\n");
-        sb.append("**本工具集适用于以下场景**：\n");
-        sb.append("- 需要精确控制记忆类型（短期/长期/知识）\n");
-        sb.append("- 需要自定义 TTL 时间\n");
-        sb.append("- 需要直接操作工作记忆字段\n");
-        sb.append("- 需要发布自定义事件\n\n");
-        sb.append("### 记忆存储工具（底层API）\n\n");
-        sb.append("**分层记忆存储**（按 TTL 自动过期）：\n");
-        sb.append("- `memory_store_short()`: 短期记忆（1小时 TTL）[底层API]\n");
-        sb.append("  - 用途：临时上下文、会话级信息\n");
-        sb.append("  - 参数：key（必填）, value（必填）, ttl（可选，默认3600秒）\n");
-        sb.append("  - 注意：推荐使用 `memory_store()` 自动分类\n\n");
-        sb.append("- `memory_store_long()`: 长期记忆（7天 TTL）[底层API]\n");
-        sb.append("  - 用途：任务结果、重要信息\n");
-        sb.append("  - 参数：key（必填）, value（必填）, ttl（可选，默认604800秒）\n");
-        sb.append("  - 注意：推荐使用 `memory_store()` 自动分类\n\n");
-        sb.append("- `memory_store_knowledge()`: 知识记忆（永久保存）[底层API]\n");
-        sb.append("  - 用途：架构决策、最佳实践、经验教训\n");
-        sb.append("  - 参数：key（必填）, value（必填）\n");
-        sb.append("  - 注意：推荐使用 `memory_store()` 自动分类\n\n");
-        sb.append("### 记忆检索工具（底层API）\n\n");
-        sb.append("- `memory_retrieve()`: 根据键精确检索\n");
-        sb.append("  - 自动从短期 → 长期 → 知识记忆中查找\n");
-        sb.append("  - 参数：key（必填）\n");
-        sb.append("  - 注意：推荐使用 `memory_recall()` 智能检索\n\n");
-        sb.append("- `memory_search()`: 模糊搜索记忆\n");
-        sb.append("  - 支持关键词匹配，返回相关记忆列表\n");
-        sb.append("  - 参数：query（必填）, limit（可选，默认10）\n");
-        sb.append("  - 注意：推荐使用 `memory_recall()` 智能检索\n\n");
-        sb.append("### 工作记忆工具\n\n");
-        sb.append("- `working_memory_set()`: 设置工作记忆字段\n");
-        sb.append("  - 用于存储当前任务状态、步骤等结构化数据\n");
-        sb.append("  - 支持字段：taskDescription, status, step, currentAgent, 或自定义字段\n");
-        sb.append("  - 参数：field（必填）, value（必填）\n\n");
-        sb.append("- `working_memory_get()`: 获取工作记忆\n");
-        sb.append("  - 查看当前任务状态、步骤、摘要等\n");
-        sb.append("  - 参数：taskId（可选，默认'main-agent'）\n\n");
-        sb.append("### 事件工具\n\n");
-        sb.append("- `publish_event()`: 发布团队事件\n");
-        sb.append("  - 通知其他代理任务状态变化\n");
-        sb.append("  - 支持事件类型：TASK_CREATED, TASK_COMPLETED, TASK_FAILED, MESSAGE_RECEIVED 等\n");
-        sb.append("  - 参数：eventType（必填）, data（必填）\n\n");
-        sb.append("### 使用示例\n\n");
-        sb.append("**⚠️ 重要提示**：以下示例展示底层API的使用方法。\n");
-        sb.append("如果只是普通存储，推荐使用 `memory_store()` 和 `memory_recall()` 智能工具。\n\n");
-        sb.append("**存储记忆（精确控制类型）**：\n");
-        sb.append("```\n");
-        sb.append("# 存储临时上下文\n");
-        sb.append("memory_store_short(\n");
-        sb.append("    key=\"current-context\",\n");
-        sb.append("    value=\"正在分析 UserService\",\n");
-        sb.append("    ttl=1800  # 30分钟\n");
-        sb.append(")\n\n");
-        sb.append("# 存储任务结果\n");
-        sb.append("memory_store_long(\n");
-        sb.append("    key=\"task-result\",\n");
-        sb.append("    value=\"已完成用户登录功能\"\n");
-        sb.append(")\n\n");
-        sb.append("# 存储架构决策\n");
-        sb.append("memory_store_knowledge(\n");
-        sb.append("    key=\"architecture\",\n");
-        sb.append("    value=\"采用三层架构：Controller-Service-Repository\"\n");
-        sb.append(")\n");
-        sb.append("```\n\n");
-        sb.append("**检索记忆**：\n");
-        sb.append("```\n");
-        sb.append("# 精确检索\n");
-        sb.append("memory_retrieve(key=\"architecture\")\n\n");
-        sb.append("# 模糊搜索\n");
-        sb.append("memory_search(query=\"登录\", limit=5)\n");
-        sb.append("```\n\n");
-        sb.append("**工作记忆**：\n");
-        sb.append("```\n");
-        sb.append("# 设置当前状态\n");
-        sb.append("working_memory_set(field=\"status\", value=\"in-progress\")\n");
-        sb.append("working_memory_set(field=\"step\", value=\"3\")\n\n");
-        sb.append("# 查看工作记忆\n");
-        sb.append("working_memory_get()\n");
-        sb.append("```\n");
+        sb.append("## 记忆与状态管理规范\n");
+        sb.append("负责维护任务的生命周期状态：\n");
+        sb.append("1. **状态同步**：每完成一个关键步骤，必须调用 `working_memory_set` 更新 `step` 和 `status`。\n");
+        sb.append("2. **事件通知**：开始新任务发 `TASK_CREATED`，遇到不可逆错误发 `TASK_FAILED`。\n");
+        sb.append("3. **存储策略**：\n");
+        sb.append("   - 临时变量/中间逻辑 -> `memory_store_short` (TTL: 3600)\n");
+        sb.append("   - 任务阶段产出/用户偏好 -> `memory_store_long` (TTL: 604800)\n");
+        sb.append("   - 核心规约/架构定义 -> `memory_store_knowledge` (永久)\n");
         return sb.toString();
     }
 

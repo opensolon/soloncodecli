@@ -73,13 +73,13 @@ public class AgentTeamsSkill extends AbsSkill {
     private static final String CURRENT_TEAM_KEY = "current_team_name"; // 当前团队名的内存键
 
     private final AgentRuntime agentRuntime;
-    private final SupervisorAgent mainAgent;
+    private final MainAgent mainAgent;
     private final IntelligentMemoryManager intelligentMemoryManager;
 
     /**
      * 完整构造函数（支持子代理调用）
      */
-    public AgentTeamsSkill(AgentRuntime agentRuntime, SupervisorAgent mainAgent) {
+    public AgentTeamsSkill(AgentRuntime agentRuntime, MainAgent mainAgent) {
         this.agentRuntime = agentRuntime;
         this.mainAgent = mainAgent;
 
@@ -2501,7 +2501,7 @@ public class AgentTeamsSkill extends AbsSkill {
 
             // 5. 添加成员（从 Subagent 中提取底层的 ReActAgent）
             for (AgentDefinition agent : validAgents) {
-                teamBuilder.agentAdd(agent.create(agentRuntime));
+                teamBuilder.agentAdd(agent.builder(agentRuntime).build());
             }
 
             // 6. 配置协议
