@@ -16,7 +16,6 @@
 package org.noear.solon.codecli.core.memory.smart;
 
 import org.noear.solon.codecli.core.memory.*;
-import org.noear.solon.codecli.core.teams.memory.*;
 import org.noear.solon.codecli.core.memory.bank.Observation;
 import org.noear.solon.codecli.core.memory.classifier.MemoryAutoClassifier;
 import org.noear.solon.codecli.core.memory.classifier.MemoryClassification;

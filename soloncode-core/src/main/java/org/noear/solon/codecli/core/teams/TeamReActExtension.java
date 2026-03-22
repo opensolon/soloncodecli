@@ -57,11 +57,6 @@ public class TeamReActExtension implements ReActAgentExtension {
             this.taskList = new SharedTaskList(eventBus, properties.getTeams());
             LOG.debug("SharedTaskList 已创建");
 
-            // 3. 创建 SharedMemoryManager（共享内存管理器）
-            Path memoryPath = Paths.get(properties.getWorkDir(), AgentRuntime.SOLONCODE_MEMORY);
-            this.memoryManager = new MemoryManager(memoryPath);
-            LOG.debug("SharedMemoryManager 已创建，路径: {}", memoryPath);
-
             // 4. 创建 MessageChannel（消息通道）- 使用配置
             Path messagePath = Paths.get(properties.getWorkDir(), AgentRuntime.SOLONCODE_MEMORY);
             int messageThreads = properties.getMessageChannel().threads != null ?
@@ -88,12 +83,12 @@ public class TeamReActExtension implements ReActAgentExtension {
 
             AgentTeamsSkill agentTeamsSkill = new AgentTeamsSkill(
                     agentRuntime,
-                    mainAgent
+                    mainAgent,
+                    eventBus
             );
-            MemorySkill sharedMemorySkill =  new MemorySkill(memoryManager, eventBus);
 
             agentBuilder.defaultSkillAdd(agentTeamsSkill);
-            agentBuilder.defaultSkillAdd(sharedMemorySkill);
+            agentBuilder.defaultSkillAdd(MemorySkill.getInstance());
 
             LOG.debug("Agent Teams 模式初始化完成 [OK]");
 

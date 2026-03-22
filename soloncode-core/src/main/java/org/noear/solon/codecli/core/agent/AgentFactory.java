@@ -8,6 +8,7 @@ import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
 import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.memory.MemorySkill;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.core.util.ClassUtil;
 
@@ -123,6 +124,7 @@ public class AgentFactory {
                     }
 
                     case "*": {
+                        builder.defaultToolAdd(MemorySkill.getInstance());
                         builder.defaultSkillAdd(agentRuntime.getCliSkills());
                         builder.defaultSkillAdd(LuceneSkill.getInstance());
                         builder.defaultToolAdd(agentRuntime.getTaskSkill());
