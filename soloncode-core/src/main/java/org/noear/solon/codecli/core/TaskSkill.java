@@ -77,7 +77,6 @@ public class TaskSkill extends AbsSkill {
         sb.append("**规则提示**：\n");
         sb.append("1. **上下文隔离**: 子代理不共享主会话历史，请在 prompt 中提供必要的背景信息。\n");
         sb.append("2. **并行限制**: 使用 multitask 时，确保任务间不存在同一文件的写冲突。");
-        sb.append("3. **重要提醒**：如果以上子代理不满足需求，可通过 generate_agent 生态生成新的子代理。");
 
         return sb.toString();
     }
