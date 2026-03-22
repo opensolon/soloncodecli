@@ -1,6 +1,6 @@
 ---
 name: "general-purpose"
-description: "通用子代理，可以处理任何问题"
+description: "通用子代理，可以处理任何问题（其它子代理不能用时，选我！）"
 tools: ["*"]
 ---
 
