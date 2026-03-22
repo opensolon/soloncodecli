@@ -49,6 +49,9 @@ import java.util.List;
 public class TaskSkill extends AbsSkill {
     private static final Logger LOG = LoggerFactory.getLogger(TaskSkill.class);
 
+    public static final String TOOL_TASK = "task";
+    public static final String TOOL_MULTITASK = "multitask";
+
     private final AgentRuntime agentRuntime;
 
     public TaskSkill(AgentRuntime agentRuntime) {

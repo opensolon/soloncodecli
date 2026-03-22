@@ -34,6 +34,7 @@ import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.TaskSkill;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import org.slf4j.Logger;
@@ -129,7 +130,7 @@ public class CliShellOld implements Runnable {
     }
 
 
-    private boolean isSystemCommand(AgentSession session, String input) throws Exception{
+    private boolean isSystemCommand(AgentSession session, String input) throws Exception {
         String cmd = input.trim().toLowerCase();
         if ("/exit".equals(cmd)) {
             terminal.writer().println(DIM + "Exiting..." + RESET);
@@ -333,13 +334,14 @@ public class CliShellOld implements Runnable {
 
     private void onActionEndChunk(ActionEndChunk action, AtomicBoolean isFirstReasonChunk) {
         if (Assert.isNotEmpty(action.getToolName())) {
-            if("task".equals(action.getToolName())){
+            if (TaskSkill.TOOL_MULTITASK.equals(action.getToolName()) ||
+                    TaskSkill.TOOL_TASK.equals(action.getToolName())) {
                 return;
             }
 
             final String fullToolName;
 
-            if(agentRuntime.getName().equals(action.getAgentName())){
+            if (agentRuntime.getName().equals(action.getAgentName())) {
                 fullToolName = action.getToolName();
             } else {
                 fullToolName = action.getAgentName() + "/" + action.getToolName();
