@@ -89,15 +89,10 @@ public class AgentFactory {
                         break;
                     }
 
-                    case "todoread": {
-                        builder.defaultToolAdd(agentRuntime.getTodoSkill()
-                                .getToolAry("todoread"));
-                        break;
-                    }
-
-                    case "todowrite": {
-                        builder.defaultToolAdd(agentRuntime.getTodoSkill()
-                                .getToolAry("todowrite"));
+                    case "todoread":
+                    case "todowrite":
+                    case "todo": {
+                        builder.defaultToolAdd(agentRuntime.getTodoSkill());
                         break;
                     }
 
