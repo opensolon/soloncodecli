@@ -29,7 +29,7 @@ public class GenerateTool {
     }
 
     @ToolMapping(name = "generate_agent",
-            description = "动态创建一个具有特定能力和系统提示词的子代理，用于拆解复杂任务。")
+            description = "动态创建一个具有特定能力和系统提示词的子代理（优先使用 general 子代理）。")
     public String generateAgent(
             @Param(name = "name", description = "子代理的唯一英文标识符（如 code_reviewer）") String name,
             @Param(name = "description", description = "简要描述该代理的职责") String description,
@@ -53,7 +53,7 @@ public class GenerateTool {
                     "- `*`，代表全选") List<String> tools,
             @Param(name = "skills", description = "子代理具备的特定专家能力标识列表", required = false) List<String> skills,
             @Param(name = "maxTurns", description = "单次任务的最大思考/对话轮数，通常建议 5-10", required = false) Integer maxTurns,
-            @Param(name = "saveToFile", description = "是否将代理定义保存为 .md 文件，默认为 true", required = false) Boolean saveToFile,
+            @Param(name = "saveToFile", description = "是否将代理定义保存为 .md 文件，默认为 false", required = false) Boolean saveToFile,
             String __cwd
     ) {
         if (name == null || !name.matches("^[a-zA-Z0-9_-]+$")) {
@@ -84,7 +84,8 @@ public class GenerateTool {
 
             definition.setSystemPrompt(systemPrompt);
 
-            boolean shouldSave = saveToFile == null || saveToFile;
+            boolean shouldSave = saveToFile != null && saveToFile;
+
             if (shouldSave) {
                 Path agentsDir = Paths.get(__cwd, ".soloncode", "agents");
                 if (!Files.exists(agentsDir)) {
