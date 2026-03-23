@@ -2,7 +2,6 @@ package org.noear.solon.codecli.core.agent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
-import org.noear.solon.ai.skills.browser.BrowserSkill;
 import org.noear.solon.ai.skills.lucene.LuceneSkill;
 import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
@@ -111,13 +110,6 @@ public class AgentFactory {
                         break;
                     }
 
-                    case "browser": {
-                        if (agentRuntime.getProperties().isBrowserEnabled() && ClassUtil.hasClass(() -> BrowserSkill.class)) {
-                            builder.defaultSkillAdd(BrowserSkill.getInstance());
-                        }
-                        break;
-                    }
-
                     case "*": {
                         builder.defaultSkillAdd(agentRuntime.getCliSkills());
                         builder.defaultSkillAdd(LuceneSkill.getInstance());
@@ -127,10 +119,6 @@ public class AgentFactory {
                         builder.defaultToolAdd(WebfetchTool.getInstance());
                         builder.defaultToolAdd(WebsearchTool.getInstance());
                         builder.defaultToolAdd(CodeSearchTool.getInstance());
-
-                        if (agentRuntime.getProperties().isBrowserEnabled() && ClassUtil.hasClass(() -> BrowserSkill.class)) {
-                            builder.defaultSkillAdd(BrowserSkill.getInstance());
-                        }
 
                         if (agentRuntime.getMcpProviders() != null) {
                             for (McpClientProvider mcpProvider : agentRuntime.getMcpProviders().getProviders().values()) {

@@ -13,7 +13,6 @@ import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
-import org.noear.solon.ai.skills.browser.BrowserSkill;
 import org.noear.solon.ai.skills.cli.CliSkillProvider;
 import org.noear.solon.ai.skills.cli.TodoSkill;
 import org.noear.solon.ai.skills.diff.ApplyPatchTool;
@@ -224,20 +223,16 @@ public class AgentRuntime {
             agentBuilder.defaultSkillAdd(todoSkill);
             agentBuilder.defaultSkillAdd(codeSkill);
             agentBuilder.defaultSkillAdd(luceneSkill);
+        }
 
-            if (properties.isBrowserEnabled() && ClassUtil.hasClass(() -> BrowserSkill.class)) {
-                agentBuilder.defaultSkillAdd(BrowserSkill.getInstance());
+        if (getMcpProviders() != null) {
+            for (McpClientProvider mcpProvider : getMcpProviders().getProviders().values()) {
+                agentBuilder.defaultToolAdd(mcpProvider);
             }
+        }
 
-            if (getMcpProviders() != null) {
-                for (McpClientProvider mcpProvider : getMcpProviders().getProviders().values()) {
-                    agentBuilder.defaultToolAdd(mcpProvider);
-                }
-            }
-
-            if (getRestApis() != null) {
-                agentBuilder.defaultSkillAdd(getRestApis());
-            }
+        if (getRestApis() != null) {
+            agentBuilder.defaultSkillAdd(getRestApis());
         }
 
         // HITL 交互干预（优先使用实例字段，否则使用配置）

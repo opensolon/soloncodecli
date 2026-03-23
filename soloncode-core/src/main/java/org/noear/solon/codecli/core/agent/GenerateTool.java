@@ -50,7 +50,6 @@ public class GenerateTool {
                     "- `websearch`，互联网通用搜索\n" +
                     "- `codesearch`，互联网代码仓库搜索\n" +
                     "- `task`，调度子代理干活\n" +
-                    "- `browser`，使用无头浏览器交互\n" +
                     "- `*`，代表全选") List<String> tools,
             @Param(name = "skills", description = "子代理具备的特定专家能力标识列表", required = false) List<String> skills,
             @Param(name = "maxTurns", description = "单次任务的最大思考/对话轮数，通常建议 5-10", required = false) Integer maxTurns,
