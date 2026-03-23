@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.util.List;
 
 /**
  *
@@ -29,18 +29,37 @@ public class GenerateAgentTool {
     }
 
     @ToolMapping(name = "generate_agent",
-            description = "动态创建一个新的子代理。")
+            description = "动态创建一个具有特定能力和系统提示词的子代理，用于拆解复杂任务。")
     public String generateAgent(
-            @Param(name = "name", description = "子代理的唯一标识码，必须使用英文单词或组合") String name,
-            @Param(name = "description", description = "子代理的功能描述") String description,
-            @Param(name = "systemPrompt", description = "子代理的系统提示词") String systemPrompt,
-            @Param(name = "model", required = false) String model,
-            @Param(name = "tools", required = false, description = "多个用英文逗号隔开（可选工具：read，edit，glob，grep，list，bash，skill，todoread，todowrite，webfetch，websearch，codesearch，task，browser，*。* 表示所有工具）") String tools,
-            @Param(name = "skills", required = false) String skills,
-            @Param(name = "maxTurns", required = false) Integer maxTurns,
-            @Param(name = "saveToFile", required = false) Boolean saveToFile,
+            @Param(name = "name", description = "子代理的唯一英文标识符（如 code_reviewer）") String name,
+            @Param(name = "description", description = "简要描述该代理的职责") String description,
+            @Param(name = "systemPrompt", description = "详细的角色设定和工作准则") String systemPrompt,
+            @Param(name = "model", description = "指定使用的模型名称，不填则使用默认模型", required = false) String model,
+            @Param(name = "tools", required = false, description = "必须从给定列表中选择：\n" +
+                    "- `read`，读取文件完整内容\n" +
+                    "- `edit`，修改文件内容\n" +
+                    "- `glob`，使用模式匹配\n" +
+                    "- `grep`，基于正则表达式的全文检索\n" +
+                    "- `list`，列出目录内容\n" +
+                    "- `bash`，运行 Shell 命令\n" +
+                    "- `skill`，调用预定义的专家技能模块\n" +
+                    "- `todoread`，检索当前任务的待办清单或进度状态\n" +
+                    "- `todowrite`，记录、更新或标记任务进度\n" +
+                    "- `webfetch`，直接抓取特定网页内容\n" +
+                    "- `websearch`，互联网通用搜索\n" +
+                    "- `codesearch`，互联网代码仓库搜索\n" +
+                    "- `task`，调度子代理干活\n" +
+                    "- `browser`，使用无头浏览器交互\n" +
+                    "- `*`，代表全选") List<String> tools,
+            @Param(name = "skills", description = "子代理具备的特定专家能力标识列表", required = false) List<String> skills,
+            @Param(name = "maxTurns", description = "单次任务的最大思考/对话轮数，通常建议 5-10", required = false) Integer maxTurns,
+            @Param(name = "saveToFile", description = "是否将代理定义保存为 .md 文件，默认为 true", required = false) Boolean saveToFile,
             String __cwd
     ) {
+        if (name == null || !name.matches("^[a-zA-Z0-9_-]+$")) {
+            return "ERROR: name 标识符不合法，仅允许使用英文字符、数字、下划线或中划线。";
+        }
+
         try {
             AgentDefinition definition = agentRuntime.getAgentManager()
                     .getAgent(AgentDefinition.AGENT_GENERAL)
@@ -54,10 +73,10 @@ public class GenerateAgentTool {
                 definition.getMetadata().setModel(model);
             }
             if (tools != null && !tools.isEmpty()) {
-                definition.getMetadata().setTools(Arrays.asList(tools.split(",\\s*")));
+                definition.getMetadata().setTools(tools);
             }
             if (skills != null && !skills.isEmpty()) {
-                definition.getMetadata().setSkills(Arrays.asList(skills.split(",\\s*")));
+                definition.getMetadata().setSkills(skills);
             }
             if (maxTurns != null && maxTurns > 0) {
                 definition.getMetadata().setMaxTurns(maxTurns);
