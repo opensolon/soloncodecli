@@ -71,7 +71,7 @@ public class AgentRuntime {
     private final LuceneSkill luceneSkill = new LuceneSkill();
     private final TodoSkill todoSkill = new TodoSkill(SOLONCODE_SESSIONS);
     private final TaskSkill taskSkill = new TaskSkill(this);
-    private final GenerateTool generateTool =  new GenerateTool(this);
+    private final GenerateTool generateTool = new GenerateTool(this);
 
     private final ReActAgent reActAgent;
 
@@ -133,8 +133,8 @@ public class AgentRuntime {
         return taskSkill;
     }
 
-    public GenerateTool getGenerateTool() {
-        return generateTool;
+    public CodeSkill getCodeSkill() {
+        return codeSkill;
     }
 
     private AgentRuntime(ChatModel chatModel, AgentProperties properties, AgentSessionProvider sessionProvider, Collection<ReActAgentExtension> extensions) {

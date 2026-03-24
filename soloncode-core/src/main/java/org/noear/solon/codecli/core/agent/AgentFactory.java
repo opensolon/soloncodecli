@@ -120,6 +120,9 @@ public class AgentFactory {
                         builder.defaultToolAdd(WebsearchTool.getInstance());
                         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
+
+                        builder.defaultToolAdd(agentRuntime.getCodeSkill());
+
                         if (agentRuntime.getMcpProviders() != null) {
                             for (McpClientProvider mcpProvider : agentRuntime.getMcpProviders().getProviders().values()) {
                                 builder.defaultToolAdd(mcpProvider);
