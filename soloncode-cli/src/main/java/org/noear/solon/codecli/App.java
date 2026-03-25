@@ -24,13 +24,15 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.core.AgentProperties;
-import org.noear.solon.codecli.portal.AcpLink;
 import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.ConfigLoader;
+import org.noear.solon.codecli.portal.AcpLink;
+import org.noear.solon.codecli.portal.CliShellNew;
+import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.portal.WebGate;
-import org.noear.solon.core.event.AppStopEndEvent;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,8 +46,20 @@ import java.util.concurrent.ConcurrentHashMap;
 public class App {
 
     public static void main(String[] args) {
+        // 在 Solon 启动前，确定外部配置文件路径（三级优先级）
+        Path externalConfig = ConfigLoader.loadConfig();
+        if (externalConfig != null) {
+            System.setProperty("solon.config.load", externalConfig.toAbsolutePath().toString());
+        }
+
         Solon.start(App.class, args, app -> {
             AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
+
+            // 确保 workDir 为绝对路径
+            if (c.getWorkDir() != null && !Paths.get(c.getWorkDir()).isAbsolute()) {
+                c.setWorkDir(Paths.get(System.getProperty("user.dir"), c.getWorkDir())
+                        .toAbsolutePath().normalize().toString());
+            }
             app.context().wrapAndPut(AgentProperties.class, c);
             app.enableHttp(false); //默认不启用 http
 
@@ -80,7 +94,11 @@ public class App {
 
 
         if (agentProperties.isCliEnabled()) {
-            new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+            if ("new".equals(agentProperties.getUiType())) {
+                new Thread(new CliShellNew(agentKernel), "CLI-Interactive-Thread").start();
+            } else {
+                new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+            }
         }
 
         if (agentProperties.isWebEnabled()) {
