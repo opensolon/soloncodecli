@@ -139,7 +139,7 @@ public class WebGate implements Handler {
                             ReActChunk react = (ReActChunk) chunk;
 
                             if (react.isNormal() == false) {
-                                return new ONode().set("type", "reason")
+                                return new ONode().set("type", "text")
                                         .set("text", chunk.getContent())
                                         .toJson();
                             }
