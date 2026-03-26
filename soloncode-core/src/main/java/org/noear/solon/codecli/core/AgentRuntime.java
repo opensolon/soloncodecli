@@ -52,9 +52,6 @@ public class AgentRuntime {
     public final static String SOLONCODE_SESSIONS = ".soloncode/sessions/";
     public final static String SOLONCODE_SKILLS = ".soloncode/skills/";
     public final static String SOLONCODE_AGENTS = ".soloncode/agents/";
-    public final static String SOLONCODE_AGENTS_TEAMS = ".soloncode/agentsTeams/";
-    public final static String SOLONCODE_DOWNLOADS = ".soloncode/downloads/";
-    public final static String SOLONCODE_BROWSER = ".soloncode/browser/";
     public final static String SOLONCODE_MEMORY = ".soloncode/memory/";
 
     public final static String OPENCODE_SKILLS = ".opencode/skills/";
@@ -189,7 +186,6 @@ public class AgentRuntime {
 
         agentManager = new AgentManager();
         agentManager.agentPool(Paths.get(properties.getWorkDir(), AgentRuntime.SOLONCODE_AGENTS));
-        agentManager.agentPool(Paths.get(properties.getWorkDir(), AgentRuntime.SOLONCODE_AGENTS_TEAMS), true);
 
         //上下文摘要
         SummarizationStrategy strategy = new CompositeSummarizationStrategy()
