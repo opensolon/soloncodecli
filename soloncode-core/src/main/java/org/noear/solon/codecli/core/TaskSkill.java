@@ -140,6 +140,10 @@ public class TaskSkill extends AbsSkill {
             return "ERROR: 未知的子代理类型 '" + task.getName() + "'。";
         }
 
+        if (LOG.isDebugEnabled()) {
+            LOG.debug("task-description: {}\ntask-prompt: {}", task.getDescription(), task.getPrompt());
+        }
+
         String result = null;
         ReActAgent agent = agentDefinition.builder(agentRuntime).build();
         final AgentSession session = InMemoryAgentSession.of(agent.name());
@@ -216,7 +220,7 @@ public class TaskSkill extends AbsSkill {
     public static class TaskOp {
         @Param(name = "name", description = "子代理名称")
         private String name;
-        @Param(name = "prompt", description = "具体指令。子代理看不见当前历史，每次都是重新开始，必须非常详细的任务描述，以及子代理要求传递的信息。")
+        @Param(name = "prompt", description = "派给子代理的任务描述。子代理看不见当前历史，每次都是重新开始，必须要非常详细的描述任务，并传递用户的原始意图。")
         private String prompt;
         @Param(name = "description", required = false, description = "简短的任务描述")
         private String description;
