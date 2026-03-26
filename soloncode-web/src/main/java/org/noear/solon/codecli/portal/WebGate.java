@@ -40,10 +40,10 @@ import reactor.core.publisher.Flux;
  */
 @Preview("3.9.1")
 public class WebGate implements Handler {
-    private final AgentRuntime kernel;
+    private final AgentRuntime agentRuntime;
 
-    public WebGate(AgentRuntime kernel) {
-        this.kernel = kernel;
+    public WebGate(AgentRuntime agentRuntime) {
+        this.agentRuntime = agentRuntime;
     }
 
     @Override
@@ -70,14 +70,14 @@ public class WebGate implements Handler {
                 return;
             }
 
-            AgentSession session = kernel.getSession(sessionId);
+            AgentSession session = agentRuntime.getSession(sessionId);
             session.attrs().putIfAbsent(AgentRuntime.ATTR_CWD, sessionCwd);
         }
 
         // HITL approve/reject handling
         String hitlAction = ctx.param("hitlAction");
         if (Assert.isNotEmpty(hitlAction)) {
-            AgentSession session = kernel.getSession(sessionId);
+            AgentSession session = agentRuntime.getSession(sessionId);
             HITLTask task = HITL.getPendingTask(session);
             if (task != null) {
                 if ("approve".equals(hitlAction)) {
@@ -95,7 +95,7 @@ public class WebGate implements Handler {
         if (Assert.isNotEmpty(input)) {
             if ("call".equals(mode)) {
                 ctx.contentType(MimeType.TEXT_PLAIN_UTF8_VALUE);
-                String result = kernel.call(sessionId, Prompt.of(input))
+                String result = agentRuntime.call(sessionId, Prompt.of(input))
                         .getContent();
 
                 ctx.output(result);
@@ -107,7 +107,7 @@ public class WebGate implements Handler {
     }
 
     private Flux<String> buildStreamFlux(String sessionId, String input) {
-        return kernel.stream(sessionId, Prompt.of(input))
+        return agentRuntime.stream(sessionId, Prompt.of(input))
                 .map(chunk -> {
                     if (chunk.hasContent()) {
                         if (chunk instanceof ReasonChunk) {
@@ -130,7 +130,11 @@ public class WebGate implements Handler {
                                     .set("text", chunk.getContent());
 
                             if (Assert.isNotEmpty(action.getToolName())) {
-                                oNode.set("toolName", action.getToolName());
+                                if (agentRuntime.getName().equals(action.getAgentName())) {
+                                    oNode.set("toolName", action.getToolName());
+                                } else {
+                                    oNode.set("toolName", action.getAgentName() + "/" + action.getToolName());
+                                }
                                 oNode.set("args", action.getArgs());
                             }
 
@@ -162,7 +166,7 @@ public class WebGate implements Handler {
                 })
                 .concatWith(Flux.defer(() -> {
                     // Check HITL state after stream completes
-                    AgentSession session = kernel.getSession(sessionId);
+                    AgentSession session = agentRuntime.getSession(sessionId);
                     if (HITL.isHitl(session)) {
                         HITLTask task = HITL.getPendingTask(session);
                         if (task != null) {
