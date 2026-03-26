@@ -31,6 +31,8 @@ import org.noear.solon.core.util.MimeType;
 import org.noear.solon.lang.Preview;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
+
 /**
  * Code CLI 终端 (Pool-Box 模型)
  * <p>基于 ReAct 模式的代码协作终端，提供多池挂载与任务盒隔离体验</p>
@@ -107,7 +109,9 @@ public class WebGate implements Handler {
     }
 
     private Flux<String> buildStreamFlux(String sessionId, String input) {
-        return agentRuntime.stream(sessionId, Prompt.of(input))
+        Prompt prompt = Prompt.of(input).attrPut("start_time" , System.currentTimeMillis());
+
+        return agentRuntime.stream(sessionId, prompt)
                 .map(chunk -> {
                     if (chunk.hasContent()) {
                         if (chunk instanceof ReasonChunk) {
@@ -146,11 +150,31 @@ public class WebGate implements Handler {
                                 return new ONode().set("type", "text")
                                         .set("text", chunk.getContent())
                                         .toJson();
-                            }
+                            } else {
+                                Long start_time = react.getTrace().getOriginalPrompt().attrAs("start_time");
 
-                            return new ONode().set("type", "agent")
-                                    .set("text", chunk.getContent())
-                                    .toJson();
+                                StringBuilder buf = new StringBuilder();
+                                buf.append(" (");
+
+                                if (react.getTrace().getMetrics() != null) {
+                                    buf.append(react.getTrace().getMetrics().getTotalTokens()).append(" tokens");
+                                }
+
+                                if (start_time != null) {
+                                    long seconds = Duration.ofMillis(System.currentTimeMillis() - start_time).getSeconds();
+                                    if (buf.length() > 2) {
+                                        buf.append(", ");
+                                    }
+
+                                    buf.append(seconds).append(" seconds");
+                                }
+
+                                buf.append(")");
+
+                                return new ONode().set("type", "text")
+                                        .set("text", buf.toString())
+                                        .toJson();
+                            }
                         }
                     }
 
