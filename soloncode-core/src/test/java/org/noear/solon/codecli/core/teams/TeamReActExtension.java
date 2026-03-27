@@ -68,7 +68,7 @@ public class TeamReActExtension implements ReActAgentExtension {
 
             // 5. 创建 MainAgent 配置
             AgentDefinition agentDefinition = agentRuntime.getAgentManager()
-                    .getAgent(AgentDefinition.AGENT_SUPERVISOR);
+                    .getAgent(AGENT_SUPERVISOR);
 
             // 6. 创建 MainAgent（传入 kernel 和 subagentManager 以支持 subagent 功能）
             this.mainAgent = new MainAgent(
