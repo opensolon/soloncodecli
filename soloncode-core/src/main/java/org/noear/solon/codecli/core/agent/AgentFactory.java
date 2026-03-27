@@ -125,14 +125,16 @@ public class AgentFactory {
 
                     case "*": {
                         builder.defaultSkillAdd(agentRuntime.getCliSkills());
-                        builder.defaultToolAdd(agentRuntime.getTodoSkill());
-                        builder.defaultToolAdd(agentRuntime.getCodeSkill());
+                        builder.defaultSkillAdd(agentRuntime.getTodoSkill());
+                        builder.defaultSkillAdd(agentRuntime.getCodeSkill());
 
                         builder.defaultToolAdd(WebfetchTool.getInstance());
                         builder.defaultToolAdd(WebsearchTool.getInstance());
                         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
-                        builder.defaultToolAdd(agentRuntime.getTaskSkill());
+                        if (agentRuntime.getProperties().isSubagentEnabled()) {
+                            builder.defaultSkillAdd(agentRuntime.getTaskSkill());
+                        }
                         break;
                     }
 

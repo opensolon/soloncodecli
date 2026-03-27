@@ -203,10 +203,15 @@ public class AgentRuntime {
 
         agentDefinition.setSystemPrompt(getAgentsMd());
         agentDefinition.getMetadata().setName("main");
-        agentDefinition.getMetadata().addTools("*", "mcp", "restapi");
+        agentDefinition.getMetadata().addTools(
+                AgentDefinition.TOOL_ALL,
+                AgentDefinition.TOOL_MCP,
+                AgentDefinition.TOOL_RESTAPI);
 
         if (properties.isSubagentEnabled()) {
-            agentDefinition.getMetadata().addTools("task", "generate");
+            agentDefinition.getMetadata().addTools(
+                    AgentDefinition.TOOL_TASK,
+                    AgentDefinition.TOOL_GENERATE);
         }
 
         if (properties.isHitlEnabled()) {
