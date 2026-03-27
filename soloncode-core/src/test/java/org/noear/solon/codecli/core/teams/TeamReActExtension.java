@@ -23,6 +23,8 @@ import java.nio.file.Paths;
 public class TeamReActExtension implements ReActAgentExtension {
     private static final Logger LOG = LoggerFactory.getLogger(TeamReActExtension.class);
 
+    public static final String AGENT_SUPERVISOR = "supervisor";
+
     private final AgentRuntime agentRuntime;
     private final AgentProperties properties;
 

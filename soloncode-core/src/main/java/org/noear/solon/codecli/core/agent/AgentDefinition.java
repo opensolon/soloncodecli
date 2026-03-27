@@ -22,7 +22,6 @@ import java.util.Map;
  * @since 3.9.5
  */
 public class AgentDefinition {
-    public static final String AGENT_SUPERVISOR = "supervisor";
     public static final String AGENT_GENERAL = "general";
 
     protected Metadata metadata = new Metadata();
