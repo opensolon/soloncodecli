@@ -40,7 +40,7 @@ public class AgentMetadataTest {
                 "## 探索代理\n\n" +
                 "你是一个快速的代码库探索专家。";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("explore", metadata.getName());
         assertEquals("Fast codebase exploration expert", metadata.getDescription());
@@ -61,7 +61,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 计划代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("plan", metadata.getName());
         assertEquals("glm-4.7", metadata.getModel());
@@ -74,7 +74,7 @@ public class AgentMetadataTest {
         String prompt = "## 计划代理\n\n" +
                 "你是一个软件架构师。";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertNull(metadata.getName());
         assertNull(metadata.getDescription());
@@ -122,10 +122,10 @@ public class AgentMetadataTest {
 
     @Test
     public void testHasModel() {
-        AgentMetadata metadata1 = new AgentMetadata();
+        AgentDefinition.Metadata metadata1 = new AgentDefinition.Metadata();
         assertFalse(metadata1.hasModel());
 
-        AgentMetadata metadata2 = AgentDefinition.fromMarkdown(
+        AgentDefinition.Metadata metadata2 = AgentDefinition.fromMarkdown(
                 "---\nmodel: glm-4.7\n---\n\n"
         ).getMetadata();
 
@@ -142,7 +142,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals("glm-4.7", metadata.getModel());
@@ -159,7 +159,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals("glm-4.7", metadata.getModel());
@@ -185,7 +185,7 @@ public class AgentMetadataTest {
         AgentDefinition result = AgentDefinition.fromMarkdown(prompt);
 
         // 验证元数据
-        AgentMetadata metadata = result.getMetadata();
+        AgentDefinition.Metadata metadata = result.getMetadata();
         assertEquals("explore", metadata.getName());
         assertEquals("glm-4-flash", metadata.getModel());
         assertTrue(metadata.hasModel());
@@ -214,7 +214,7 @@ public class AgentMetadataTest {
                 "## 计划代理（软件架构师）\n\n" +
                 "你是一个经验丰富的软件架构师。";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("plan", metadata.getName());
         assertEquals("glm-4.7", metadata.getModel());
@@ -229,7 +229,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertTrue(metadata.hasDisallowedTools());
@@ -247,7 +247,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals("plan", metadata.getPermissionMode());
@@ -262,7 +262,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals(Integer.valueOf(50), metadata.getMaxTurns());
@@ -277,7 +277,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertTrue(metadata.hasSkills());
@@ -295,7 +295,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertTrue(metadata.hasMcpServers());
@@ -312,7 +312,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals("project", metadata.getMemory());
@@ -327,7 +327,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertTrue(metadata.isBackground());
@@ -341,7 +341,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertEquals("worktree", metadata.getIsolation());
@@ -366,7 +366,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 综合测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("comprehensive-test", metadata.getName());
         assertEquals("A comprehensive test with all metadata fields", metadata.getDescription());
@@ -400,7 +400,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertNull(metadata.getMaxTurns());
@@ -415,7 +415,7 @@ public class AgentMetadataTest {
                 "---\n\n" +
                 "## 测试代理";
 
-        AgentMetadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
+        AgentDefinition.Metadata metadata = AgentDefinition.fromMarkdown(prompt).getMetadata();
 
         assertEquals("test", metadata.getName());
         assertFalse(metadata.isBackground());

@@ -32,7 +32,7 @@ import org.noear.solon.annotation.Param;
 import org.noear.solon.codecli.core.AgentRuntime;
 import org.noear.solon.codecli.core.agent.AgentDefinition;
 import org.noear.solon.codecli.core.agent.AgentManager;
-import org.noear.solon.codecli.core.agent.AgentMetadata;
+import org.noear.solon.codecli.core.agent.AgentDefinition.Metadata;
 import org.noear.solon.codecli.core.teams.event.AgentEvent;
 import org.noear.solon.codecli.core.teams.event.AgentEventType;
 import org.noear.solon.codecli.core.teams.memory.WorkingMemory;
@@ -710,7 +710,7 @@ public class AgentTeamsSkill extends AbsSkill {
             }
 
             // 构建子代理元数据
-            AgentMetadata metadata = new AgentMetadata();
+            AgentDefinition.Metadata metadata = new AgentDefinition.Metadata();
             metadata.setName(name);
             metadata.setDescription(description);
             metadata.setEnabled(true);

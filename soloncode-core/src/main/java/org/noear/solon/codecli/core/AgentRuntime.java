@@ -18,6 +18,8 @@ import org.noear.solon.ai.skills.cli.TodoSkill;
 import org.noear.solon.ai.skills.restapi.ApiSource;
 import org.noear.solon.ai.skills.web.*;
 import org.noear.solon.ai.skills.restapi.RestApiSkill;
+import org.noear.solon.codecli.core.agent.AgentDefinition;
+import org.noear.solon.codecli.core.agent.AgentFactory;
 import org.noear.solon.codecli.core.agent.AgentManager;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.mcp.client.McpProviders;
@@ -74,6 +76,7 @@ public class AgentRuntime {
     private final CliSkillProvider cliSkills = new CliSkillProvider();
 
     private final SummarizationInterceptor summarizationInterceptor;
+    private final HITLInterceptor hitlInterceptor = new HITLInterceptor().onTool("bash", new HitlStrategy());
 
 
     private AgentManager agentManager;
@@ -114,6 +117,10 @@ public class AgentRuntime {
         return summarizationInterceptor;
     }
 
+    public HITLInterceptor getHitlInterceptor() {
+        return hitlInterceptor;
+    }
+
     public CliSkillProvider getCliSkills() {
         return cliSkills;
     }
@@ -128,6 +135,10 @@ public class AgentRuntime {
 
     public CodeSkill getCodeSkill() {
         return codeSkill;
+    }
+
+    public GenerateTool getGenerateTool() {
+        return generateTool;
     }
 
     private AgentRuntime(ChatModel chatModel, AgentProperties properties, AgentSessionProvider sessionProvider, Collection<ReActAgentExtension> extensions) {
@@ -155,13 +166,11 @@ public class AgentRuntime {
         }
 
 
-        final ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel).name("main");
-        final String agentsMd = getAgentsMd();
+        //final ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel).name("main");
+        AgentDefinition agentDefinition = new AgentDefinition();
 
-        if (Assert.isNotEmpty(agentsMd)) {
-            //有 AGENTS.md 配置
-            agentBuilder.systemPrompt(trace -> agentsMd);
-        }
+        agentDefinition.getMetadata().setName("main");
+        agentDefinition.setSystemPrompt(getAgentsMd());
 
 
         if (Assert.isNotEmpty(properties.getMountPool())) {
@@ -197,44 +206,28 @@ public class AgentRuntime {
                 properties.getSummaryWindowToken(),
                 strategy);
 
-        agentBuilder.defaultInterceptorAdd(summarizationInterceptor);
+        agentDefinition.getMetadata().getTools().add("*");
+        agentDefinition.getMetadata().getTools().add("mcp");
+        agentDefinition.getMetadata().getTools().add("restapi");
 
-        agentBuilder.defaultToolAdd(WebfetchTool.getInstance());
-        agentBuilder.defaultToolAdd(WebsearchTool.getInstance());
-        agentBuilder.defaultToolAdd(CodeSearchTool.getInstance());
+        if (properties.isSubagentEnabled()) {
+            agentDefinition.getMetadata().getTools().add("task");
+            agentDefinition.getMetadata().getTools().add("generate");
 
-        agentBuilder.defaultSkillAdd(getCliSkills());
-        agentBuilder.defaultSkillAdd(getTodoSkill());
-        agentBuilder.defaultSkillAdd(getCodeSkill());
-
-        if(properties.isSubagentEnabled()) {
-            agentBuilder.defaultSkillAdd(taskSkill);
-            agentBuilder.defaultToolAdd(generateTool);
         }
 
-        if (getMcpProviders() != null) {
-            for (McpClientProvider mcpProvider : getMcpProviders().getProviders().values()) {
-                agentBuilder.defaultToolAdd(mcpProvider);
-            }
-        }
-
-        if (getRestApis() != null) {
-            agentBuilder.defaultSkillAdd(getRestApis());
-        }
-
-        // HITL 交互干预（优先使用实例字段，否则使用配置）
         if (properties.isHitlEnabled()) {
-            agentBuilder.defaultInterceptorAdd(new HITLInterceptor()
-                    .onTool("bash", new HitlStrategy()));
-            LOG.info("HITL 交互干预已启用");
+            agentDefinition.getMetadata().getTools().add("hitl");
         }
 
         // 添加步数
-        agentBuilder.maxSteps(properties.getMaxSteps());
+        agentDefinition.getMetadata().setMaxSteps(properties.getMaxSteps());
         // 添加步数自动扩展
-        agentBuilder.maxStepsExtensible(properties.isMaxStepsAutoExtensible());
+        agentDefinition.getMetadata().setMaxStepsAutoExtensible(properties.isMaxStepsAutoExtensible());
         // 添加会话窗口大小
-        agentBuilder.sessionWindowSize(properties.getSessionWindowSize());
+        agentDefinition.getMetadata().setSessionWindowSize(properties.getSessionWindowSize());
+
+        ReActAgent.Builder agentBuilder = AgentFactory.create(this, agentDefinition);
 
         if (Assert.isNotEmpty(extensions)) {
             for (ReActAgentExtension extension : extensions) {

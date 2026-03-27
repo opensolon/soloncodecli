@@ -71,7 +71,7 @@ public class AgentProperties implements Serializable {
     private int maxSteps = 10;
     private boolean maxStepsAutoExtensible = false;
     private String uiType = "old";
-    private int sessionWindowSize = 10;
+    private int sessionWindowSize = 8;
     private int summaryWindowSize = 12;
     private int summaryWindowToken = 15000;
     private boolean sandboxMode = true;
