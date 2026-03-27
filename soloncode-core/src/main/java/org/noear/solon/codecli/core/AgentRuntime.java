@@ -199,16 +199,14 @@ public class AgentRuntime {
                 properties.getSummaryWindowToken(),
                 strategy);
 
-        //final ReActAgent.Builder agentBuilder = ReActAgent.of(chatModel).name("main");
         AgentDefinition agentDefinition = new AgentDefinition();
 
-        agentDefinition.getMetadata().setName("main");
         agentDefinition.setSystemPrompt(getAgentsMd());
+        agentDefinition.getMetadata().setName("main");
         agentDefinition.getMetadata().addTools("*", "mcp", "restapi");
 
         if (properties.isSubagentEnabled()) {
             agentDefinition.getMetadata().addTools("task", "generate");
-
         }
 
         if (properties.isHitlEnabled()) {
