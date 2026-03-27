@@ -85,7 +85,7 @@ public class App {
                 new FileAgentSession(key, globalSessionsDir.resolve(key).normalize().toFile().toString()));
 
 
-        AgentRuntime agentKernel = AgentRuntime.builder()
+        AgentRuntime agentRuntime = AgentRuntime.builder()
                 .chatModel(chatModel)
                 .properties(agentProperties)
                 .sessionProvider(sessionProvider)
@@ -94,14 +94,14 @@ public class App {
 
         if (agentProperties.isCliEnabled()) {
             if ("new".equals(agentProperties.getUiType())) {
-                new Thread(new CliShellNew(agentKernel), "CLI-Interactive-Thread").start();
+                new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
             } else {
-                new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+                new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
             }
         }
 
         if (agentProperties.isWebEnabled()) {
-            Solon.app().router().get(agentProperties.getWebEndpoint(), new WebGate(agentKernel));
+            Solon.app().router().get(agentProperties.getWebEndpoint(), new WebGate(agentRuntime));
         }
 
         if (agentProperties.isAcpEnabled()) {
@@ -113,7 +113,7 @@ public class App {
                         agentProperties.getAcpTransport(), McpJsonMapper.getDefault());
             }
 
-            new AcpLink(agentKernel, agentTransport).run();
+            new AcpLink(agentRuntime, agentTransport).run();
         }
     }
 }
