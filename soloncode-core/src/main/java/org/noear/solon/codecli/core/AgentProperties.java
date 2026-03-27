@@ -21,7 +21,7 @@ import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.mcp.client.McpServerParameters;
 import org.noear.solon.ai.skills.restapi.ApiSource;
 
-import java.io.Serializable;
+import java.io.*;
 import java.util.Map;
 
 /**
@@ -33,61 +33,28 @@ import java.util.Map;
 @Getter
 @Setter
 public class AgentProperties implements Serializable {
-    private String workDir = "./work/";
-
-    private int maxSteps = 10;
-    private boolean maxStepsAutoExtensible = false;
-
-    private int sessionWindowSize = 10;
-
-    private int summaryWindowSize = 12;
-    private int summaryWindowToken = 15000;
-
-    private boolean sandboxMode = true;
-    private boolean thinkPrinted = false;
-
-    private boolean hitlEnabled = false;
-    private boolean subagentEnabled = true;
-    private boolean agentTeamEnabled = false;
-    private boolean browserEnabled = true;
-
-    private boolean cliEnabled = true;
-    private boolean cliPrintSimplified = true;
-
-    private boolean webEnabled = false;
-    private String webEndpoint = "/cli";
-
-    private boolean acpEnabled = false;
-    private String acpTransport = "stdio";
-    private String acpEndpoint = "/acp";
-
     /**
      * 共享记忆配置
      */
     public boolean sharedMemoryEnabled = false;
     public SharedMemoryConfig sharedMemory = new SharedMemoryConfig();
-
     /**
      * 事件总线配置
      */
     public boolean eventBusEnabled = false;
     public EventBusConfig eventBus = new EventBusConfig();
-
     /**
      * 消息通道配置
      */
     public boolean messageChannelEnabled = false;
     public MessageChannelConfig messageChannel = new MessageChannelConfig();
-
     /**
      * Agent Teams 模式配置
      */
     public boolean teamsEnabled = false;
     public TeamsConfig teams = new TeamsConfig();
-
     public Map<String, McpServerParameters> mcpServers;
     public ChatConfig chatModel;
-
     /**
      * SubAgent 模型配置
      * 格式：subAgentCode -> modelName
@@ -95,7 +62,30 @@ public class AgentProperties implements Serializable {
      * 如果未配置，将使用默认的 chatModel.model
      */
     public Map<String, String> subAgentModels;
-
+    /**
+     * 子代理并发控制配置
+     */
+    public SubagentConcurrencyConfig subagentConcurrency = new SubagentConcurrencyConfig();
+    private String workDir = System.getProperty("user.dir");
+    private int maxSteps = 10;
+    private boolean maxStepsAutoExtensible = false;
+    private String uiType = "old";
+    private int sessionWindowSize = 10;
+    private int summaryWindowSize = 12;
+    private int summaryWindowToken = 15000;
+    private boolean sandboxMode = true;
+    private boolean thinkPrinted = false;
+    private boolean hitlEnabled = false;
+    private boolean subagentEnabled = true;
+    private boolean agentTeamEnabled = false;
+    private boolean browserEnabled = true;
+    private boolean cliEnabled = true;
+    private boolean cliPrintSimplified = true;
+    private boolean webEnabled = false;
+    private String webEndpoint = "/cli";
+    private boolean acpEnabled = false;
+    private String acpTransport = "stdio";
+    private String acpEndpoint = "/acp";
     private Map<String, ApiSource> restApis;
     @Deprecated
     private Map<String, String> mountPool;
@@ -242,9 +232,4 @@ public class AgentProperties implements Serializable {
         public long acquireTimeoutMs = 60000L;
 
     }
-
-    /**
-     * 子代理并发控制配置
-     */
-    public SubagentConcurrencyConfig subagentConcurrency = new SubagentConcurrencyConfig();
 }

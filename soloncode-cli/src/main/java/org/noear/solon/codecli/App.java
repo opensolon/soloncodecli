@@ -24,13 +24,15 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.core.AgentProperties;
-import org.noear.solon.codecli.portal.AcpLink;
 import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.core.ConfigLoader;
+import org.noear.solon.codecli.portal.AcpLink;
+import org.noear.solon.codecli.portal.CliShellNew;
+import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.portal.WebGate;
-import org.noear.solon.core.event.AppStopEndEvent;
 
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -44,8 +46,17 @@ import java.util.concurrent.ConcurrentHashMap;
 public class App {
 
     public static void main(String[] args) {
+        // 在 Solon 启动前，确定外部配置文件路径（三级优先级）
+        Path externalConfig = ConfigLoader.loadConfig();
+        if (externalConfig != null) {
+            System.setProperty("solon.config.load", externalConfig.toAbsolutePath().toString());
+        }
+
         Solon.start(App.class, args, app -> {
             AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
+
+            // workDir 始终为当前工作目录（忽略配置中的 workDir）
+            c.setWorkDir(Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize().toString());
             app.context().wrapAndPut(AgentProperties.class, c);
             app.enableHttp(false); //默认不启用 http
 
@@ -68,8 +79,10 @@ public class App {
         ChatModel chatModel = ChatModel.of(agentProperties.getChatModel()).build();
         Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();
 
+        // 会话数据存到全局目录 ~/.soloncode/sessions/<sessionId>/
+        Path globalSessionsDir = ConfigLoader.getGlobalConfigDir().resolve("sessions");
         AgentSessionProvider sessionProvider = (sessionId) -> sessionMap.computeIfAbsent(sessionId, key ->
-                new FileAgentSession(key, Paths.get(agentProperties.getWorkDir(), AgentRuntime.SOLONCODE_SESSIONS, key).normalize().toFile().toString()));
+                new FileAgentSession(key, globalSessionsDir.resolve(key).normalize().toFile().toString()));
 
 
         AgentRuntime agentKernel = AgentRuntime.builder()
@@ -80,7 +93,11 @@ public class App {
 
 
         if (agentProperties.isCliEnabled()) {
-            new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+            if ("new".equals(agentProperties.getUiType())) {
+                new Thread(new CliShellNew(agentKernel), "CLI-Interactive-Thread").start();
+            } else {
+                new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+            }
         }
 
         if (agentProperties.isWebEnabled()) {
