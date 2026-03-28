@@ -474,7 +474,6 @@ public class CliShellOld implements Runnable {
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().print(DIM + "Tips: " + RESET + "(esc)" + DIM + " to interrupt output. Commands: " +
                 RESET + "'/exit'" + DIM + " to quit, " +
-                RESET + "'/init'" + DIM + " to refresh, " +
                 RESET + "'/resume'" + DIM + " to resume, " +
                 RESET + "'/clear'" + DIM + " to reset" + RESET);
 
