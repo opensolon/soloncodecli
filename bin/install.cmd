@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 :: =============================================
 ::  Solon Code Installer (Windows)
-::  Run as Administrator required
+::  支持重复安装，保留已有 config.yml
 :: =============================================
 
 echo.
@@ -12,111 +12,133 @@ echo    Solon Code Installer
 echo ============================================
 echo.
 
-:: Check admin privileges
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [Error] Please run as Administrator!
-    echo Right-click -^> Run as administrator
+:: 设置源目录和目标目录
+set "SOURCE_DIR=%~dp0"
+if "%SOURCE_DIR:~-1%"=="\" set "SOURCE_DIR=%SOURCE_DIR:~0,-1%"
+set "TARGET_DIR=%USERPROFILE%\.soloncode\bin"
+
+:: [1/5] 检查并备份已有的 config.yml
+echo [1/5] Checking for existing installation...
+set "CONFIG_BACKUP="
+set "TARGET_CONFIG=%TARGET_DIR%\config.yml"
+if exist "%TARGET_CONFIG%" (
+    set "CONFIG_BACKUP=%TEMP%\soloncode_config_backup_%RANDOM%.yml"
+    copy "%TARGET_CONFIG%" "!CONFIG_BACKUP!" >nul 2>&1
+    echo       Backing up existing config.yml
+) else (
+    echo       No existing config.yml found
+)
+
+:: [2/5] 创建/清空目标目录
+echo.
+echo [2/5] Preparing target directory...
+if exist "%TARGET_DIR%" (
+    :: 清空目录内容（保留目录本身）
+    del /Q "%TARGET_DIR%\*" >nul 2>&1
+    for /d %%d in ("%TARGET_DIR%\*") do rd "%%d" /S /Q >nul 2>&1
+    echo       Cleaned existing directory
+) else (
+    mkdir "%TARGET_DIR%"
+    echo       Created new directory
+)
+
+:: [3/5] 复制所有文件到目标目录
+echo.
+echo [3/5] Copying files to target directory...
+for %%f in ("%SOURCE_DIR%\*") do (
+    copy "%%f" "%TARGET_DIR%\" >nul 2>&1
+    echo       Copied: %%~nxf
+)
+:: 复制子目录（如果有）
+for /d %%d in ("%SOURCE_DIR%\*") do (
+    xcopy "%%d" "%TARGET_DIR%\%%~nxd\" /E /I /Y >nul 2>&1
+    echo       Copied directory: %%~nxd
+)
+
+:: [4/5] 解压 zip 文件（如果存在）
+echo.
+echo [4/5] Extracting zip files if any...
+set "FOUND_ZIP=0"
+for %%z in ("%TARGET_DIR%\soloncode-cli-bin-*.zip") do (
+    set "FOUND_ZIP=1"
+    echo       Found: %%~nxz
+    
+    :: 使用 PowerShell 解压
+    powershell -NoProfile -Command "Expand-Archive -Path '%%z' -DestinationPath '%TARGET_DIR%' -Force" >nul 2>&1
+    
+    :: 处理子目录情况（解压后可能在子目录中）
+    for /d %%d in ("%TARGET_DIR%\soloncode-cli-*") do (
+        if exist "%%d\soloncode-cli.jar" (
+            xcopy "%%d\*" "%TARGET_DIR%\" /E /Y >nul 2>&1
+            rd "%%d" /S /Q >nul 2>&1
+            echo       Extracted files from subdirectory
+        )
+    )
+    echo       Extracted: %%~nxz
+)
+
+if "%FOUND_ZIP%"=="0" (
+    echo       No zip files found, skipping extraction
+)
+
+:: 恢复 config.yml 备份（如果之前存在）
+if not "!CONFIG_BACKUP!"=="" (
+    if exist "!CONFIG_BACKUP!" (
+        copy "!CONFIG_BACKUP!" "%TARGET_CONFIG%" >nul 2>&1
+        del "!CONFIG_BACKUP!" >nul 2>&1
+        echo.
+        echo       Restored config.yml (preserved user config)
+    )
+)
+
+:: 检查 jar 文件是否存在
+if not exist "%TARGET_DIR%\soloncode-cli.jar" (
+    echo.
+    echo [Error] soloncode-cli.jar not found in %TARGET_DIR%
     pause
     exit /b 1
 )
-
-:: Get install directory
-set "INSTALL_DIR=%~dp0"
-if "%INSTALL_DIR:~-1%"=="\" set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
-
-:: Check jar file
-echo [1/4] Checking installation files...
-if not exist "%INSTALL_DIR%\soloncode-cli.jar" (
-    echo [Error] soloncode-cli.jar not found in %INSTALL_DIR%
-    pause
-    exit /b 1
-)
+echo.
 echo       Found soloncode-cli.jar
 
-:: Set SOLONCODE_HOME env var
+:: [5/5] 创建 soloncode 命令脚本并配置 PATH
 echo.
-echo [2/4] Setting environment variables...
-setx SOLONCODE_HOME "%INSTALL_DIR%" /M >nul 2>&1
-if %errorLevel% equ 0 (
-    echo       SOLONCODE_HOME = %INSTALL_DIR%
-) else (
-    echo [Error] Failed to set SOLONCODE_HOME
-    pause
-    exit /b 1
-)
+echo [5/5] Setting up 'soloncode' command...
 
-:: Add to system PATH (use PowerShell to avoid setx 1024-char limit)
-echo.
-echo [3/4] Adding to system PATH...
-
-powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','Machine');if($p -notlike '*%INSTALL_DIR%*'){[Environment]::SetEnvironmentVariable('Path',$p+';%INSTALL_DIR%','Machine');exit 0}else{exit 1}" >nul 2>&1
-if %errorLevel% equ 0 (
-    echo       Added to PATH
-) else (
-    echo       PATH already contains %INSTALL_DIR%
-)
-
-:: Setup global config
-echo.
-echo [4/5] Setting up global config...
-set "GLOBAL_DIR=%USERPROFILE%\.soloncode"
-set "GLOBAL_CONFIG=%GLOBAL_DIR%\config.yml"
-
-if not exist "%GLOBAL_DIR%" (
-    mkdir "%GLOBAL_DIR%"
-)
-
-if not exist "%GLOBAL_CONFIG%" (
-    if exist "%INSTALL_DIR%\.soloncode\config.yml" (
-        copy "%INSTALL_DIR%\.soloncode\config.yml" "%GLOBAL_CONFIG%" >nul
-        echo       Copied config template to %GLOBAL_CONFIG%
-    ) else if exist "%INSTALL_DIR%\config.yml" (
-        copy "%INSTALL_DIR%\config.yml" "%GLOBAL_CONFIG%" >nul
-        echo       Copied config template to %GLOBAL_CONFIG%
-    ) else (
-        echo       [Warning] No config template found, will use jar embedded config
-    )
-) else (
-    echo       Global config already exists: %GLOBAL_CONFIG%
-)
-
-:: Create launcher script
-echo.
-echo [5/5] Creating launch script...
-set "LAUNCHER=%INSTALL_DIR%\soloncode.cmd"
-
+:: 创建启动脚本
+set "LAUNCHER=%TARGET_DIR%\soloncode.cmd"
 (
 echo @echo off
 echo setlocal
-echo set "SOLONCODE_JAR=%%SOLONCODE_HOME%%\soloncode-cli.jar"
-echo if not exist "%%SOLONCODE_JAR%%" ^(
+echo set "JAR_DIR=%%~dp0"
+echo if "%%JAR_DIR:~-1%%"=="\" set "JAR_DIR=%%JAR_DIR:~0,-1%%"
+echo set "JAR_FILE=%%JAR_DIR%%\soloncode-cli.jar"
+echo if not exist "%%JAR_FILE%%" ^(
 echo     echo [Error] soloncode-cli.jar not found
-echo     echo Please check SOLONCODE_HOME: %%SOLONCODE_HOME%%
+echo     echo Please check: %%JAR_FILE%%
 echo     exit /b 1
 echo ^)
 echo chcp 65001 ^> nul 2^>nul
-echo java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -Dstdin.encoding=UTF-8 -jar "%%SOLONCODE_JAR%%" %%*
+echo java -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -Dstdin.encoding=UTF-8 -jar "%%JAR_FILE%%" %%*
 ) > "%LAUNCHER%"
 
 echo       Created: %LAUNCHER%
 
-:: Done
+:: 添加到 PATH（用户级别）
+powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User');if($p -notlike '*%TARGET_DIR%*'){$np=$p;if($p -ne ''){$np=$p+';'}[Environment]::SetEnvironmentVariable('Path',$np+'%TARGET_DIR%','User');Write-Host 'Added to PATH'}else{Write-Host 'Already in PATH'}"
+
+:: 完成
 echo.
 echo ============================================
 echo    Installation Complete!
 echo ============================================
 echo.
-echo   SOLONCODE_HOME = %INSTALL_DIR%
-echo.
-echo   Global config: %%USERPROFILE%%\.soloncode\config.yml
+echo   Install location: %TARGET_DIR%
 echo.
 echo   Usage:
-echo     1. Close this window
-echo     2. Open a new command prompt
-echo     3. Run: soloncode
+echo     1. Open a NEW command prompt or terminal
+echo     2. Run: soloncode
 echo.
-echo   Uninstall:
-echo     Run: %INSTALL_DIR%\uninstall.cmd
+echo   Note: Your existing config.yml has been preserved.
 echo.
 pause

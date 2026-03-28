@@ -1,6 +1,8 @@
 #!/bin/bash
 # =============================================
 #  Solon Code Installer (Linux / macOS)
+#  支持重复安装，保留已有 config.yml
+#  兼容 bash, zsh, sh 等多种 shell
 # =============================================
 
 set -e
@@ -11,114 +13,222 @@ echo "   Solon Code Installer"
 echo "============================================"
 echo ""
 
-# 获取安装目录（脚本所在目录）
-INSTALL_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 源目录（脚本所在目录）
+SOURCE_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# 检查 jar 文件
-echo "[1/4] Checking installation files..."
-if [ ! -f "$INSTALL_DIR/soloncode-cli.jar" ]; then
-    echo "[Error] soloncode-cli.jar not found in $INSTALL_DIR"
+# 目标目录
+TARGET_DIR="$HOME/.soloncode/bin"
+
+# 步骤1：备份已有的 config.yml（如果存在）
+echo "[1/5] Checking for existing installation..."
+CONFIG_BACKUP=""
+if [ -f "$TARGET_DIR/config.yml" ]; then
+    CONFIG_BACKUP=$(mktemp)
+    cp "$TARGET_DIR/config.yml" "$CONFIG_BACKUP"
+    echo "      Backing up existing config.yml"
+else
+    echo "      No existing config.yml found"
+fi
+
+# 步骤2：创建/清空目标目录
+echo ""
+echo "[2/5] Preparing target directory: $TARGET_DIR"
+if [ -d "$TARGET_DIR" ]; then
+    # 清空目录内容（保留目录本身）
+    rm -rf "$TARGET_DIR"/*
+    echo "      Cleaned existing directory"
+else
+    mkdir -p "$TARGET_DIR"
+    echo "      Created new directory"
+fi
+
+# 步骤3：复制 bin 下所有文件到目标目录
+echo ""
+echo "[3/5] Copying files to $TARGET_DIR ..."
+cp -R "$SOURCE_DIR"/* "$TARGET_DIR/" 2>/dev/null || true
+echo "      Files copied successfully"
+
+# 步骤4：解压 zip 文件（如果存在）
+echo ""
+echo "[4/5] Extracting zip files..."
+ZIP_FILE=$(find "$TARGET_DIR" -maxdepth 1 -name "soloncode-cli-bin-*.zip" 2>/dev/null | head -n 1)
+if [ -n "$ZIP_FILE" ]; then
+    echo "      Found: $(basename "$ZIP_FILE")"
+    unzip -o "$ZIP_FILE" -d "$TARGET_DIR/" > /dev/null 2>&1
+    # 解压后可能有子目录，把子目录里的文件移出来
+    SUB_DIR=$(find "$TARGET_DIR" -maxdepth 1 -type d -name "soloncode-cli-bin-*" 2>/dev/null | head -n 1)
+    if [ -n "$SUB_DIR" ]; then
+        cp -R "$SUB_DIR"/* "$TARGET_DIR/" 2>/dev/null || true
+        rm -rf "$SUB_DIR"
+    fi
+    echo "      Extracted successfully"
+else
+    echo "      No zip file found, skip extraction"
+fi
+
+# 恢复 config.yml 备份（如果之前存在）
+if [ -n "$CONFIG_BACKUP" ]; then
+    cp "$CONFIG_BACKUP" "$TARGET_DIR/config.yml"
+    rm -f "$CONFIG_BACKUP"
+    echo "      Restored existing config.yml (preserved user config)"
+fi
+
+# 检查 jar 文件是否存在
+if [ ! -f "$TARGET_DIR/soloncode-cli.jar" ]; then
+    echo "[Error] soloncode-cli.jar not found in $TARGET_DIR"
     exit 1
 fi
 echo "      Found soloncode-cli.jar"
 
-# 检测 shell 配置文件
+# 步骤5：创建 soloncode 命令脚本
 echo ""
-echo "[2/4] Configuring environment variables..."
-if [ -n "$ZSH_VERSION" ]; then
-    SHELL_CONFIG="$HOME/.zshrc"
-elif [ -n "$BASH_VERSION" ]; then
-    SHELL_CONFIG="$HOME/.bashrc"
-else
-    SHELL_CONFIG="$HOME/.profile"
-fi
-
-# 添加 SOLONCODE_HOME
-if grep -q "SOLONCODE_HOME=" "$SHELL_CONFIG" 2>/dev/null; then
-    echo "      SOLONCODE_HOME already configured in $SHELL_CONFIG"
-else
-    echo "" >> "$SHELL_CONFIG"
-    echo "# Solon Code" >> "$SHELL_CONFIG"
-    echo "export SOLONCODE_HOME=\"$INSTALL_DIR\"" >> "$SHELL_CONFIG"
-    echo "      Added SOLONCODE_HOME to $SHELL_CONFIG"
-fi
-
-# 添加到 PATH
-if echo "$PATH" | grep -q "$INSTALL_DIR"; then
-    echo "      PATH already contains $INSTALL_DIR"
-else
-    echo 'export PATH="$PATH:$SOLONCODE_HOME"' >> "$SHELL_CONFIG"
-    echo "      Added to PATH in $SHELL_CONFIG"
-fi
-
-# 创建启动脚本
-echo ""
-echo "[3/4] Creating launch script..."
-cat > "$INSTALL_DIR/soloncode" << 'LAUNCHER_EOF'
+echo "[5/5] Creating 'soloncode' command..."
+cat > "$TARGET_DIR/soloncode" << 'LAUNCHER_EOF'
 #!/bin/bash
-if [ -z "$SOLONCODE_HOME" ]; then
-    echo "[Error] SOLONCODE_HOME not set. Run install.sh first."
-    exit 1
-fi
-SOLONCODE_JAR="$SOLONCODE_HOME/soloncode-cli.jar"
-if [ ! -f "$SOLONCODE_JAR" ]; then
-    echo "[Error] soloncode-cli.jar not found at $SOLONCODE_JAR"
-    exit 1
-fi
-java -Dfile.encoding=UTF-8 -jar "$SOLONCODE_JAR" "$@"
+# Solon Code CLI Launcher
+# 获取脚本真实路径（兼容软链接）
+SCRIPT_PATH="$0"
+# 解析软链接（兼容 macOS 和 Linux）
+while [ -L "$SCRIPT_PATH" ]; do
+    SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+    SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+    # 如果是相对路径，转换为绝对路径
+    case "$SCRIPT_PATH" in
+        /*) ;;  # 已经是绝对路径
+        *)  SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_PATH" ;;
+    esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+java -Dfile.encoding=UTF-8 -jar "$SCRIPT_DIR/soloncode-cli.jar" "$@"
 LAUNCHER_EOF
+chmod +x "$TARGET_DIR/soloncode"
+echo "      Created: $TARGET_DIR/soloncode"
 
-chmod +x "$INSTALL_DIR/soloncode"
-echo "      Created: $INSTALL_DIR/soloncode"
-
-# Setup global config
+# =============================================
+# 配置 PATH 环境变量（兼容多种 shell 和系统）
+# =============================================
 echo ""
-echo "[4/5] Setting up global config..."
-GLOBAL_DIR="$HOME/.soloncode"
-GLOBAL_CONFIG="$GLOBAL_DIR/config.yml"
+echo "Configuring PATH..."
 
-mkdir -p "$GLOBAL_DIR"
+# 要添加的 PATH 配置
+PATH_LINE='export PATH="$PATH:$HOME/.soloncode/bin"'
+PATH_MARKER='# Solon Code CLI'
 
-if [ ! -f "$GLOBAL_CONFIG" ]; then
-    if [ -f "$INSTALL_DIR/.soloncode/config.yml" ]; then
-        cp "$INSTALL_DIR/.soloncode/config.yml" "$GLOBAL_CONFIG"
-        echo "      Copied config template to $GLOBAL_CONFIG"
-    elif [ -f "$INSTALL_DIR/config.yml" ]; then
-        cp "$INSTALL_DIR/config.yml" "$GLOBAL_CONFIG"
-        echo "      Copied config template to $GLOBAL_CONFIG"
+# 检测当前用户默认 shell
+USER_SHELL=$(basename "$SHELL" 2>/dev/null || echo "unknown")
+
+# 定义需要配置的 shell 配置文件（按优先级排序）
+declare -a CONFIG_FILES=()
+
+case "$USER_SHELL" in
+    zsh)
+        # Zsh: 优先 .zshrc
+        CONFIG_FILES+=("$HOME/.zshrc")
+        ;;
+    bash)
+        # Bash: 不同系统读取不同文件
+        # macOS 默认读取 .bash_profile
+        # Linux 通常读取 .bashrc
+        if [[ "$(uname -s)" == "Darwin" ]]; then
+            # macOS
+            CONFIG_FILES+=("$HOME/.bash_profile")
+            # 同时也写入 .bashrc 以兼容非登录 shell
+            CONFIG_FILES+=("$HOME/.bashrc")
+        else
+            # Linux
+            CONFIG_FILES+=("$HOME/.bashrc")
+            # 同时也写入 .bash_profile 以兼容登录 shell
+            CONFIG_FILES+=("$HOME/.bash_profile")
+        fi
+        ;;
+    fish)
+        # Fish shell
+        CONFIG_FILES+=("$HOME/.config/fish/config.fish")
+        PATH_LINE='set -gx PATH $PATH $HOME/.soloncode/bin'
+        ;;
+    *)
+        # 未知 shell，尝试写入多个文件
+        CONFIG_FILES+=("$HOME/.profile")
+        CONFIG_FILES+=("$HOME/.bashrc")
+        CONFIG_FILES+=("$HOME/.zshrc")
+        ;;
+esac
+
+# 写入配置文件
+CONFIG_UPDATED=false
+for CONFIG_FILE in "${CONFIG_FILES[@]}"; do
+    # 确保 Fish 使用正确的配置语法
+    if [[ "$USER_SHELL" == "fish" && "$CONFIG_FILE" == *".fish" ]]; then
+        PATH_LINE='set -gx PATH $PATH $HOME/.soloncode/bin'
     else
-        echo "      [Warning] No config template found, will use jar embedded config"
+        PATH_LINE='export PATH="$PATH:$HOME/.soloncode/bin"'
     fi
-else
-    echo "      Global config already exists: $GLOBAL_CONFIG"
+    
+    # 检查文件是否已包含配置
+    if [ -f "$CONFIG_FILE" ]; then
+        if grep -qF "$HOME/.soloncode/bin" "$CONFIG_FILE" 2>/dev/null; then
+            echo "      PATH already configured in $(basename "$CONFIG_FILE")"
+            CONFIG_UPDATED=true
+            continue
+        fi
+    fi
+    
+    # 创建目录（针对 Fish 等需要子目录的情况）
+    CONFIG_DIR=$(dirname "$CONFIG_FILE")
+    if [ ! -d "$CONFIG_DIR" ]; then
+        mkdir -p "$CONFIG_DIR" 2>/dev/null || continue
+    fi
+    
+    # 追加配置
+    echo "" >> "$CONFIG_FILE" 2>/dev/null || continue
+    echo "$PATH_MARKER" >> "$CONFIG_FILE" 2>/dev/null || continue
+    echo "$PATH_LINE" >> "$CONFIG_FILE" 2>/dev/null || continue
+    echo "      Added to PATH in $(basename "$CONFIG_FILE")"
+    CONFIG_UPDATED=true
+done
+
+# =============================================
+# 尝试创建软链接到 /usr/local/bin（可选）
+# =============================================
+SYMLINK_CREATED=false
+if [ ! -e "/usr/local/bin/soloncode" ]; then
+    if [ -w "/usr/local/bin" ] 2>/dev/null; then
+        # 有写权限，直接创建
+        ln -sf "$TARGET_DIR/soloncode" /usr/local/bin/soloncode 2>/dev/null && SYMLINK_CREATED=true
+    elif command -v sudo >/dev/null 2>&1; then
+        # 尝试用 sudo（非交互式，静默失败）
+        if sudo -n true 2>/dev/null; then
+            sudo ln -sf "$TARGET_DIR/soloncode" /usr/local/bin/soloncode 2>/dev/null && SYMLINK_CREATED=true
+        fi
+    fi
 fi
 
-# Create symlink to /usr/local/bin
-echo ""
-echo "[5/5] Creating command symlink..."
-if [ "$(id -u)" -eq 0 ]; then
-    ln -sf "$INSTALL_DIR/soloncode" /usr/local/bin/soloncode 2>/dev/null && echo "      Created /usr/local/bin/soloncode"
-elif command -v sudo &> /dev/null; then
-    sudo ln -sf "$INSTALL_DIR/soloncode" /usr/local/bin/soloncode 2>/dev/null && echo "      Created /usr/local/bin/soloncode"
-else
-    echo "      [Skip] Need root/sudo for /usr/local/bin/soloncode"
-    echo "      Run manually: sudo ln -sf \"$INSTALL_DIR/soloncode\" /usr/local/bin/soloncode"
+if [ "$SYMLINK_CREATED" = true ]; then
+    echo "      Created symlink: /usr/local/bin/soloncode"
 fi
 
+# =============================================
 # 完成
+# =============================================
 echo ""
 echo "============================================"
 echo "   Installation Complete!"
 echo "============================================"
 echo ""
-echo "  Shell config: $SHELL_CONFIG"
-echo "  Global config: ~/.soloncode/config.yml"
+echo "  Install path: $TARGET_DIR"
+echo "  Detected shell: $USER_SHELL"
 echo ""
-echo "  Usage:"
-echo "    1. source $SHELL_CONFIG"
-echo "    2. Or restart terminal"
-echo "    3. Run: soloncode"
+
+if [ "$SYMLINK_CREATED" = true ]; then
+    echo "  Symlink created: /usr/local/bin/soloncode"
+    echo "  You can run 'soloncode' directly now!"
+else
+    echo "  Usage:"
+    echo "    1. Run: source ~/.${USER_SHELL}rc"
+    echo "    2. Or restart your terminal"
+    echo "    3. Then run: soloncode"
+fi
+
 echo ""
-echo "  Uninstall:"
-echo "    Run: $INSTALL_DIR/uninstall.sh"
+echo "  Note: Your existing config.yml has been preserved."
 echo ""
