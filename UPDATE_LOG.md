@@ -1,7 +1,13 @@
 
 ### v2026.4.1
 
-* 完成 命令化改造
+* 完成 命令化改造（重要）
+* 添加 AgentRuntime.createSubagent 方法
+* 优化 cwd 动态传递
+* 优化 引入工具网关，解决 mcp 过多时的问题
+* 优化 soloncode-web ReActChunk 输出(token 与 sec)
+* 调整 进一步简化 soloncode-core 代码（合并一部分类）
+* 调整 取消 init 初始化命令（改为自动了）
 * 调整 `solon.code.cli` 配置节，更名为 `soloncode`
 
 ### v2026.3.26
