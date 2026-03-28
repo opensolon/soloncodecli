@@ -46,10 +46,11 @@ public class App {
 
     public static void main(String[] args) {
         Solon.start(App.class, args, app -> {
+            //获取命令行运行的当前用户工作区
+            String workDir = Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize().toString();
             AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
 
-            // workDir 始终为当前工作目录（忽略配置中的 workDir）
-            c.setWorkDir(Paths.get(System.getProperty("user.dir")).toAbsolutePath().normalize().toString());
+            c.setWorkDir(workDir);
             app.context().wrapAndPut(AgentProperties.class, c);
             app.enableHttp(false); //默认不启用 http
 
