@@ -48,7 +48,7 @@ public class App {
         Solon.start(App.class, args, app -> {
             //获取命令行运行的当前用户工作区
             String workDir = Paths.get(AgentProperties.getUserDir()).toAbsolutePath().normalize().toString();
-            AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
+            AgentProperties c = app.cfg().toBean("soloncode", AgentProperties.class);
 
             c.setWorkDir(workDir);
             app.context().wrapAndPut(AgentProperties.class, c);
