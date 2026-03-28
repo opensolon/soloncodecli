@@ -279,20 +279,6 @@ public class AgentRuntime {
         return null;
     }
 
-
-    public String init(AgentSession session) {
-        String effectiveWorkDir = (String) session.attrs()
-                .getOrDefault(ATTR_CWD, properties.getWorkDir());
-
-        String code = codeSkill.refresh(effectiveWorkDir);
-
-        if (Assert.isNotEmpty(code)) {
-            return "已初始化：" + code;
-        } else {
-            return "已初始化...";
-        }
-    }
-
     public static Builder builder() {
         return new Builder();
     }

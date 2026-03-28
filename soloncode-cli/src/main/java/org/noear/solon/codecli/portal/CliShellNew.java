@@ -293,13 +293,6 @@ public class CliShellNew implements Runnable {
             System.exit(0);
         });
 
-        commandRegistry.register("/init", "重新初始化代码索引", ctx -> {
-            AgentSession session = ctx.getSession();
-            String result = agentRuntime.init(session);
-            terminal.writer().println(DIM + result + RESET);
-            terminal.flush();
-        });
-
         commandRegistry.register("/clear", "清空当前会话历史", ctx -> {
             AgentSession session = ctx.getSession();
             session.clear();
@@ -313,7 +306,6 @@ public class CliShellNew implements Runnable {
         commandRegistry.register("/new", "开始新会话", ctx -> {
             // 新建临时 session，只在第一条消息时才持久化
             currentSession = agentRuntime.getSession("_tmp_" + System.currentTimeMillis());
-            agentRuntime.init(currentSession);
             terminal.puts(InfoCmp.Capability.clear_screen);
             terminal.flush();
             if (statusBar != null) {
@@ -457,7 +449,6 @@ public class CliShellNew implements Runnable {
         printWelcome();
         // 启动时用临时 session，不持久化。第一条消息时才正式创建会话。
         currentSession = agentRuntime.getSession("_tmp_" + System.currentTimeMillis());
-        agentRuntime.init(currentSession);
 
         while (true) {
             try {
@@ -995,7 +986,6 @@ public class CliShellNew implements Runnable {
             String newId = sessionManager.createSession(agentRuntime.getProps().getWorkDir());
             sessionManager.updateTitle(newId, firstMessage);
             currentSession = agentRuntime.getSession(newId);
-            agentRuntime.init(currentSession);
             if (statusBar != null) {
                 statusBar.setSessionId(newId);
                 statusBar.draw();
@@ -1048,7 +1038,7 @@ public class CliShellNew implements Runnable {
         }
 
         String lower = cmd.toLowerCase();
-        if ("exit".equals(lower) || "init".equals(lower) || "clear".equals(lower)) {
+        if ("exit".equals(lower) || "clear".equals(lower)) {
             CommandRegistry.CommandContext ctx = new CommandRegistry.CommandContext(session, null);
             return commandRegistry.execute("/" + lower, ctx);
         }

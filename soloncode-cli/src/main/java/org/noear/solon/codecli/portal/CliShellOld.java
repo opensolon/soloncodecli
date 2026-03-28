@@ -103,9 +103,6 @@ public class CliShellOld implements Runnable {
         printWelcome();
         AgentSession session = agentRuntime.getSession("cli");
 
-        // 1. 初始化对齐
-        agentRuntime.init(session);
-
         // 2. 主循环
         while (true) {
             try {
@@ -137,11 +134,6 @@ public class CliShellOld implements Runnable {
         if ("/exit".equals(cmd)) {
             terminal.writer().println(DIM + "Exiting..." + RESET);
             System.exit(0);
-            return true;
-        }
-        if ("/init".equals(cmd)) {
-            String result = agentRuntime.init(session);
-            terminal.writer().println(DIM + result + RESET);
             return true;
         }
         if ("/resume".equals(cmd)) {
