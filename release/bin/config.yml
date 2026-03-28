@@ -5,8 +5,7 @@ solon.logging.appender:
     level: DEBUG
 
 soloncode:
-  # workDir 已移除：始终使用当前运行目录 (cwd) 作为工作目录
-  # 会话数据存储在 ~/.soloncode/sessions/ 下
+  tools: "**"
   maxSteps: 30 # ReAct 最大循环步数
   maxStepsAutoExtensible: true #最大步数自动续航（由 LLM 反思控制）
 
