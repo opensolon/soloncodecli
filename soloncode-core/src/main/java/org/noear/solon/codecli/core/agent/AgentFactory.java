@@ -5,7 +5,6 @@ import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.skill.Skill;
 import org.noear.solon.ai.chat.skill.SkillMetadata;
 import org.noear.solon.ai.chat.tool.FunctionTool;
-import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.skills.cli.TerminalSkill;
 import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
@@ -27,7 +26,7 @@ public class AgentFactory {
      * 根据定义生成代理
      */
     public static ReActAgent.Builder create(AgentRuntime agentRuntime, AgentDefinition agentDefinition) {
-        ReActAgent.Builder builder = ReActAgent.of(agentRuntime.getLlm());
+        ReActAgent.Builder builder = ReActAgent.of(agentRuntime.getChatModel());
 
         AgentDefinition.Metadata metadata = agentDefinition.getMetadata();
 

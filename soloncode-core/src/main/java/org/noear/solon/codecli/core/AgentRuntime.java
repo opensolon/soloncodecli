@@ -91,7 +91,7 @@ public class AgentRuntime {
         return properties;
     }
 
-    public ChatModel getLlm() {
+    public ChatModel getChatModel() {
         return chatModel;
     }
 
@@ -237,6 +237,10 @@ public class AgentRuntime {
 
     public AgentSession getSession(String instanceId) {
         return sessionProvider.getSession(instanceId);
+    }
+
+    public ReActAgent.Builder createSubagent(AgentDefinition definition) {
+        return AgentFactory.create(this, definition);
     }
 
     private String getAgentsMd() {
