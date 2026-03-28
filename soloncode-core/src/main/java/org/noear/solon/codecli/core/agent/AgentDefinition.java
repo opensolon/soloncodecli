@@ -163,9 +163,6 @@ public class AgentDefinition {
      * @author noear
      * @since 3.9.5
      */
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Builder
     @Setter
     @Getter
     public static class Metadata {
