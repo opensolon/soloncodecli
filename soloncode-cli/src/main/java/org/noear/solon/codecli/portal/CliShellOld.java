@@ -106,11 +106,14 @@ public class CliShellOld implements Runnable {
         // 2. 主循环
         while (true) {
             try {
-                String promptStr = "\n" + BOLD + CYAN + "User" + RESET + "\n" + BOLD + CYAN + "> " + RESET;
                 String input;
 
                 try {
-                    input = reader.readLine(promptStr);
+                    terminal.writer().println();
+                    terminal.writer().print(BOLD + CYAN + "User" + RESET);
+                    terminal.flush();
+
+                    input = reader.readLine(BOLD + CYAN + "> " + RESET);
                 } catch (UserInterruptException e) {
                     continue;
                 } catch (EndOfFileException e) {
