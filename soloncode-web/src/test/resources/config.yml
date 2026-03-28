@@ -4,7 +4,7 @@ solon.logging.appender:
   file:
     level: TRACE
 
-solon.code.cli:
+soloncode:
   workDir: "work" # 工作区目录
   maxSteps: 30 # ReAct 最大循环步数
   maxStepsAutoExtensible: true #最大步数自动续航（由 LLM 反思控制）
@@ -14,7 +14,7 @@ solon.code.cli:
   summaryWindowSize: 12 # 触发摘要压缩的消息条数阈值（即，工作上下文压缩时留几条消息不压缩）
   summaryWindowToken: 15000 # 触发摘要压缩的内容长度阈值（即，工作上下文压缩时留多长内容不压缩）
 
-  sandboxMode: true # 消盒模式，启用时禁止访问绝对路径
+  sandboxMode: false # 消盒模式，启用时禁止访问绝对路径
   thinkPrinted: true # 内心思考，是否打印
 
   hitlEnabled: false # 是否启用人工审核危险操作，和 maxSteps 动态继步

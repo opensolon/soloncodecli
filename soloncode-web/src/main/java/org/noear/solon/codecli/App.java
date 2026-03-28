@@ -37,7 +37,7 @@ public class App {
 
     public static void main(String[] args) {
         Solon.start(App.class, args, app -> {
-            AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
+            AgentProperties c = app.cfg().toBean("soloncode", AgentProperties.class);
             app.context().wrapAndPut(AgentProperties.class, c);
             app.enableHttp(false); //默认不启用 http
 
