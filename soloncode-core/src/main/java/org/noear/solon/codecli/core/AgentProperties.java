@@ -27,11 +27,11 @@ public class AgentProperties implements Serializable {
     private ChatConfig chatModel;
     private String workDir = "work";
     private String tools = "**";
-    private int maxSteps = 20;
+    private int maxSteps = 30;
     private boolean maxStepsAutoExtensible = false;
     private String uiType = "old";
     private int sessionWindowSize = 8;
-    private int summaryWindowSize = 12;
+    private int summaryWindowSize = 15;
     private int summaryWindowToken = 15000;
     private boolean sandboxMode = true;
     private boolean thinkPrinted = false;
@@ -66,26 +66,49 @@ public class AgentProperties implements Serializable {
 
     public static URL getConfigUrl() throws MalformedURLException {
         //1. 资源文件（一般开发时）
-        URL tmp = ResourceUtil.getResource("config.yml");
+        URL tmp = ResourceUtil.getResource(AgentRuntime.NAME_CONFIG);
         if (tmp != null) {
             return tmp;
         }
 
         //2. 工作区配置
-        Path path = Paths.get(AgentProperties.getUserDir(), AgentRuntime.SOLONCODE_CONFIG);
+        Path path = Paths.get(AgentProperties.getUserDir(), AgentRuntime.SOLONCODE, AgentRuntime.NAME_CONFIG);
         if (Files.exists(path)) {
             return path.toUri().toURL();
         }
 
         //3. 用户目录区配置
-        path = Paths.get(AgentProperties.getUserHome(), AgentRuntime.SOLONCODE_CONFIG);
+        path = Paths.get(AgentProperties.getUserHome(), AgentRuntime.SOLONCODE_BIN, AgentRuntime.NAME_CONFIG);
 
         if (Files.exists(path)) {
             return path.toUri().toURL();
         }
 
         //4. 程序边上的配置文件
-        tmp = ResourceUtil.getResourceByFile("config.yml");
+        tmp = ResourceUtil.getResourceByFile(AgentRuntime.NAME_CONFIG);
+        if (tmp != null) {
+            return tmp;
+        }
+
+        return null;
+    }
+
+    public URL getAgentsUrl() throws MalformedURLException {
+        //1. 工作区配置
+        Path path = Paths.get(getWorkDir(), AgentRuntime.SOLONCODE, AgentRuntime.NAME_AGENTS);
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //2. 用户目录区配置
+        path = Paths.get(AgentProperties.getUserHome(), AgentRuntime.SOLONCODE_BIN, AgentRuntime.NAME_AGENTS);
+
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //3. 程序边上的配置文件
+        URL tmp = ResourceUtil.getResourceByFile(AgentRuntime.NAME_CONFIG);
         if (tmp != null) {
             return tmp;
         }

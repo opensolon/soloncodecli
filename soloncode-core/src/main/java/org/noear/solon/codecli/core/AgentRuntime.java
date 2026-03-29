@@ -1,18 +1,14 @@
 package org.noear.solon.codecli.core;
 
-import org.noear.solon.ai.agent.AgentChunk;
-import org.noear.solon.ai.agent.AgentResponse;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.react.ReActAgent;
 import org.noear.solon.ai.agent.react.ReActAgentExtension;
-import org.noear.solon.ai.agent.react.ReActRequest;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
 import org.noear.solon.ai.agent.react.intercept.summarize.*;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.skills.cli.CliSkillProvider;
 import org.noear.solon.ai.skills.cli.TodoSkill;
@@ -28,7 +24,6 @@ import org.noear.solon.core.util.IoUtil;
 import org.noear.solon.core.util.ResourceUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import reactor.core.publisher.Flux;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,11 +43,16 @@ public class AgentRuntime {
 
     public final static String ATTR_CWD = "__cwd";
 
-    public final static String SOLONCODE_CONFIG = ".soloncode/bin/config.yml";
-    public final static String SOLONCODE_SESSIONS = ".soloncode/sessions/";
-    public final static String SOLONCODE_SKILLS = ".soloncode/skills/";
-    public final static String SOLONCODE_AGENTS = ".soloncode/agents/";
-    public final static String SOLONCODE_MEMORY = ".soloncode/memory/";
+    public final static String NAME_AGENTS = "AGENTS.md";
+    public final static String NAME_CONFIG = "config.yml";
+
+    public final static String SOLONCODE = ".soloncode/";
+    public final static String SOLONCODE_BIN = SOLONCODE + "bin/";
+
+    public final static String SOLONCODE_SESSIONS = SOLONCODE + "sessions/";
+    public final static String SOLONCODE_SKILLS = SOLONCODE + "skills/";
+    public final static String SOLONCODE_AGENTS = SOLONCODE + "agents/";
+    public final static String SOLONCODE_MEMORY = SOLONCODE + "memory/";
 
     public final static String OPENCODE_SKILLS = ".opencode/skills/";
     public final static String CLAUDE_SKILLS = ".claude/skills/";
@@ -233,19 +233,8 @@ public class AgentRuntime {
     }
 
     private String getAgentsMd() {
-        URL agentsUrl;
-
         try {
-            Path path = Paths.get(properties.getWorkDir()).toAbsolutePath().normalize()
-                    .resolve("AGENTS.md");
-
-            if (Files.exists(path)) {
-                //如果工作区有
-                agentsUrl = path.toUri().toURL();
-            } else {
-                //默认尝试找资源
-                agentsUrl = ResourceUtil.findResourceOrFile("AGENTS.md");
-            }
+            URL agentsUrl = properties.getAgentsUrl();
 
             if (agentsUrl != null) {
                 try (InputStream is = agentsUrl.openStream()) {
