@@ -19,13 +19,11 @@ curl -fsSL https://solon.noear.org/soloncode/setup.sh | bash
 irm https://solon.noear.org/soloncode/setup.ps1 | iex
 ```
 
-安装后的目录：
+修改配置（安装后，必须先修改配置）：
 
-* `~/soloncode/bin/`
-
-配置修改（安装后，先修改配置）：
-
-* 找到 `~/solnocode/bin/config.yml` 配置文件，（主要）修改 `chatModel` 配置。
+* 安装后的目录：`~/soloncode/bin/`
+* 找到 `~/solnocode/bin/config.yml` 配置文件，（主要）修改 `chatModel` 配置
+* `chatModel` 配置项，可参考：[《模型配置与请求选项》](https://solon.noear.org/article/1087)
 
 ## 运行
 
