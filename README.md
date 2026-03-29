@@ -29,7 +29,7 @@ irm https://solon.noear.org/soloncode/setup.ps1 | iex
 
 ## 运行
 
-在控制台“任意”目录下，运行 `soloncode` 命令即可。
+在控制台“任意”目录（即工作区）下，运行 `soloncode` 命令即可。
 
 ```bash
 demo@MacBook-Pro ~ % soloncode
