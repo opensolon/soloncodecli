@@ -24,9 +24,9 @@
             <fileMode>0755</fileMode>
             <includes>
                 <include>install.sh</include>
-                <include>install.cmd</include>
+                <include>install.ps1</include>
                 <include>uninstall.sh</include>
-                <include>uninstall.cmd</include>
+                <include>uninstall.ps1</include>
             </includes>
         </fileSet>
 
