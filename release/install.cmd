@@ -218,19 +218,14 @@ echo       Created: soloncode.cmd (for CMD/PowerShell)
 :: 创建 PowerShell 启动脚本 (soloncode.ps1) - 更好的 UTF-8 支持
 set "LAUNCHER_PS1=%TARGET_BIN_DIR%\soloncode.ps1"
 
-:: 使用变量存储特殊字符，避免在代码块中转义问题
-set "PS_LP=("
-set "PS_RP=)"
-set "PS_AMP=&"
-
 (
 echo # Solon Code CLI Launcher for PowerShell
-echo param!PS_LP![Parameter!PS_LP!ValueFromRemainingArguments!PS_RP!]!PS_RP!$Args!PS_RP!
+echo param([Parameter(ValueFromRemainingArguments^)]$RestArgs^)
 echo.
 echo $JarDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 echo $JarFile = Join-Path $JarDir "soloncode-cli.jar"
 echo.
-echo if !PS_LP!-not !PS_LP!Test-Path $JarFile!PS_RP!!PS_RP! {
+echo if (-not ^(^Test-Path $JarFile^)^) {
 echo     Write-Host "[Error] soloncode-cli.jar not found" -ForegroundColor Red
 echo     Write-Host "Expected path: $JarFile"
 echo     exit 1
@@ -241,7 +236,7 @@ echo [Console]::OutputEncoding = [System.Text.Encoding]::UTF-8
 echo [Console]::InputEncoding = [System.Text.Encoding]::UTF-8
 echo.
 echo # 运行 Java 程序
-echo !PS_AMP! java "-Dfile.encoding=UTF-8" "-Dstdout.encoding=UTF-8" "-Dstderr.encoding=UTF-8" "-Dstdin.encoding=UTF-8" -jar $JarFile @Args
+echo ^& java "-Dfile.encoding=UTF-8" "-Dstdout.encoding=UTF-8" "-Dstderr.encoding=UTF-8" "-Dstdin.encoding=UTF-8" -jar $JarFile @RestArgs
 ) > "%LAUNCHER_PS1%"
 echo       Created: soloncode.ps1 (for PowerShell)
 
