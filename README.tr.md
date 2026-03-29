@@ -1,0 +1,67 @@
+<div align="center">
+<h1>SolonCode</h1>
+<p><a href="https://github.com/opensolon/solon-ai">Solon AI</a> ve Java ile oluşturulmuş açık kaynaklı bir kodlama ajanıdır (Java8'den Java26'ya kadar olan çalışma ortamlarını destekler)</p>
+<p>En Son Sürüm: v2026.4.1</p>
+<img width="600" src="SHOW.png" />
+</div>
+
+
+## Kurulum ve Yapılandırma
+
+Kurulum:
+
+```bash
+# Mac / Linux:
+curl -fsSL https://solon.noear.org/soloncode/setup.sh | bash
+
+# Windows (PowerShell):
+irm https://solon.noear.org/soloncode/setup.ps1 | iex
+```
+
+Yapılandırma (kurulumdan sonra mutlaka düzenlenmelidir):
+
+* Kurulum dizini: `~/soloncode/bin/`
+* `~/solnocode/bin/config.yml` yapılandırma dosyasını bulup `chatModel` yapılandırmasını düzenleyin (öncelikle)
+* `chatModel` yapılandırma seçenekleri için bkz: [Model Yapılandırması ve İstek Seçenekleri](https://solon.noear.org/article/1087)
+
+## Çalıştırma
+
+Konsolda herhangi bir dizinden `soloncode` komutunu çalıştırın (yani çalışma alanınızdan).
+
+```bash
+demo@MacBook-Pro ~ % soloncode
+SolonCode v2026.4.1
+/Users/noear
+İpuçları: (esc) kesme | '/exit': çıkış | '/resume': devam et | '/clear': sıfırla
+
+Kullanıcı
+> 
+```
+
+Özellik Testi (basitten karmaşığa aşağıdaki görevleri deneyin):
+
+* `你好`
+* `用网络分析下 ai mcp 协议，然后生成个 ppt` // Önceden bazı beceriler kurmanız önerilir
+* `帮我设计一个 agent team（设计案存为 demo-dis.md），开发一个 solon + java17 的经典权限管理系统（demo-web），前端用 vue3，界面要简洁好看`
+
+
+## Dokümantasyon
+
+Daha fazla yapılandırma detayı için [Resmi Dokümantasyon](https://solon.noear.org/article/soloncode) sayfamızı ziyaret edin.
+
+## Katkıda Bulunma
+
+Katkıda bulunmak istiyorsanız, PR göndermeden önce lütfen [Katkı Dokümantasyonu](https://solon.noear.org/article/623)'nu okuyun.
+
+## SolonCode Tabanlı Geliştirme
+
+Proje adınızda "soloncode" kullanıyorsanız (örneğin "soloncode-dashboard" veya "soloncode-app"), README'de projenin OpenSolon ekibi tarafından resmi olarak geliştirilmediğini ve herhangi bir bağlantısı olmadığını belirtmeniz gerekir.
+
+## Sıkça Sorulan Sorular: Claude Code ve OpenCode'dan farkları nelerdir?
+
+İşlevsel olarak benzerdirler, temel farklar şunlardır:
+
+* Java ile oluşturulmuş, %100 açık kaynaklıdır.
+* Sağlayıcıdan bağımsızdır. Model yapılandırması gerektirir. Model yinelemeleri boşlukları daraltacak ve maliyetleri azaltacaktır, bu da sağlayıcıdan bağımsız yaklaşımı önemli kılar.
+* Terminal komut satırı arayüzüne (CLI) odaklanmıştır, komut satırı üzerinden çalışır.
+* Web, uzaktan iletişim için ACP protokolünü destekler.

@@ -1,0 +1,67 @@
+<div align="center">
+<h1>SolonCode</h1>
+<p>Otwartoźródłowy agent kodowania zbudowany na bazie <a href="https://github.com/opensolon/solon-ai">Solon AI</a> i Javy (obsługuje środowiska uruchomieniowe Java8 do Java26)</p>
+<p>Najnowsza wersja: v2026.4.1</p>
+<img width="600" src="SHOW.png" />
+</div>
+
+
+## Instalacja i konfiguracja
+
+Instalacja:
+
+```bash
+# Mac / Linux:
+curl -fsSL https://solon.noear.org/soloncode/setup.sh | bash
+
+# Windows (PowerShell):
+irm https://solon.noear.org/soloncode/setup.ps1 | iex
+```
+
+Konfiguracja (należy zmodyfikować po instalacji):
+
+* Katalog instalacyjny: `~/soloncode/bin/`
+* Znajdź plik konfiguracyjny `~/solnocode/bin/config.yml` i zmodyfikuj konfigurację `chatModel` (głównie)
+* Opcje konfiguracji `chatModel` znajdują się w: [Konfiguracja modelu i opcje żądania](https://solon.noear.org/article/1087)
+
+## Uruchamianie
+
+Uruchom polecenie `soloncode` z dowolnego katalogu w konsoli (czyli w swoim obszarze roboczym).
+
+```bash
+demo@MacBook-Pro ~ % soloncode
+SolonCode v2026.4.1
+/Users/noear
+Wskazówki: (esc) przerwij | '/exit': wyjdź | '/resume': wznów | '/clear': resetuj
+
+Użytkownik
+> 
+```
+
+Testowanie funkcji (wypróbuj następujące zadania, od prostych do złożonych):
+
+* `你好`
+* `用网络分析下 ai mcp 协议，然后生成个 ppt` // Zaleca się wcześniejsze zainstalowanie niektórych umiejętności
+* `帮我设计一个 agent team（设计案存为 demo-dis.md），开发一个 solon + java17 的经典权限管理系统（demo-web），前端用 vue3，界面要简洁好看`
+
+
+## Dokumentacja
+
+Aby uzyskać więcej szczegółów dotyczących konfiguracji, odwiedź naszą [Oficjalną dokumentację](https://solon.noear.org/article/soloncode).
+
+## Wkład
+
+Jeśli jesteś zainteresowany wniesieniem wkładu w kod, przeczytaj [Dokumentację wkładu](https://solon.noear.org/article/623) przed przesłaniem PR.
+
+## Tworzenie na bazie SolonCode
+
+Jeśli używasz "soloncode" w nazwie swojego projektu (np. "soloncode-dashboard" lub "soloncode-app"), wskaż w pliku README, że projekt nie jest oficjalnie rozwijany przez zespół OpenSolon i nie jest z nim powiązany.
+
+## Często zadawane pytania: Czym różni się od Claude Code i OpenCode?
+
+Pod względem funkcjonalności są podobne, z kluczowymi różnicami:
+
+* Zbudowany w Javie, w 100% otwarty kod źródłowy.
+* Niezależny od dostawcy. Wymaga konfiguracji modelu. Iteracja modeli będzie zmniejszać luki i obniżać koszty, co sprawia, że podejście niezależne od dostawcy jest ważne.
+* Skupia się na interfejsie wiersza poleceń terminala (CLI), uruchamianym przez linię poleceń.
+* Obsługuje Web, protokół ACP do komunikacji zdalnej.
