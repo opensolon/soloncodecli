@@ -7,7 +7,7 @@
 set -e
 
 VERSION="v2026.4.1"
-PACKAGE_URL="https://solon.noear.org/soloncode/bin/soloncode-cli-bin-${VERSION}.tar.gz"
+PACKAGE_URL="https://gitee.com/opensolon/soloncode/releases/download/${VERSION}/soloncode-cli-bin-${VERSION}.tar.gz"
 TEMP_DIR="/tmp/soloncode-install"
 
 # Colors

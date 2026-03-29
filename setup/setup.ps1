@@ -6,7 +6,7 @@
 $ErrorActionPreference = "Stop"
 
 $VERSION = "v2026.4.1"
-$PACKAGE_URL = "https://solon.noear.org/soloncode/bin/soloncode-cli-bin-$VERSION.tar.gz"
+$PACKAGE_URL = "https://gitee.com/opensolon/soloncode/releases/download/$VERSION/soloncode-cli-bin-$VERSION.tar.gz"
 $TEMP_DIR = Join-Path $env:TEMP "soloncode-install"
 
 function Write-Info {
@@ -49,11 +49,16 @@ try {
 
     Write-Info "Running installer..."
 
-    # Run installer (with quotes to handle paths with spaces)
+    # Run installer (use Start-Process to handle paths with spaces correctly)
     $installDir = Split-Path $installScript.FullName -Parent
     Push-Location $installDir
-    & cmd /c """$($installScript.FullName)"""
+    $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $installScript.FullName -Wait -PassThru -NoNewWindow
     Pop-Location
+    
+    if ($process.ExitCode -ne 0) {
+        Write-Error "Installer failed with exit code: $($process.ExitCode)"
+        exit 1
+    }
 
 } catch {
     Write-Error $_.Exception.Message
