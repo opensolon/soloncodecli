@@ -270,7 +270,7 @@ if "!USER_PATH:%TARGET_BIN_DIR%=!" neq "!USER_PATH!" (
     echo       Already in user PATH
 ) else (
     :: 添加到用户 PATH
-    powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User');$np=if($p -ne ''){'$p;%TARGET_BIN_DIR%'}else{'%TARGET_BIN_DIR%'};[Environment]::SetEnvironmentVariable('Path',$np,'User')" >nul 2>&1
+    powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','User');$np=if($p -ne ''){\"$p;%TARGET_BIN_DIR%\"}else{'%TARGET_BIN_DIR%'};[Environment]::SetEnvironmentVariable('Path',$np,'User')" >nul 2>&1
     if !ERRORLEVEL! equ 0 (
         echo       Added to user PATH
         set "PATH_UPDATED=1"
@@ -296,7 +296,7 @@ if "%IS_ADMIN%"=="0" (
             copy "%LAUNCHER_CMD%" "!LINK_FILE!" >nul 2>&1
             if exist "!LINK_FILE!" (
                 :: 添加到系统 PATH
-                powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','Machine');$np=if($p -ne ''){'$p;!LINK_DIR!'}else{'!LINK_DIR!'};[Environment]::SetEnvironmentVariable('Path',$np,'Machine')" >nul 2>&1
+                powershell -NoProfile -Command "$p=[Environment]::GetEnvironmentVariable('Path','Machine');$np=if($p -ne ''){\"$p;!LINK_DIR!\"}else{'!LINK_DIR!'};[Environment]::SetEnvironmentVariable('Path',$np,'Machine')" >nul 2>&1
                 if !ERRORLEVEL! equ 0 (
                     echo       Created system-wide link: !LINK_DIR!
                     set "SYMLINK_CREATED=1"
