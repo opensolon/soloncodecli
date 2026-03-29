@@ -49,18 +49,41 @@ try {
 
     Write-Info "Running installer..."
 
-    # Run installer (use Start-Process to handle paths with spaces correctly)
-    $installDir = Split-Path $installScript.FullName -Parent
-    Push-Location $installDir
-    $process = Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $installScript.FullName -Wait -PassThru -NoNewWindow
-    Pop-Location
+    # Run installer using .NET Process class for reliable path handling
+    $installPath = $installScript.FullName
+    $installDir = Split-Path $installPath -Parent
     
-    if ($process.ExitCode -ne 0) {
-        Write-Error "Installer failed with exit code: $($process.ExitCode)"
+    Write-Host "Install path: $installPath" -ForegroundColor Gray
+    
+    # Use .NET Process class to execute cmd.exe with proper quoting
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = "cmd.exe"
+    $processInfo.Arguments = "/c `"$installPath`""
+    $processInfo.WorkingDirectory = $installDir
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $false
+    
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
+    
+    if ($exitCode -ne 0) {
+        Write-Error "Installer failed with exit code: $exitCode"
+        Write-Host ""
+        Write-Host "Press any key to exit..." -ForegroundColor Yellow
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
         exit 1
     }
 
+    Write-Info "Installation completed successfully!"
+    Write-Host ""
+    Write-Host "Press any key to exit..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+
 } catch {
     Write-Error $_.Exception.Message
+    Write-Host ""
+    Write-Host "Press any key to exit..." -ForegroundColor Yellow
+    $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     exit 1
 }
