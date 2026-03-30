@@ -89,8 +89,10 @@ public class CliShellOld implements Runnable {
         }
     }
 
-    @Override
-    public void run() {
+    /**
+     * 预备开始
+     */
+    private AgentSession prepare(String sessionId) {
         // Windows 下将控制台切换为 UTF-8 代码页，避免中文输入乱码
         if (System.getProperty("os.name").toLowerCase().contains("win")) {
             try {
@@ -101,7 +103,30 @@ public class CliShellOld implements Runnable {
         }
 
         printWelcome();
-        AgentSession session = agentRuntime.getSession("cli");
+        return agentRuntime.getSession(sessionId);
+    }
+
+    /**
+     * 单次调用
+     */
+    public void call(String input) {
+        AgentSession session = prepare(AgentRuntime.SESSION_DEFAULT);
+
+        try {
+            if (!isSystemCommand(session, input)) {
+                performAgentTask(session, input);
+            }
+        } catch (Throwable e) {
+            terminal.writer().println("\n" + RED + "! Error: " + RESET + e.getMessage());
+        }
+    }
+
+    /**
+     * 长运行
+     */
+    @Override
+    public void run() {
+        AgentSession session = prepare(AgentRuntime.SESSION_DEFAULT);
 
         // 2. 主循环
         while (true) {

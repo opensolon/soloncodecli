@@ -46,6 +46,8 @@ public class AgentRuntime {
     public final static String NAME_AGENTS = "AGENTS.md";
     public final static String NAME_CONFIG = "config.yml";
 
+    public final static String SESSION_DEFAULT = "default";
+
     public final static String SOLONCODE = ".soloncode/";
     public final static String SOLONCODE_BIN = SOLONCODE + "bin/";
 

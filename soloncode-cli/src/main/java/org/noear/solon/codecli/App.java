@@ -88,18 +88,30 @@ public class App {
                 .build();
 
 
+        //cli
         if (agentProperties.isCliEnabled()) {
-            if ("new".equals(agentProperties.getUiType())) {
-                new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
+            String cmd = Solon.cfg().argx().flagAt(0);
+            if ("run".equals(cmd)) {
+                //单次任务态
+                String prompt = Solon.cfg().argx().flagAt(1);
+                new CliShellOld(agentRuntime).call(prompt);
+                return;
             } else {
-                new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
+                // 工作态
+                if ("new".equals(agentProperties.getUiType())) {
+                    new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
+                } else {
+                    new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
+                }
             }
         }
 
+        //web
         if (agentProperties.isWebEnabled()) {
             Solon.app().router().get(agentProperties.getWebEndpoint(), new WebGate(agentRuntime));
         }
 
+        //acp
         if (agentProperties.isAcpEnabled()) {
             AcpAgentTransport agentTransport;
             if ("stdio".equals(agentProperties.getAcpTransport())) {

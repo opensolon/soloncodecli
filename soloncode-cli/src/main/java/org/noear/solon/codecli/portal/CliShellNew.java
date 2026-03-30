@@ -1094,7 +1094,7 @@ public class CliShellNew implements Runnable {
         statusBar.setModelName(modelName);
         statusBar.setWorkDir(new File(agentRuntime.getProps().getWorkDir()).getAbsolutePath());
         statusBar.setVersion(agentRuntime.getVersion());
-        statusBar.setSessionId("cli");
+        statusBar.setSessionId(AgentRuntime.SESSION_DEFAULT);
         statusBar.setCompactMode(agentRuntime.getProps().isCliPrintSimplified());
         statusBar.setup();
         // 把 JLine 内部的 ReentrantLock 传给 StatusBar，确保 draw() 跟 printAbove() 用同一把锁

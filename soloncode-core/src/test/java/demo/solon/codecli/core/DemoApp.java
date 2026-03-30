@@ -34,7 +34,7 @@ public class DemoApp {
                 .sessionProvider(sessionProvider)
                 .build();
 
-        AgentSession session = agentRuntime.getSession("cli");
+        AgentSession session = agentRuntime.getSession(AgentRuntime.SESSION_DEFAULT);
         Prompt prompt = Prompt.of("hello"); //动态指定工作区;
 
 
