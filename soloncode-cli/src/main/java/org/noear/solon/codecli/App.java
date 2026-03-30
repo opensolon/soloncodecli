@@ -87,23 +87,30 @@ public class App {
                 .sessionProvider(sessionProvider)
                 .build();
 
+        //flag
+        if(Solon.cfg().argx().flags().size() > 0){
+            String flag = Solon.cfg().argx().flagAt(0);
 
-        //cli
-        if (agentProperties.isCliEnabled()) {
-            String cmd = Solon.cfg().argx().flagAt(0);
-            if ("run".equals(cmd)) {
+            if ("run".equals(flag)) {
                 //单次任务态
                 String prompt = Solon.cfg().argx().flagAt(1);
                 new CliShellOld(agentRuntime).call(prompt);
                 Solon.stop();
                 return;
+            }
+
+            //未来可以支持更多控制标记
+        }
+
+        //----
+
+
+        //cli
+        if (agentProperties.isCliEnabled()) {
+            if ("new".equals(agentProperties.getUiType())) {
+                new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
             } else {
-                // 工作态
-                if ("new".equals(agentProperties.getUiType())) {
-                    new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
-                } else {
-                    new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
-                }
+                new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
             }
         }
 
