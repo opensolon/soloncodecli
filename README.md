@@ -74,5 +74,5 @@ They are functionally similar, with key differences:
 * Built with Java, 100% open-source.
 * Pure Chinese prompt-driven development and construction.
 * Provider-agnostic. Requires model configuration. Model iteration will narrow gaps and reduce costs, making provider-agnostic approach important.
-* Focused on terminal command-line interface (CLI), running via command line.
+* Focused on terminal command-line interface (CLI), running via system commands.
 * Supports Web, ACP protocol for remote communication.

@@ -72,5 +72,5 @@ De er funktionelt lignende, med følgende nøgleforskelle:
 
 * Bygget med Java, 100% open-source.
 * Udbyderuafhængig. Kræver modelkonfiguration. Modeliteration vil mindske forskelle og reducere omkostninger, hvilket gør en udbyderuafhængig tilgang vigtig.
-* Fokuseret på terminal kommandolinje-interface (CLI), kører via kommandolinjen.
+* Fokuseret på terminal kommandolinje-interface (CLI), kører via systemkommandoer.
 * Understøtter Web, ACP-protokol til fjernkommunikation.

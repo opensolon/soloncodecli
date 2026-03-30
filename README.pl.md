@@ -73,5 +73,5 @@ Pod względem funkcjonalności są podobne, z kluczowymi różnicami:
 * Zbudowany w Javie, w 100% otwarty kod źródłowy.
 * W pełni sterowany i budowany przy użyciu promptów w języku chińskim
 * Niezależny od dostawcy. Wymaga konfiguracji modelu. Iteracja modeli będzie zmniejszać luki i obniżać koszty, co sprawia, że podejście niezależne od dostawcy jest ważne.
-* Skupia się na interfejsie wiersza poleceń terminala (CLI), uruchamianym przez linię poleceń.
+* Skupia się na interfejsie wiersza poleceń terminala (CLI), uruchamianym przez polecenia systemowe.
 * Obsługuje Web, protokół ACP do komunikacji zdalnej.

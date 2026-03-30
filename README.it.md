@@ -73,5 +73,5 @@ Sono funzionalmente simili, con differenze chiave:
 * Sviluppato in Java, 100% open-source.
 * Interamente guidato e costruito con prompt in cinese
 * Agnostico rispetto ai provider. Richiede la configurazione del modello. L'iterazione dei modelli ridurrà i divari e i costi, rendendo l'approccio agnostico ai provider importante.
-* Focalizzato sull'interfaccia a riga di comando (CLI) del terminale, esecuzione tramite riga di comando.
+* Focalizzato sull'interfaccia a riga di comando (CLI) del terminale, esecuzione tramite comandi di sistema.
 * Supporta Web, protocollo ACP per la comunicazione remota.

@@ -72,5 +72,5 @@ Oni su funkcionalno slični, sa ključnim razlikama:
 
 * Izgrađen s Javom, 100% open-source.
 * Nezavisan od pružatelja usluga. Zahtijeva konfiguraciju modela. Iteracija modela će smanjiti razlike i troškove, čineći pristup nezavisnim od pružatelja usluga važnim.
-* Fokusiran na terminalski komandni interfejs (CLI), pokretanje putem komandne linije.
+* Fokusiran na terminalski komandni interfejs (CLI), pokretanje putem sistemskih komandi.
 * Podržava Web, ACP protokol za udaljenu komunikaciju.

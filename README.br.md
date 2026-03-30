@@ -73,5 +73,5 @@ Eles são funcionalmente semelhantes, com diferenças principais:
 * Construído com Java, 100% código aberto.
 * Totalmente orientado e construído com prompts em chinês
 * Independente de provedor. Requer configuração de modelo. A iteração de modelos reduzirá lacunas e custos, tornando a abordagem independente de provedor importante.
-* Focado na interface de linha de comando (CLI) de terminal, executando via linha de comando.
+* Focado na interface de linha de comando (CLI) de terminal, executando via comandos do sistema.
 * Suporta Web, protocolo ACP para comunicação remota.

@@ -73,5 +73,5 @@ De er funksjonelt like, med viktige forskjeller:
 * Bygget med Java, 100% åpen kildekode.
 * Helt drevet og bygget med kinesiske prompter
 * Leverandøruavhengig. Krever modellkonfigurasjon. Modelliterasjon vil redusere gap og kostnader, noe som gjør leverandøruavhengig tilnærming viktig.
-* Fokusert på terminal kommandolinjegrensesnitt (CLI), kjøres via kommandolinje.
+* Fokusert på terminal kommandolinjegrensesnitt (CLI), kjøres via systemkommandoer.
 * Støtter Web, ACP-protokoll for ekstern kommunikasjon.
