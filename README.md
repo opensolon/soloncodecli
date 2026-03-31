@@ -1,61 +1,78 @@
+<div align="center">
+<h1>SolonCode</h1>
+<p>An open-source coding agent built with <a href="https://github.com/opensolon/solon-ai">Solon AI</a> and Java (supports Java8 to Java26 runtime environments)</p>
+<p>Latest Version: v2026.4.1</p>
+<img width="600" src="SHOW.png" />
+</div>
 
-<p align="center">
-<img width="500" src="SHOW.png" />
-</p>
+<div align="center">
 
+[中文](README.zh.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Español](README.es.md) | [Italiano](README.it.md)
 
-# Solon Code（[Solon AI](../../../../opensolon/solon-ai) 框架综合应用展示）
+[Русский](README.ru.md) | [العربية](README.ar.md) | [Português (BR)](README.br.md) | [ไทย](README.th.md) | [Tiếng Việt](README.vi.md) | [Polski](README.pl.md)
 
-Solon Code 是基于 [Solon AI](../../../../opensolon/solon-ai) （支持 Java8 到 Java25）框架构建的高性能、自主式 AI 终端助手。
+[বাংলা](README.bn.md) | [Bosanski](README.bs.md) | [Dansk](README.da.md) | [Ελληνικά](README.gr.md) | [Norsk](README.no.md) | [Türkçe](README.tr.md) | [Українська](README.uk.md)
 
-它（相当于）是用 Java8 实现的 Claude Code，100% 对齐 Claude Code（或 OpenCode）核心体验，允许 AI 智能体直接与你的本地开发环境交互：阅读代码、运行测试、修复 Bug 以及执行复杂的重构任务。
-
-
-## 核心特性
-
-* 强大技能：完全兼容 Claude Code Agent Skills 规范，可无缝接入现有的技能集。
-* 环境感知：自动索引项目结构，支持文件读写、Grep 搜索及 Bash 命令执行。
-* 安全受控：关键操作（如删除文件、执行写入）支持人工审批（Human-in-the-loop）。
-* 广泛兼容：支持 Java 8 ~ 25 全环境运行（即便在老旧企业级项目中也能起飞）。
-* 网络能力：自带 Webfetch、Websearch 工具，方便感知网络（基于 `mcp.exa.ai/mcp` 封装）
-* 开源定制：（MIT 开源协议）方便企业基于 Java 生态去定制自己的 Agent
-* 兼容第三方规范：
-  * 支持自动加载 `.opencode/skills` 作为 `@opencode_skills` 只读池
-  * 支持自动加载 `.claude/skills` 作为 `@claude_skills` 只读池
-  * 支持自动加载 `CLAUDE.md` 作为代码项目规范
-
-## 多态运行支持
-
-* CLI：沉浸式的终端开发体验。
-* Web API：标准化的 HTTP/JSON 接口，便于集成。
-* ACP 协议：支持 Agent Context Protocol，可作为插件接入各类现代 IDE。
+</div>
 
 
-## 下载与入门
+## Installation and Configuration
 
-* 下载程序包
+Installation:
 
-[程序发布包（跨平台通用）](../../../../opensolon/soloncode/releases)
+```bash
+# Mac / Linux:
+curl -fsSL https://solon.noear.org/soloncode/setup.sh | bash
 
-* Bilibili 入门视频
+# Windows (PowerShell):
+irm https://solon.noear.org/soloncode/setup.ps1 | iex
+```
 
-[《Solon Code CLI 如何下载与运行？》](https://www.bilibili.com/video/BV1ArfjBiEU4/)
+Configuration (must be modified after installation):
 
-## 扩展技能 (Skills)：
+* Installation directory: `~/soloncode/bin/`
+* Locate the `~/solnocode/bin/config.yml` configuration file and modify the `chatModel` configuration (primarily)
+* For `chatModel` configuration options, refer to: [Model Configuration and Request Options](https://solon.noear.org/article/1087)
 
-* https://github.com/opensolon/skills （内部只有一个 solon 框架开发技能，可能会偶尔更新）
-* https://github.com/zrt-ai-lab/opencode-skills 
-* https://github.com/openclaw/skills
-* https://github.com/anthropics/skills
-* https://github.com/ComposioHQ/awesome-claude-skills
+## Running
 
-重要提醒：
+Run the `soloncode` command from any directory in the console (i.e., your workspace).
 
-* 如果有跨技能 `.opencode` 或 `.claude` 开头的脚本调用，要放到工作区的规范目录下
-* 如果没有（跨技能），按普通技能池配置挂载
+```bash
+demo@MacBook-Pro ~ % soloncode
+SolonCode v2026.4.1
+/Users/noear
+Tips: (esc) interrupt | '/exit': quit | '/resume': resume | '/clear': reset
 
-兼容第三方规范：
+User
+> 
+```
 
-* 支持自动加载 `.opencode/skills` 作为 `@opencode_skills` 只读池
-* 支持自动加载 `.claude/skills` 作为 `@claude_skills` 只读池
+Feature Testing (try the following tasks, from simple to complex):
 
+* `你好`
+* `用网络分析下 ai mcp 协议，然后生成个 ppt` // It's recommended to install some skills in advance
+* `帮我设计一个 agent team（设计案存为 demo-dis.md），开发一个 solon + java17 的经典权限管理系统（demo-web），前端用 vue3，界面要简洁好看`
+
+
+## Documentation
+
+For more configuration details, please visit our [Official Documentation](https://solon.noear.org/article/soloncode).
+
+## Contributing
+
+If you're interested in contributing code, please read the [Contributing Docs](https://solon.noear.org/article/623) before submitting a PR.
+
+## Developing Based on SolonCode
+
+If you use "soloncode" in your project name (e.g., "soloncode-dashboard" or "soloncode-app"), please indicate in the README that the project is not officially developed by the OpenSolon team and has no affiliation.
+
+## FAQ: What's the difference from Claude Code and OpenCode?
+
+They are functionally similar, with key differences:
+
+* Built with Java, 100% open-source.
+* Pure Chinese prompt-driven development and construction.
+* Provider-agnostic. Requires model configuration. Model iteration will narrow gaps and reduce costs, making provider-agnostic approach important.
+* Focused on terminal command-line interface (CLI), running via system commands.
+* Supports Web, ACP protocol for remote communication.

@@ -1,7 +1,7 @@
 <assembly>
     <id>release</id>
     <formats>
-        <format>zip</format>
+        <format>tar.gz</format>
     </formats>
 
     <baseDirectory>soloncode-cli</baseDirectory>
@@ -11,31 +11,49 @@
         <!-- soloncode-cli -->
         <fileSet>
             <directory>${project.build.directory}</directory>
-            <outputDirectory>.</outputDirectory>
+            <outputDirectory>./bin</outputDirectory>
             <includes>
                 <include>soloncode-cli.jar</include>
             </includes>
         </fileSet>
 
-        <!-- bin -->
+        <!-- scripts (install/uninstall/run) -->
         <fileSet>
-            <directory>${project.basedir}/../bin</directory>
+            <directory>${project.basedir}/release</directory>
             <outputDirectory>.</outputDirectory>
             <fileMode>0755</fileMode>
             <includes>
-                <include>*.sh</include>
-                <include>*.cmd</include>
+                <include>install.sh</include>
+                <include>install.ps1</include>
             </includes>
         </fileSet>
 
-        <!-- config -->
         <fileSet>
-            <directory>${project.basedir}/../bin</directory>
-            <outputDirectory>.</outputDirectory>
+            <directory>${project.basedir}/release/bin</directory>
+            <outputDirectory>./bin</outputDirectory>
+            <fileMode>0755</fileMode>
             <includes>
-                <include>AGENTS.md</include>
+                <include>uninstall.sh</include>
+                <include>uninstall.ps1</include>
+            </includes>
+        </fileSet>
+
+        <!-- skills -->
+        <fileSet>
+            <directory>${project.basedir}/release/skills</directory>
+            <outputDirectory>./skills</outputDirectory>
+            <includes>
+                <include>**/*</include>
+            </includes>
+        </fileSet>
+
+        <!-- default config template (placed in .soloncode/ subdirectory) -->
+        <fileSet>
+            <directory>${project.basedir}/release/bin</directory>
+            <outputDirectory>./bin</outputDirectory>
+            <includes>
                 <include>config.yml</include>
-                <include>README.md</include>
+                <include>AGENTS.md</include>
             </includes>
         </fileSet>
 

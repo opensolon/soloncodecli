@@ -1,14 +1,20 @@
 package org.noear.solon.codecli.core.agent;
 
 import org.noear.solon.ai.agent.react.ReActAgent;
-import org.noear.solon.ai.mcp.client.McpClientProvider;
-import org.noear.solon.ai.skills.lucene.LuceneSkill;
+import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.skill.Skill;
+import org.noear.solon.ai.chat.skill.SkillMetadata;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.skills.cli.TerminalSkill;
 import org.noear.solon.ai.skills.web.CodeSearchTool;
 import org.noear.solon.ai.skills.web.WebfetchTool;
 import org.noear.solon.ai.skills.web.WebsearchTool;
 import org.noear.solon.codecli.core.AgentRuntime;
 import org.noear.solon.core.util.Assert;
-import org.noear.solon.core.util.ClassUtil;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * 代理工厂
@@ -22,9 +28,13 @@ public class AgentFactory {
     public static ReActAgent.Builder create(AgentRuntime agentRuntime, AgentDefinition agentDefinition) {
         ReActAgent.Builder builder = ReActAgent.of(agentRuntime.getChatModel());
 
-        AgentMetadata metadata = agentDefinition.getMetadata();
+        AgentDefinition.Metadata metadata = agentDefinition.getMetadata();
 
         builder.name(agentDefinition.getName());
+
+        if (Assert.isNotEmpty(agentRuntime.getProps().getWorkDir())) {
+            builder.defaultToolContextPut(AgentRuntime.ATTR_CWD, agentRuntime.getProps().getWorkDir());
+        }
 
         if (Assert.isNotEmpty(agentDefinition.getSystemPrompt())) {
             builder.systemPrompt(r -> agentDefinition.getSystemPrompt());
@@ -46,6 +56,12 @@ public class AgentFactory {
             builder.maxStepsExtensible(true);
         }
 
+        if (metadata.getSessionWindowSize() != null) {
+            builder.sessionWindowSize(metadata.getSessionWindowSize());
+        } else {
+            builder.sessionWindowSize(8);
+        }
+
         if (Assert.isNotEmpty(metadata.getTools())) {
             //目前参考了： https://opencode.ai/docs/zh-cn/permissions/
             TerminalSkillProxy terminalSkillWrap = new TerminalSkillProxy(agentRuntime.getCliSkills().getTerminalSkill());
@@ -57,7 +73,7 @@ public class AgentFactory {
                         break;
                     }
                     case "edit": {
-                        terminalSkillWrap.addTools("read", "write", "edit", "multiedit", "undo");
+                        terminalSkillWrap.addTools("read", "write", "edit", "undo");
                         break;
                     }
                     case "glob": {
@@ -82,55 +98,102 @@ public class AgentFactory {
                         builder.defaultSkillAdd(agentRuntime.getTaskSkill());
                         break;
                     }
-
                     case "skill": {
                         builder.defaultSkillAdd(agentRuntime.getCliSkills().getExpertSkill());
                         break;
                     }
-
                     case "todoread":
                     case "todowrite":
                     case "todo": {
-                        builder.defaultToolAdd(agentRuntime.getTodoSkill());
+                        builder.defaultSkillAdd(agentRuntime.getTodoSkill());
                         break;
                     }
-
                     case "webfetch": {
                         builder.defaultToolAdd(WebfetchTool.getInstance());
                         break;
                     }
-
                     case "websearch": {
                         builder.defaultToolAdd(WebsearchTool.getInstance());
                         break;
                     }
-
                     case "codesearch": {
                         builder.defaultToolAdd(CodeSearchTool.getInstance());
                         break;
                     }
-
                     case "*": {
                         builder.defaultSkillAdd(agentRuntime.getCliSkills());
-                        builder.defaultSkillAdd(LuceneSkill.getInstance());
-                        builder.defaultToolAdd(agentRuntime.getTaskSkill());
+                        builder.defaultSkillAdd(agentRuntime.getTodoSkill());
+                        builder.defaultSkillAdd(agentRuntime.getCodeSkill());
 
-                        builder.defaultToolAdd(agentRuntime.getTodoSkill());
                         builder.defaultToolAdd(WebfetchTool.getInstance());
                         builder.defaultToolAdd(WebsearchTool.getInstance());
                         builder.defaultToolAdd(CodeSearchTool.getInstance());
 
+                        if (agentRuntime.getProps().isSubagentEnabled()) {
+                            builder.defaultSkillAdd(agentRuntime.getTaskSkill());
+                        }
+                        break;
+                    }
 
-                        builder.defaultToolAdd(agentRuntime.getCodeSkill());
+                    //-------
 
-                        if (agentRuntime.getMcpProviders() != null) {
-                            for (McpClientProvider mcpProvider : agentRuntime.getMcpProviders().getProviders().values()) {
-                                builder.defaultToolAdd(mcpProvider);
-                            }
+
+                    case "generate": {
+                        if (agentRuntime.getProps().isSubagentEnabled()) {
+                            builder.defaultToolAdd(agentRuntime.getGenerateTool());
+                        }
+                        break;
+                    }
+                    case "mcp": {
+                        if (agentRuntime.getMcpGatewaySkill() != null) {
+                            builder.defaultSkillAdd(agentRuntime.getMcpGatewaySkill());
+                        }
+                        break;
+                    }
+                    case "restapi": {
+                        if (agentRuntime.getRestApiSkill() != null) {
+                            builder.defaultSkillAdd(agentRuntime.getRestApiSkill());
+                        }
+                    }
+                    case "hitl": {
+                        if(agentRuntime.getProps().isHitlEnabled()) {
+                            builder.defaultInterceptorAdd(agentRuntime.getHitlInterceptor());
+                        }
+                        break;
+                    }
+
+                    case "**":{
+                        builder.defaultSkillAdd(agentRuntime.getCliSkills());
+                        builder.defaultSkillAdd(agentRuntime.getTodoSkill());
+                        builder.defaultSkillAdd(agentRuntime.getCodeSkill());
+
+                        builder.defaultToolAdd(WebfetchTool.getInstance());
+                        builder.defaultToolAdd(WebsearchTool.getInstance());
+                        builder.defaultToolAdd(CodeSearchTool.getInstance());
+
+                        if (agentRuntime.getProps().isSubagentEnabled()) {
+                            builder.defaultSkillAdd(agentRuntime.getTaskSkill());
                         }
 
-                        if (agentRuntime.getRestApis() != null) {
-                            builder.defaultSkillAdd(agentRuntime.getRestApis());
+                        //---
+
+                        if (agentRuntime.getProps().isSubagentEnabled()) {
+                            builder.defaultToolAdd(agentRuntime.getGenerateTool());
+                        }
+
+                        //mcp
+                        if (agentRuntime.getMcpGatewaySkill() != null) {
+                            builder.defaultSkillAdd(agentRuntime.getMcpGatewaySkill());
+                        }
+
+                        //rest-api
+                        if (agentRuntime.getRestApiSkill() != null) {
+                            builder.defaultSkillAdd(agentRuntime.getRestApiSkill());
+                        }
+
+                        //hitl
+                        if(agentRuntime.getProps().isHitlEnabled()) {
+                            builder.defaultInterceptorAdd(agentRuntime.getHitlInterceptor());
                         }
                         break;
                     }
@@ -144,5 +207,63 @@ public class AgentFactory {
         }
 
         return builder;
+    }
+
+
+    /**
+     * TerminalSkill 代理
+     *
+     * @author noear 2026/3/20 created
+     */
+    static class TerminalSkillProxy implements Skill {
+        private final TerminalSkill terminalSkill;
+        private final List<FunctionTool> toolList = new ArrayList<>();
+
+        public TerminalSkillProxy(TerminalSkill terminalSkill) {
+            this.terminalSkill = terminalSkill;
+        }
+
+        public boolean isEmpty() {
+            return toolList.isEmpty();
+        }
+
+        public void addTools(String... names) {
+            toolList.addAll(terminalSkill.getToolAry(names));
+        }
+
+        @Override
+        public String name() {
+            return terminalSkill.name();
+        }
+
+        @Override
+        public String description() {
+            return terminalSkill.description();
+        }
+
+        @Override
+        public SkillMetadata metadata() {
+            return terminalSkill.metadata();
+        }
+
+        @Override
+        public boolean isSupported(Prompt prompt) {
+            return terminalSkill.isSupported(prompt);
+        }
+
+        @Override
+        public void onAttach(Prompt prompt) {
+            terminalSkill.onAttach(prompt);
+        }
+
+        @Override
+        public String getInstruction(Prompt prompt) {
+            return terminalSkill.getInstruction(prompt);
+        }
+
+        @Override
+        public Collection<FunctionTool> getTools(Prompt prompt) {
+            return toolList;
+        }
     }
 }

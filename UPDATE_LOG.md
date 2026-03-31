@@ -1,5 +1,28 @@
 
-### v0.1.0
+### v2026.4.1
+
+* 完成 soloncode-cli “系统命令”化改造（重要）
+* 添加 soloncode-code AgentRuntime.createSubagent 方法
+* 添加 soloncode-cli `soloncode run xxx` 脚本命令运行支持
+* 优化 soloncode-code cwd 动态传递
+* 优化 soloncode-code 引入工具网关，解决 mcp 过多时的问题
+* 优化 soloncode-web ReActChunk 输出(token 与 sec)
+* 调整 soloncode-core 进一步简化代码（合并一部分类）
+* 调整 soloncode-cli 取消 init 初始化命令（改为自动了）
+* 调整 soloncode-cli 默认会话改为 'default'
+* 调整 `solon.code.cli` 配置节，更名为 `soloncode`
+* 修复 soloncode-cli 缩放窗口时，User 提示词会多次渲染的问题
+
+### v2026.3.26
+
+* 添加 工作区 skills 目录自动索引
+* 优化 explore.md 和 TaskSkill
+* 优化 cli 打印添加执行秒数（方便看）
+* 移除 ApplyPatchTool，LuceneSkill （减少工具上下文，工件包缩小为：27MB）
+* 调整 子代理模式改为弱模式（不再强模式使用，否则会让简单的体务变复杂）
+* 调整 子代理增加 code skill 支持
+
+### v2026.3.23
 
 * 优化 子代理模式相关细节（子代理模式下，只做计划与调度）
 * 优化 项目结构，成熟的技能转为 `solon-ai-skill-*`

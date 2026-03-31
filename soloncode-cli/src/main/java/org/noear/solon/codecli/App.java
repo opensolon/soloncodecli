@@ -24,14 +24,14 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
-import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.core.AgentProperties;
-import org.noear.solon.codecli.portal.AcpLink;
 import org.noear.solon.codecli.core.AgentRuntime;
+import org.noear.solon.codecli.portal.AcpLink;
+import org.noear.solon.codecli.portal.CliShellNew;
+import org.noear.solon.codecli.portal.CliShellOld;
 import org.noear.solon.codecli.portal.WebGate;
-import org.noear.solon.codecli.remoting.WebSocketGate;
-import org.noear.solon.net.websocket.WebSocketRouter;
 
+import java.net.URL;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,17 +46,20 @@ public class App {
 
     public static void main(String[] args) {
         Solon.start(App.class, args, app -> {
-            AgentProperties c = app.cfg().toBean("solon.code.cli", AgentProperties.class);
+            //加载配置文件
+            URL configUrl = AgentProperties.getConfigUrl();
+            app.cfg().loadAdd(configUrl);
+
+            //获取命令行运行的当前用户工作区
+            String workDir = Paths.get(AgentProperties.getUserDir()).toAbsolutePath().normalize().toString();
+            AgentProperties c = app.cfg().toBean("soloncode", AgentProperties.class);
+
+            c.setWorkDir(workDir);
             app.context().wrapAndPut(AgentProperties.class, c);
             app.enableHttp(false); //默认不启用 http
 
             if (c.isWebEnabled()) {
                 app.enableHttp(true);
-            }
-
-            if (c.isWsEnabled()) {
-                app.enableHttp(true);  // WebSocket 需要 HTTP 服务（升级握手）
-                app.enableWebSocket(true);
             }
 
             if (c.isAcpEnabled() && "stdio".equals(c.getAcpTransport()) == false) {
@@ -74,29 +77,49 @@ public class App {
         ChatModel chatModel = ChatModel.of(agentProperties.getChatModel()).build();
         Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();
 
+        // 会话数据存到全局目录 ~/.soloncode/sessions/<sessionId>/
         AgentSessionProvider sessionProvider = (sessionId) -> sessionMap.computeIfAbsent(sessionId, key ->
-                new FileAgentSession(key, Paths.get(agentProperties.getWorkDir(), AgentRuntime.SOLONCODE_SESSIONS, key).normalize().toFile().toString()));
+                new FileAgentSession(key, Paths.get(agentProperties.getWorkDir(), AgentRuntime.SOLONCODE_SESSIONS).resolve(key).normalize().toFile().toString()));
 
-
-        AgentRuntime agentKernel = AgentRuntime.builder()
+        AgentRuntime agentRuntime = AgentRuntime.builder()
                 .chatModel(chatModel)
                 .properties(agentProperties)
                 .sessionProvider(sessionProvider)
                 .build();
 
+        //flag
+        if(Solon.cfg().argx().flags().size() > 0){
+            String flag = Solon.cfg().argx().flagAt(0);
 
+            if ("run".equals(flag)) {
+                //单次任务态
+                String prompt = Solon.cfg().argx().flagAt(1);
+                new CliShellOld(agentRuntime).call(prompt);
+                Solon.stop();
+                return;
+            }
+
+            //未来可以支持更多控制标记
+        }
+
+        //----
+
+
+        //cli
         if (agentProperties.isCliEnabled()) {
-            new Thread(new CliShellOld(agentKernel), "CLI-Interactive-Thread").start();
+            if ("new".equals(agentProperties.getUiType())) {
+                new Thread(new CliShellNew(agentRuntime), "CLI-Interactive-Thread").start();
+            } else {
+                new Thread(new CliShellOld(agentRuntime), "CLI-Interactive-Thread").start();
+            }
         }
 
+        //web
         if (agentProperties.isWebEnabled()) {
-            Solon.app().router().get(agentProperties.getWebEndpoint(), new WebGate(agentKernel));
+            Solon.app().router().get(agentProperties.getWebEndpoint(), new WebGate(agentRuntime));
         }
 
-        if (agentProperties.isWsEnabled()){
-            WebSocketRouter.getInstance().of("ws", new WebSocketGate(agentKernel));
-        }
-
+        //acp
         if (agentProperties.isAcpEnabled()) {
             AcpAgentTransport agentTransport;
             if ("stdio".equals(agentProperties.getAcpTransport())) {
@@ -106,7 +129,7 @@ public class App {
                         agentProperties.getAcpTransport(), McpJsonMapper.getDefault());
             }
 
-            new AcpLink(agentKernel, agentTransport).run();
+            new AcpLink(agentRuntime, agentTransport).run();
         }
     }
 }

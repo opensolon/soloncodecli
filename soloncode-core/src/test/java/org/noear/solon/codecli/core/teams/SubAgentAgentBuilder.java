@@ -24,7 +24,6 @@ import org.noear.solon.codecli.core.teams.event.EventBus;
 import org.noear.solon.codecli.core.teams.message.MessageChannel;
 import org.noear.solon.codecli.core.teams.memory.MemoryManager;
 import org.noear.solon.codecli.core.agent.AgentDefinition;
-import org.noear.solon.codecli.core.agent.AgentMetadata;
 import org.noear.solon.codecli.core.agent.AgentManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +61,7 @@ public class SubAgentAgentBuilder {
     private final EventBus eventBus;
     private final MessageChannel messageChannel;
     private final SharedTaskList taskList;
-    private final AgentMetadata mainAgentConfig;
+    private final AgentDefinition.Metadata mainAgentConfig;
 
     /**
      * 静态工厂方法：创建构建器

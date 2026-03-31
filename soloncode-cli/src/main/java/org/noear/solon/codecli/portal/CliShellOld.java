@@ -35,7 +35,7 @@ import org.noear.solon.ai.agent.react.task.ThoughtChunk;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.codecli.core.AgentRuntime;
-import org.noear.solon.codecli.core.TaskSkill;
+import org.noear.solon.codecli.core.agent.TaskSkill;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.lang.Preview;
 import org.slf4j.Logger;
@@ -45,6 +45,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,8 +89,10 @@ public class CliShellOld implements Runnable {
         }
     }
 
-    @Override
-    public void run() {
+    /**
+     * 预备开始
+     */
+    private AgentSession prepare(String sessionId) {
         // Windows 下将控制台切换为 UTF-8 代码页，避免中文输入乱码
         if (System.getProperty("os.name").toLowerCase().contains("win")) {
             try {
@@ -100,19 +103,43 @@ public class CliShellOld implements Runnable {
         }
 
         printWelcome();
-        AgentSession session = agentRuntime.getSession("cli");
+        return agentRuntime.getSession(sessionId);
+    }
 
-        // 1. 初始化对齐
-        agentRuntime.init(session);
+    /**
+     * 单次调用
+     */
+    public void call(String input) {
+        AgentSession session = prepare(AgentRuntime.SESSION_DEFAULT);
+
+        try {
+            if (!isSystemCommand(session, input)) {
+                performAgentTask(session, input);
+            }
+        } catch (Throwable e) {
+            terminal.writer().println("\n" + RED + "! Error: " + RESET + e.getMessage());
+        }
+    }
+
+    /**
+     * 长运行
+     */
+    @Override
+    public void run() {
+        AgentSession session = prepare(AgentRuntime.SESSION_DEFAULT);
 
         // 2. 主循环
         while (true) {
             try {
-                String promptStr = "\n" + BOLD + CYAN + "User" + RESET + "\n" + BOLD + CYAN + "> " + RESET;
                 String input;
 
                 try {
-                    input = reader.readLine(promptStr);
+                    terminal.writer().println();
+                    terminal.writer().print(BOLD + CYAN + "User" + RESET);
+                    terminal.writer().println();
+                    terminal.flush();
+
+                    input = reader.readLine(BOLD + CYAN + "> " + RESET);
                 } catch (UserInterruptException e) {
                     continue;
                 } catch (EndOfFileException e) {
@@ -136,11 +163,6 @@ public class CliShellOld implements Runnable {
         if ("/exit".equals(cmd)) {
             terminal.writer().println(DIM + "Exiting..." + RESET);
             System.exit(0);
-            return true;
-        }
-        if ("/init".equals(cmd)) {
-            String result = agentRuntime.init(session);
-            terminal.writer().println(DIM + result + RESET);
             return true;
         }
         if ("/resume".equals(cmd)) {
@@ -173,8 +195,12 @@ public class CliShellOld implements Runnable {
             final AtomicBoolean isInterrupted = new AtomicBoolean(false);
             final AtomicBoolean isFirstReasonChunk = new AtomicBoolean(true);
 
+            Prompt prompt = Prompt.of(currentInput).attrPut("start_time", System.currentTimeMillis());
 
-            Disposable disposable = agentRuntime.stream(session.getSessionId(), Prompt.of(currentInput))
+            Disposable disposable = agentRuntime.getRootAgent()
+                    .prompt(prompt)
+                    .session(session)
+                    .stream()
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
                         if (chunk instanceof ReasonChunk) {
@@ -298,8 +324,29 @@ public class CliShellOld implements Runnable {
             onReasonChunkDo(delta, isFirstReasonChunk, isFirstConversation);
         }
 
+        Long start_time = react.getTrace().getOriginalPrompt().attrAs("start_time");
+
+        StringBuilder buf = new StringBuilder();
+        buf.append(" (");
+
         if (react.getTrace().getMetrics() != null) {
-            terminal.writer().println(DIM + " (" + react.getTrace().getMetrics().getTotalTokens() + " tokens)" + RESET);
+            buf.append(react.getTrace().getMetrics().getTotalTokens()).append(" tokens");
+        }
+
+        if (start_time != null) {
+            long seconds = Duration.ofMillis(System.currentTimeMillis() - start_time).getSeconds();
+            if (buf.length() > 2) {
+                buf.append(", ");
+            }
+
+            buf.append(seconds).append(" seconds");
+        }
+
+        buf.append(")");
+
+
+        if (buf.length() > 4) {
+            terminal.writer().println(DIM + buf + RESET);
         }
     }
 
@@ -447,18 +494,17 @@ public class CliShellOld implements Runnable {
 
 
     protected void printWelcome() {
-        terminal.puts(InfoCmp.Capability.clear_screen);
-        terminal.flush();
+//        terminal.puts(InfoCmp.Capability.clear_screen);
+//        terminal.flush();
 
         String path = new File(agentRuntime.getProps().getWorkDir()).getAbsolutePath();
         // 连带版本号，紧凑排列
         terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + agentRuntime.getVersion() + RESET);
         terminal.writer().println(DIM + path + RESET);
-        terminal.writer().print(DIM + "Tips: " + RESET + "(esc)" + DIM + " to interrupt output. Commands: " +
-                RESET + "'/exit'" + DIM + " to quit, " +
-                RESET + "'/init'" + DIM + " to refresh, " +
-                RESET + "'/resume'" + DIM + " to resume, " +
-                RESET + "'/clear'" + DIM + " to reset" + RESET);
+        terminal.writer().print(DIM + "Tips: " + RESET + "(esc)" + DIM + " interrupt | " +
+                RESET + "'/exit'" + DIM + ": quit | " +
+                RESET + "'/resume'" + DIM + ": resume | " +
+                RESET + "'/clear'" + DIM + ": reset" + RESET);
 
         //terminal.writer().println(DIM + "Commands: " + RESET + "exit" + DIM + ", " + RESET + "init (code)" + DIM + ", " + RESET + "clear (session)" + RESET);
         // 仅保留一个空行
