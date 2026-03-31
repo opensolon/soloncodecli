@@ -30,6 +30,7 @@ nbdist/
 ### Mac files ###
 *.DS_Store
 .vscode
+.claude
 node_modules/
 CLAUDE.md
 TODO.md
