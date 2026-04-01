@@ -180,6 +180,7 @@ public class CodeSkill extends AbsSkill {
             }
             if (updated) Files.write(targetPath, finalContent.getBytes(StandardCharsets.UTF_8));
 
+            ensureInGitignore(rootPath, ".soloncode/");
             ensureInGitignore(rootPath, "CLAUDE.md");
             ensureInGitignore(rootPath, "TODO.md");
 

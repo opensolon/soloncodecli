@@ -1,6 +1,7 @@
 package org.noear.solon.codecli.core.agent;
 
 import org.noear.solon.ai.annotation.ToolMapping;
+import org.noear.solon.ai.chat.tool.AbsToolProvider;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.codecli.core.AgentRuntime;
 import org.slf4j.Logger;
@@ -19,7 +20,7 @@ import java.util.List;
  * @author noear 2026/3/21 created
  *
  */
-public class GenerateTool {
+public class GenerateTool extends AbsToolProvider {
     private static final Logger LOG = LoggerFactory.getLogger(GenerateTool.class);
 
     private AgentRuntime agentRuntime;
