@@ -55,6 +55,7 @@ public class AgentRuntime {
     public final static String SOLONCODE_SKILLS = SOLONCODE + "skills/";
     public final static String SOLONCODE_AGENTS = SOLONCODE + "agents/";
     public final static String SOLONCODE_MEMORY = SOLONCODE + "memory/";
+    public final static String SOLONCODE_CLAUDE = SOLONCODE + "CLAUDE.md";
 
     public final static String SKILLHUB_SKILLS = ".skillhub/skills/";
     public final static String OPENCODE_SKILLS = ".opencode/skills/";

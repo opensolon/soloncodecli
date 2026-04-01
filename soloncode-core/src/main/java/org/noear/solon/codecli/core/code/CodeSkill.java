@@ -41,7 +41,7 @@ public class CodeSkill extends AbsSkill {
         String __cwd = prompt.attrAs(AgentRuntime.ATTR_CWD);
         Path rootPath = getRootPath(__cwd);
 
-        if (rootExists(rootPath, "CLAUDE.md")) {
+        if (rootExists(rootPath, AgentRuntime.SOLONCODE_CLAUDE)) {
             return true;
         }
 
@@ -172,7 +172,7 @@ public class CodeSkill extends AbsSkill {
 
             appendGuidelines(newContent);
 
-            Path targetPath = rootPath.resolve("CLAUDE.md");
+            Path targetPath = rootPath.resolve(AgentRuntime.SOLONCODE_CLAUDE);
             String finalContent = newContent.toString();
             boolean updated = true;
             if (Files.exists(targetPath)) {
@@ -181,8 +181,6 @@ public class CodeSkill extends AbsSkill {
             if (updated) Files.write(targetPath, finalContent.getBytes(StandardCharsets.UTF_8));
 
             ensureInGitignore(rootPath, ".soloncode/");
-            ensureInGitignore(rootPath, "CLAUDE.md");
-            ensureInGitignore(rootPath, "TODO.md");
 
             StringBuilder resultMsg = new StringBuilder();
             resultMsg.append(updated ? "已更新" : "已验证").append("项目工程规范");
