@@ -1,9 +1,4 @@
 
-
-### v2026.4.6
-
-* 调整 config.yml 和 AGENTS.md 安装位置（从 bin 移到上一级）//与工作区位置相同
-
 ### v2026.4.5
 
 * 添加 soloncode-cli pid 打印
@@ -13,6 +8,7 @@
 * 调整 soloncode-cli 日志输出位置到 `.soloncode` 下面（这样，不会产生多余的目录）
 * 调整 soloncode-cli TODO 机制，主代理用文件模式（避免开发时冲突，或产生文件太多），次代理用内存模式。次代理定位偏临时性
 * 调整 soloncode-core CLAUDE.md 文件位置到 `.soloncode` 下面（这样，不会产生多余的文件）
+* 调整 soloncode-core config.yml 和 AGENTS.md 安装位置（从 bin 移到上一级）//与工作区位置相同
 
 ### v2026.4.1
 
