@@ -484,6 +484,73 @@ fn git_discard(cwd: &str, paths: Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+// ==================== Git Diff 相关 ====================
+
+/// Diff 行变更信息
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DiffLine {
+    line: u32,          // 文件中的行号（1-based）
+    r#type: String,     // "added" | "modified" | "deleted"
+}
+
+/// 获取单个文件的 git diff（与 HEAD 比较）
+/// 返回行级变更列表
+#[tauri::command]
+fn git_diff_file(cwd: &str, file_path: &str) -> Result<Vec<DiffLine>, String> {
+    // 先尝试与 HEAD 的 diff（已提交后修改）
+    let output = match run_git(&["diff", "HEAD", "--", file_path], cwd) {
+        Ok(o) => o,
+        Err(_) => {
+            // 可能没有 HEAD（新仓库），尝试与暂存区比较
+            match run_git(&["diff", "--", file_path], cwd) {
+                Ok(o) => o,
+                Err(_) => return Ok(Vec::new()),
+            }
+        }
+    };
+
+    if output.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut diff_lines = Vec::new();
+    let mut new_line = 0u32;
+
+    for line in output.lines() {
+        // 解析 @@ -a,b +c,d @@ 格式的 hunk header
+        if line.starts_with("@@") {
+            if let Some(pos) = line.find('+') {
+                let rest = &line[pos + 1..];
+                let end = rest.find(|c: char| c == ' ' || c == ',').unwrap_or(rest.len());
+                if let Ok(n) = rest[..end].parse::<u32>() {
+                    new_line = n;
+                }
+            }
+            continue;
+        }
+
+        // 新文件中的行
+        if line.starts_with('+') && !line.starts_with("+++") {
+            diff_lines.push(DiffLine {
+                line: new_line,
+                r#type: "added".to_string(),
+            });
+            new_line += 1;
+        } else if line.starts_with('-') && !line.starts_with("---") {
+            // 删除的行，记录在当前位置（用 deleted 标记）
+            diff_lines.push(DiffLine {
+                line: new_line,
+                r#type: "deleted".to_string(),
+            });
+            // new_line 不增加（删除行不占新文件行号）
+        } else {
+            new_line += 1;
+        }
+    }
+
+    Ok(diff_lines)
+}
+
 /// 递归复制目录
 fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), String> {
     fs::create_dir_all(dst).map_err(|e| format!("创建目录失败: {}", e))?;
@@ -800,6 +867,7 @@ pub fn run() {
             git_branches,
             git_checkout,
             git_discard,
+            git_diff_file,
             copy_item,
             move_item,
             start_backend,

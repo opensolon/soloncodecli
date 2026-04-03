@@ -13,7 +13,7 @@ import { SettingsPanel, type Settings } from './components/sidebar/SettingsPanel
 import { EditorPanel } from './components/editor/EditorPanel';
 import { ChatView } from './components/ChatView';
 import { fileService, type FileInfo } from './services/fileService';
-import { gitService, type GitStatus } from './services/gitService';
+import { gitService, type GitStatus, type DiffLine } from './services/gitService';
 import { settingsService } from './services/settingsService';
 import { backendService } from './services/backendService';
 import { setBackendPort as setChatBackendPort, setWorkspacePath as setChatWorkspacePath } from './components/ChatView';
@@ -91,6 +91,9 @@ function App() {
 
   // Git 状态
   const [gitStatus, setGitStatus] = useState<GitStatus>(emptyGitStatus);
+
+  // 文件 Diff 行变更缓存
+  const [diffLines, setDiffLines] = useState<DiffLine[]>([]);
 
   // 后端端口状态
   const [backendPort, setBackendPortState] = useState<number | null>(null);
@@ -199,6 +202,16 @@ function App() {
     },
     enabled: !!workspacePath,
   });
+
+  // 获取当前活跃文件的 git diff
+  useEffect(() => {
+    if (!workspacePath || !activeFilePath) {
+      setDiffLines([]);
+      return;
+    }
+    const relPath = activeFilePath.replace(workspacePath.replace(/\\/g, '/').replace(/\/$/, '') + '/', '');
+    gitService.diffFile(workspacePath, relPath).then(setDiffLines).catch(() => setDiffLines([]));
+  }, [workspacePath, activeFilePath, gitStatus]);
 
   // useMemo 稳定 currentConversation，仅 sessionId/sessions 变化时重建
   const currentConversation: Conversation = useMemo(() => ({
@@ -686,6 +699,7 @@ function App() {
             onContentChange={handleContentChange}
             onFileSave={handleFileSave}
             theme={settings.theme}
+            diffLines={diffLines}
           />
           <div
             className="resize-handle vertical"
