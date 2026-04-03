@@ -473,6 +473,7 @@ public class CliShellNew implements Runnable {
                     if (wasCancelled) {
                         printAboveLine(WARN + "  [Task cancelled]" + RESET);
                         int discarded = clearPendingInputsInternal();
+                        refreshBottomFooter();
                         if (discarded > 0) {
                             printAboveLine(DIM + "  (" + discarded + " 条待发送输入已丢弃)" + RESET);
                         }
@@ -491,6 +492,7 @@ public class CliShellNew implements Runnable {
 
                     // 待发送输入 → 渲染用户历史 + 合并为一条发送
                     List<String> queuedInputs = drainPendingInputs();
+                    refreshBottomFooter();
                     if (!queuedInputs.isEmpty() && !wasCancelled) {
                         // 显示每条待发送输入作为用户历史
                         for (String pi : queuedInputs) {
@@ -1174,6 +1176,14 @@ public class CliShellNew implements Runnable {
             List<String> queuedInputs = new ArrayList<String>(pendingInputs);
             pendingInputs.clear();
             return queuedInputs;
+        }
+    }
+
+    private void refreshBottomFooter() {
+        if (bottomInputController != null) {
+            bottomInputController.renderNow();
+        } else if (screenRenderer != null) {
+            screenRenderer.renderNow();
         }
     }
 

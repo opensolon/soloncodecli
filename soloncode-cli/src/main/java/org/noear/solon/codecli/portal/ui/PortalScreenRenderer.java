@@ -39,6 +39,8 @@ public class PortalScreenRenderer {
     private volatile ReentrantLock terminalLock;
     private volatile Cursor contentCursor = new Cursor(0, 0);
     private volatile int lastFooterLineCount = 0;
+    private volatile int lastTerminalWidth = -1;
+    private volatile int lastTerminalHeight = -1;
 
     public PortalScreenRenderer(Terminal terminal, StatusBar statusBar) {
         this.terminal = terminal;
@@ -54,12 +56,9 @@ public class PortalScreenRenderer {
             @Override
             public void run() {
                 StatusBar.RenderSnapshot footerSnapshot = statusBar.snapshot();
-                resetScrollRegion();
-                terminal.puts(InfoCmp.Capability.clear_screen);
-                moveCursor(1, 1);
-                terminal.flush();
-                contentCursor = new Cursor(0, 0);
+                clearVisibleScreen();
                 renderFooterInternal(footerSnapshot);
+                rememberTerminalSize();
             }
         });
     }
@@ -69,15 +68,14 @@ public class PortalScreenRenderer {
             @Override
             public void run() {
                 StatusBar.RenderSnapshot footerSnapshot = statusBar.snapshot();
-                resetScrollRegion();
-                terminal.puts(InfoCmp.Capability.clear_screen);
-                moveCursor(1, 1);
-                terminal.flush();
-                contentCursor = new Cursor(0, 0);
-                for (String line : lines) {
-                    appendContentLineInternal(line, footerSnapshot);
+                clearVisibleScreen();
+                if (lines != null) {
+                    for (String line : lines) {
+                        appendContentLineInternal(line, footerSnapshot);
+                    }
                 }
                 renderFooterInternal(footerSnapshot);
+                rememberTerminalSize();
             }
         });
     }
@@ -87,8 +85,11 @@ public class PortalScreenRenderer {
             @Override
             public void run() {
                 StatusBar.RenderSnapshot footerSnapshot = statusBar.snapshot();
+                ensureResizeHandled(footerSnapshot);
+                adjustContentForFooterGrowth(footerSnapshot);
                 appendContentLineInternal(line, footerSnapshot);
                 renderFooterInternal(footerSnapshot);
+                rememberTerminalSize();
             }
         });
     }
@@ -102,10 +103,13 @@ public class PortalScreenRenderer {
             @Override
             public void run() {
                 StatusBar.RenderSnapshot footerSnapshot = statusBar.snapshot();
+                ensureResizeHandled(footerSnapshot);
+                adjustContentForFooterGrowth(footerSnapshot);
                 for (String line : lines) {
                     appendContentLineInternal(line, footerSnapshot);
                 }
                 renderFooterInternal(footerSnapshot);
+                rememberTerminalSize();
             }
         });
     }
@@ -114,7 +118,17 @@ public class PortalScreenRenderer {
         withTerminalLock(new Runnable() {
             @Override
             public void run() {
-                renderFooterInternal(statusBar.snapshot());
+                StatusBar.RenderSnapshot footerSnapshot = statusBar.snapshot();
+                if (isTerminalSizeChanged()) {
+                    clearVisibleScreen();
+                    renderFooterInternal(footerSnapshot);
+                    rememberTerminalSize();
+                    return;
+                }
+
+                adjustContentForFooterGrowth(footerSnapshot);
+                renderFooterInternal(footerSnapshot);
+                rememberTerminalSize();
             }
         });
     }
@@ -143,6 +157,35 @@ public class PortalScreenRenderer {
         terminal.writer().print("\r\n");
         terminal.flush();
         contentCursor = advanceContentCursor(contentCursor, safeLine, layout);
+    }
+
+    private void ensureResizeHandled(StatusBar.RenderSnapshot footerSnapshot) {
+        if (isTerminalSizeChanged()) {
+            clearVisibleScreen();
+            renderFooterInternal(footerSnapshot);
+            rememberTerminalSize();
+        }
+    }
+
+    private void adjustContentForFooterGrowth(StatusBar.RenderSnapshot footerSnapshot) {
+        Layout layout = layoutFor(footerSnapshot);
+        if (layout.footerLineCount <= layout.previousFooterLineCount) {
+            return;
+        }
+
+        int maxContentCursorY = Math.max(0, layout.contentBottomRow - 1);
+        int overflow = contentCursor.getY() - maxContentCursorY;
+        if (overflow <= 0) {
+            return;
+        }
+
+        applyScrollRegion(layout.previousContentBottomRow);
+        moveCursor(layout.previousContentBottomRow, 1);
+        for (int i = 0; i < overflow; i++) {
+            terminal.writer().print("\r\n");
+        }
+        terminal.flush();
+        contentCursor = new Cursor(0, Math.max(0, contentCursor.getY() - overflow));
     }
 
     private void renderFooterInternal(StatusBar.RenderSnapshot footerSnapshot) {
@@ -185,6 +228,15 @@ public class PortalScreenRenderer {
         }
     }
 
+    private void clearVisibleScreen() {
+        resetScrollRegion();
+        terminal.puts(InfoCmp.Capability.clear_screen);
+        moveCursor(1, 1);
+        terminal.flush();
+        contentCursor = new Cursor(0, 0);
+        lastFooterLineCount = 0;
+    }
+
     private Cursor advanceContentCursor(Cursor baseCursor, String line, Layout layout) {
         Cursor safeCursor = clampContentCursor(baseCursor == null ? new Cursor(0, 0) : baseCursor, layout);
         int width = Math.max(1, terminal.getWidth());
@@ -208,8 +260,10 @@ public class PortalScreenRenderer {
         int footerTopRow = terminalHeight - visibleFooterLineCount + 1;
         int clearFooterTopRow = terminalHeight - clearFooterLineCount + 1;
         int contentBottomRow = Math.max(1, footerTopRow - 1);
+        int previousContentBottomRow = Math.max(1, terminalHeight - previousVisibleFooterLineCount);
 
-        return new Layout(terminalHeight, contentBottomRow, footerTopRow, clearFooterTopRow, visibleFooterLineCount);
+        return new Layout(terminalHeight, contentBottomRow, footerTopRow, clearFooterTopRow,
+                visibleFooterLineCount, previousVisibleFooterLineCount, previousContentBottomRow);
     }
 
     private FooterRenderState footerStateFor(StatusBar.RenderSnapshot footerSnapshot, Layout layout) {
@@ -257,7 +311,11 @@ public class PortalScreenRenderer {
     }
 
     private void applyScrollRegion(Layout layout) {
-        terminal.writer().print("\033[1;" + layout.contentBottomRow + "r");
+        applyScrollRegion(layout.contentBottomRow);
+    }
+
+    private void applyScrollRegion(int contentBottomRow) {
+        terminal.writer().print("\033[1;" + Math.max(1, contentBottomRow) + "r");
     }
 
     private void resetScrollRegion() {
@@ -266,6 +324,15 @@ public class PortalScreenRenderer {
 
     private void moveCursor(int row, int col) {
         terminal.writer().print("\033[" + Math.max(1, row) + ";" + Math.max(1, col) + "H");
+    }
+
+    private boolean isTerminalSizeChanged() {
+        return lastTerminalWidth != terminal.getWidth() || lastTerminalHeight != terminal.getHeight();
+    }
+
+    private void rememberTerminalSize() {
+        lastTerminalWidth = terminal.getWidth();
+        lastTerminalHeight = terminal.getHeight();
     }
 
     private AttributedString blankLine() {
@@ -291,14 +358,19 @@ public class PortalScreenRenderer {
         private final int footerTopRow;
         private final int clearFooterTopRow;
         private final int footerLineCount;
+        private final int previousFooterLineCount;
+        private final int previousContentBottomRow;
 
         private Layout(int terminalHeight, int contentBottomRow, int footerTopRow,
-                       int clearFooterTopRow, int footerLineCount) {
+                       int clearFooterTopRow, int footerLineCount,
+                       int previousFooterLineCount, int previousContentBottomRow) {
             this.terminalHeight = terminalHeight;
             this.contentBottomRow = contentBottomRow;
             this.footerTopRow = footerTopRow;
             this.clearFooterTopRow = clearFooterTopRow;
             this.footerLineCount = footerLineCount;
+            this.previousFooterLineCount = previousFooterLineCount;
+            this.previousContentBottomRow = previousContentBottomRow;
         }
     }
 
