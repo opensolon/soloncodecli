@@ -7,18 +7,20 @@ import org.noear.solon.ai.agent.react.ReActAgentExtension;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationInterceptor;
 import org.noear.solon.ai.agent.react.intercept.SummarizationStrategy;
-import org.noear.solon.ai.agent.react.intercept.summarize.*;
+import org.noear.solon.ai.agent.react.intercept.summarize.CompositeSummarizationStrategy;
+import org.noear.solon.ai.agent.react.intercept.summarize.HierarchicalSummarizationStrategy;
+import org.noear.solon.ai.agent.react.intercept.summarize.KeyInfoExtractionStrategy;
 import org.noear.solon.ai.chat.ChatModel;
+import org.noear.solon.ai.harness.agent.*;
+import org.noear.solon.ai.harness.code.CodeSkill;
+import org.noear.solon.ai.harness.hitl.HitlStrategy;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
+import org.noear.solon.ai.mcp.client.McpProviders;
 import org.noear.solon.ai.skills.cli.CliSkillProvider;
 import org.noear.solon.ai.skills.cli.TodoSkill;
 import org.noear.solon.ai.skills.restapi.ApiSource;
 import org.noear.solon.ai.skills.restapi.RestApiSkill;
 import org.noear.solon.ai.skills.toolgateway.ToolGatewaySkill;
-import org.noear.solon.ai.harness.agent.*;
-import org.noear.solon.ai.mcp.client.McpProviders;
-import org.noear.solon.ai.harness.code.CodeSkill;
-import org.noear.solon.ai.harness.hitl.HitlStrategy;
 import org.noear.solon.core.util.Assert;
 import org.noear.solon.core.util.IoUtil;
 import org.slf4j.Logger;
@@ -203,8 +205,9 @@ public class HarnessEngine {
         // 主代理
         agentDefinition.getMetadata().setPrimary(true);
         // 工具权限
-        agentDefinition.getMetadata().addTools(props.getTools());
-
+        for(String tool : props.getTools()) {
+            agentDefinition.getMetadata().addTools(tool);
+        }
         // 添加步数
         agentDefinition.getMetadata().setMaxSteps(props.getMaxSteps());
         // 添加步数自动扩展
