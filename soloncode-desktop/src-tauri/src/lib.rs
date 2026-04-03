@@ -1,9 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{Read as IoRead, Write as IoWrite};
 use std::path::Path;
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Manager, Emitter};
+use portable_pty::{native_pty_system, PtySize, CommandBuilder as PtyCommandBuilder};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileInfo {
@@ -587,6 +589,136 @@ fn move_item(source_path: &str, dest_path: &str) -> Result<(), String> {
     fs::rename(source_path, dest_path).map_err(|e| format!("移动失败: {}", e))
 }
 
+// ==================== 终端 (PTY) ====================
+
+use portable_pty::MasterPty;
+
+struct PtyState {
+    master: Box<dyn MasterPty + Send>,
+    writer: std::sync::Mutex<Box<dyn IoWrite + Send>>,
+    _child: Box<dyn portable_pty::Child + Send + 'static>,
+}
+
+static PTY_STATE: Mutex<Option<PtyState>> = Mutex::new(None);
+
+/// 启动终端（PowerShell）
+#[tauri::command]
+fn terminal_start(app_handle: tauri::AppHandle, rows: u16, cols: u16, cwd: Option<String>) -> Result<(), String> {
+    // 先关闭已有终端
+    {
+        let mut pty = PTY_STATE.lock().map_err(|e| format!("锁错误: {}", e))?;
+        if pty.is_some() {
+            *pty = None;
+        }
+    }
+
+    let pty_system = native_pty_system();
+
+    let pair = pty_system
+        .openpty(PtySize {
+            rows,
+            cols,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("创建 PTY 失败: {}", e))?;
+
+    let mut cmd = PtyCommandBuilder::new("powershell");
+    if let Some(dir) = cwd {
+        cmd.cwd(dir);
+    }
+
+    let child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("启动 PowerShell 失败: {}", e))?;
+
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("获取 PTY reader 失败: {}", e))?;
+
+    // take_writer 需要在 master 被装箱为 trait object 之前调用
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("获取 PTY writer 失败: {}", e))?;
+
+    let master = pair.master;
+
+    // 保存 PTY 状态
+    {
+        let mut pty = PTY_STATE.lock().map_err(|e| format!("锁错误: {}", e))?;
+        *pty = Some(PtyState {
+            master,
+            writer: std::sync::Mutex::new(writer),
+            _child: child,
+        });
+    }
+
+    // 在独立线程中读取 PTY 输出并通过 Tauri 事件发送到前端
+    std::thread::spawn(move || {
+        let mut reader = reader;
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => {
+                    // EOF
+                    let _ = app_handle.emit("terminal-output", "".to_string());
+                    break;
+                }
+                Ok(n) => {
+                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let _ = app_handle.emit("terminal-output", data);
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
+    });
+
+    Ok(())
+}
+
+/// 向终端写入数据
+#[tauri::command]
+fn terminal_write(data: String) -> Result<(), String> {
+    let pty = PTY_STATE.lock().map_err(|e| format!("锁错误: {}", e))?;
+    if let Some(state) = pty.as_ref() {
+        let mut writer = state.writer.lock().map_err(|e| format!("锁错误: {}", e))?;
+        writer.write_all(data.as_bytes()).map_err(|e| format!("写入失败: {}", e))?;
+        writer.flush().map_err(|e| format!("flush 失败: {}", e))?;
+    }
+    Ok(())
+}
+
+/// 调整终端大小
+#[tauri::command]
+fn terminal_resize(rows: u16, cols: u16) -> Result<(), String> {
+    let pty = PTY_STATE.lock().map_err(|e| format!("锁错误: {}", e))?;
+    if let Some(state) = pty.as_ref() {
+        state
+            .master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| format!("调整大小失败: {}", e))?;
+    }
+    Ok(())
+}
+
+/// 关闭终端
+#[tauri::command]
+fn terminal_kill() -> Result<(), String> {
+    let mut pty = PTY_STATE.lock().map_err(|e| format!("锁错误: {}", e))?;
+    *pty = None;
+    Ok(())
+}
+
 // ==================== 后端进程管理 ====================
 
 /// 全局后端进程句柄
@@ -872,7 +1004,11 @@ pub fn run() {
             move_item,
             start_backend,
             stop_backend,
-            backend_status
+            backend_status,
+            terminal_start,
+            terminal_write,
+            terminal_resize,
+            terminal_kill
         ])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
@@ -882,6 +1018,10 @@ pub fn run() {
                         let _ = child.kill();
                         let _ = child.wait();
                     }
+                }
+                // 关闭终端
+                if let Ok(mut pty) = PTY_STATE.lock() {
+                    *pty = None;
                 }
             }
         })

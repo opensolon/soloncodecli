@@ -12,6 +12,7 @@ import { getAllConversations, saveConversation, deleteConversation, updateConver
 import { SettingsPanel, type Settings } from './components/sidebar/SettingsPanel';
 import { EditorPanel } from './components/editor/EditorPanel';
 import { ChatView } from './components/ChatView';
+import { TerminalPanel } from './components/terminal/TerminalPanel';
 import { fileService, type FileInfo } from './services/fileService';
 import { gitService, type GitStatus, type DiffLine } from './services/gitService';
 import { settingsService } from './services/settingsService';
@@ -77,6 +78,7 @@ function App() {
   const [activeActivity, setActiveActivity] = useState<ActivityType>('sessions');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   // 设置变化时自动持久化
   const handleSettingsChange = useCallback((newSettings: Settings) => {
@@ -129,6 +131,9 @@ function App() {
     panelOrder: ['editor', 'chat'],
   });
 
+  // 侧边栏实际宽度（计算值）
+  const [sidebarWidth, setSidebarWidth] = useState(260);
+
   // 计算默认面板宽度比例
   useEffect(() => {
     const updatePanelWidths = () => {
@@ -136,18 +141,19 @@ function App() {
 
       const containerWidth = containerRef.current.clientWidth;
       const activityBarWidth = 48; // 活动栏宽度
-      const sidebarWidth = sidebarCollapsed ? 48 : 260; // 侧边栏宽度
-      const remainingWidth = containerWidth - activityBarWidth - sidebarWidth;
 
-      // 比例 5:2 (编辑器:对话框)
-      const totalParts = 7;
-      const editorWidth = Math.floor(remainingWidth * (5 / totalParts));
+      // 侧边栏 20%, 编辑器 50%, 对话框 30%（按总宽度分配）
+      const sw = sidebarCollapsed ? 0 : Math.floor(containerWidth * 0.20);
+      setSidebarWidth(sw);
+
+      const remainingWidth = containerWidth - activityBarWidth - (sidebarCollapsed ? 0 : sw);
+      const editorWidth = Math.floor(remainingWidth * 0.45 / 0.75);
       const chatWidth = remainingWidth - editorWidth;
 
       setPanelState(prev => ({
         ...prev,
         editorWidth: Math.max(300, editorWidth),
-        chatWidth: Math.max(250, chatWidth),
+        chatWidth: Math.max(200, chatWidth),
       }));
     };
 
@@ -251,15 +257,15 @@ function App() {
       if (!containerRef.current) return;
 
       const containerRect = containerRef.current.getBoundingClientRect();
-      const sidebarWidth = sidebarCollapsed ? 48 : 308;
-      const relativeX = e.clientX - containerRect.left - sidebarWidth;
+      const sw = sidebarCollapsed ? 48 : 48 + sidebarWidth; // 活动栏 + 侧边栏
+      const relativeX = e.clientX - containerRect.left - sw;
 
       if (isResizing === 'editor') {
-        const newEditorWidth = Math.max(300, Math.min(800, relativeX));
+        const newEditorWidth = Math.max(300, relativeX);
         setPanelState(prev => ({ ...prev, editorWidth: newEditorWidth }));
       } else if (isResizing === 'chat') {
-        const totalWidth = containerRect.width - sidebarWidth;
-        const newChatWidth = Math.max(300, Math.min(600, totalWidth - relativeX));
+        const totalWidth = containerRect.width - sw;
+        const newChatWidth = Math.max(200, totalWidth - relativeX);
         setPanelState(prev => ({ ...prev, chatWidth: newChatWidth }));
       }
     };
@@ -538,6 +544,9 @@ function App() {
   }, [activeFilePath, handleFileSave]);
 
   // Toast 提示
+  // 终端面板状态
+  const [terminalVisible, setTerminalVisible] = useState(false);
+
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -673,13 +682,6 @@ function App() {
             onDeleteSession={handleDeleteSession}
           />
         );
-      case 'settings':
-        return (
-          <SettingsPanel
-            settings={settings}
-            onSettingsChange={handleSettingsChange}
-          />
-        );
       default:
         return null;
     }
@@ -690,7 +692,9 @@ function App() {
     if (panel === 'editor') {
       if (!panelState.editorVisible) return null;
       return (
-        <div key="editor" className="panel-wrapper editor-wrapper" style={{ width: panelState.editorWidth }}>
+        <div key="editor" className={`panel-wrapper editor-wrapper${panelState.chatVisible ? '' : ' expand'}`} style={{
+          width: panelState.chatVisible ? panelState.editorWidth : undefined,
+        }}>
           <EditorPanel
             files={openFiles}
             activeFilePath={activeFilePath}
@@ -749,15 +753,20 @@ function App() {
         chatVisible={panelState.chatVisible}
         onToggleEditor={() => togglePanel('editor')}
         onToggleChat={() => togglePanel('chat')}
+        onToggleTerminal={() => setTerminalVisible(v => !v)}
         onSwapPanels={swapPanels}
       />
 
       {/* 主内容区 */}
       <div className="main-area">
-        {/* 左侧活动栏 */}
+        {/* 左侧：活动栏 + 侧边栏 */}
         <ActivityBar
           activeActivity={activeActivity}
           onActivityChange={(activity) => {
+            if (activity === 'settings') {
+              setSettingsVisible(true);
+              return;
+            }
             if (activeActivity === activity) {
               setSidebarCollapsed(!sidebarCollapsed);
             } else {
@@ -768,17 +777,21 @@ function App() {
         />
 
         {/* 侧边栏面板 */}
-        <div className={`sidebar-container${sidebarCollapsed ? ' collapsed' : ''}`}>
+        <div className={`sidebar-container${sidebarCollapsed ? ' collapsed' : ''}`}
+             style={!sidebarCollapsed ? { width: sidebarWidth } : undefined}>
           {!sidebarCollapsed && (
-            <SidePanel title="" width={260} minWidth={200} maxWidth={400}>
+            <SidePanel title="" width={sidebarWidth} minWidth={200} maxWidth={600}>
               {renderSidebarContent()}
             </SidePanel>
           )}
         </div>
 
-        {/* 动态面板区域 */}
-        <div className="panels-container">
-          {panelState.panelOrder.map(panel => renderPanel(panel))}
+        {/* 右侧区域：上面编辑器+对话框，下面终端 */}
+        <div className="right-area">
+          <div className="panels-container">
+            {panelState.panelOrder.map(panel => renderPanel(panel))}
+          </div>
+          <TerminalPanel visible={terminalVisible} cwd={workspacePath || undefined} />
         </div>
       </div>
 
@@ -801,6 +814,14 @@ function App() {
       {toast && (
         <div className="toast-message">{toast}</div>
       )}
+
+      {/* 设置弹窗 */}
+      <SettingsPanel
+        visible={settingsVisible}
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+        onClose={() => setSettingsVisible(false)}
+      />
     </div>
   );
 }

@@ -9,7 +9,7 @@ export interface DbMessage {
 }
 
 export interface DbConversation {
-  id?: string | number;
+  id?: number; // 建议与 schema ++id 保持一致，统一为 number
   title: string;
   timestamp: string;
   status: string;
@@ -43,26 +43,14 @@ export async function getMessagesByConversation(conversationId: string | number)
     .toArray();
 }
 
-export async function saveConversation(conversation: DbConversation): Promise<string | number> {
-  // 使用字符串 ID 作为主键查找
-  if (typeof conversation.id === 'string') {
-    const existing = await db.conversations.toArray();
-    const existingById = existing.find(c => c.id === conversation.id);
-    if (existingById) {
-      await db.conversations.delete(existingById.id as number);
-      const newId = await db.conversations.add(conversation);
-      return conversation.id;
-    }
-    const newId = await db.conversations.add(conversation);
+export async function saveConversation(conversation: DbConversation): Promise<number> {
+  // 统一返回数据库生成的 ID (number)，避免类型不一致
+  if (conversation.id) {
+    await db.conversations.update(conversation.id, conversation);
     return conversation.id;
   }
-
-  const existing = await db.conversations.where('id').equals(conversation.id as number).first();
-  if (existing) {
-    await db.conversations.update(conversation.id as number, conversation);
-    return conversation.id;
-  }
-  return await db.conversations.add(conversation);
+  const newId = await db.conversations.add(conversation);
+  return newId;
 }
 
 export async function getAllConversations(): Promise<DbConversation[]> {
@@ -71,21 +59,11 @@ export async function getAllConversations(): Promise<DbConversation[]> {
 
 export async function deleteConversation(id: string | number): Promise<void> {
   await db.messages.where('conversationId').equals(id).delete();
-  if (typeof id === 'number') {
-    await db.conversations.where('id').equals(id).delete();
-  } else {
-    const all = await db.conversations.toArray();
-    const toDelete = all.filter(c => c.id === id);
-    await Promise.all(toDelete.map(c => db.conversations.delete(c.id as number)));
-  }
+  // 直接使用 where 查询删除，避免全量加载
+  await db.conversations.where('id').equals(id).delete();
 }
 
 export async function updateConversation(id: string | number, updates: Partial<DbConversation>): Promise<void> {
-  if (typeof id === 'number') {
-    await db.conversations.where('id').equals(id).modify(updates);
-  } else {
-    const all = await db.conversations.toArray();
-    const toUpdate = all.filter(c => c.id === id);
-    await Promise.all(toUpdate.map(c => db.conversations.update(c.id as number, updates)));
-  }
+  // 直接使用 modify 更新，避免全量加载
+  await db.conversations.where('id').equals(id).modify(updates);
 }

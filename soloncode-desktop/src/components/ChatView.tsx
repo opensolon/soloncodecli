@@ -49,7 +49,7 @@ class WebSocketManager {
   private getWebSocketUrl(): string {
     const host = this.backendPort
       ? `localhost:${this.backendPort}`
-      : (import.meta.env.VITE_WS_HOST || 'localhost:8080');
+      : (import.meta.env.VITE_WS_HOST || 'localhost:18080');
     const protocol = import.meta.env.VITE_WS_PROTOCOL || 'ws';
     const params = new URLSearchParams();
     if (this.workspacePath) {
@@ -224,15 +224,15 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
   // 当前 assistant 消息 ID
   const assistantMsgIdRef = useRef<number>(0);
 
-  // 加载超时计时器：收到消息时重置，10秒无新消息自动停止
+  // 加载超时计时器：收到消息时重置，120秒无新消息自动停止
   const loadingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startLoadingTimer = useCallback(() => {
     if (loadingTimerRef.current) clearTimeout(loadingTimerRef.current);
     loadingTimerRef.current = setTimeout(() => {
-      console.log('[ChatView] Loading timeout, auto-stopping');
+      console.log('[ChatView] Loading timeout (120s), auto-stopping');
       setIsLoading(false);
-    }, 10000);
+    }, 120000);
   }, []);
 
   const clearLoadingTimer = useCallback(() => {
@@ -353,6 +353,15 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
       }
 
       if (data.type === 'error') {
+        clearLoadingTimer();
+        const errorText = data.text || '未知错误';
+        const errorMsg: Message = {
+          id: Date.now(),
+          role: 'error',
+          timestamp: new Date().toLocaleTimeString(),
+          contents: [{ type: 'error', text: errorText }]
+        };
+        setMessages(prev => [...prev, errorMsg]);
         setIsLoading(false);
         return;
       }
