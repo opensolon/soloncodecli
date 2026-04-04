@@ -22,6 +22,7 @@ import org.noear.solon.ai.agent.react.task.ActionEndChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.react.task.ThoughtChunk;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.agent.TaskSkill;
 import org.noear.solon.codecli.core.AgentProperties;
@@ -102,6 +103,20 @@ public class WebSocketGate extends SimpleWebSocketListener {
                     disposable.dispose();
                 }
                 session.addMessage(ChatMessage.ofAssistant("用户中途取消了这个任务."));
+
+                String msg = new ONode().set("type", "reason")
+                        .set("sessionId", session.getSessionId())
+                        .set("text", "[Task interrupted]")
+                        .toJson();
+                socket.send(msg);
+
+                String msg2 = new ONode().set("type", "done")
+                        .set("sessionId", session.getSessionId())
+                        .set("modelName", kernel.getMainAgent().getConfig().getChatModel().getModel())
+                        .set("totalTokens", 0)
+                        .set("elapsedMs", 0).toJson();
+
+                socket.send(msg2);
                 return;
             }
 
@@ -136,15 +151,16 @@ public class WebSocketGate extends SimpleWebSocketListener {
             final long startTime = System.currentTimeMillis();
 
             // 用于收集 metrics 的容器
-            final long[] totalTokens = {0};
             final String[] modelName = {""};
 
             // 流式处理
             final String finalSessionId = sessionId;
+            Prompt prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
+
 
             String finalCwd = cwd;
             Disposable disposable = kernel.getMainAgent()
-                    .prompt(input)
+                    .prompt(prompt)
                     .session(session)
                     .options(o -> {
                         o.toolContextPut(HarnessEngine.ATTR_CWD, finalCwd);
@@ -160,7 +176,8 @@ public class WebSocketGate extends SimpleWebSocketListener {
                         // ReActChunk 需要优先处理 metrics 收集（无论 hasContent 状态）
                         String msg = null;
                         if (chunk instanceof ReActChunk) {
-                            msg = onReActChunk((ReActChunk) chunk, finalSessionId, totalTokens, modelName);
+                           onReActChunk((ReActChunk) chunk, finalSessionId, socket);
+                           return;
                         } else if (chunk instanceof ReasonChunk) {
                             msg = onReasonChunk((ReasonChunk) chunk, finalSessionId);
                         } else if (chunk instanceof ActionEndChunk) {
@@ -179,14 +196,6 @@ public class WebSocketGate extends SimpleWebSocketListener {
                                 .toJson();
 
                         socket.send(msg);
-                    })
-                    .doFinally(s -> {
-                        String msg = new ONode().set("type", "done")
-                                .set("sessionId", finalSessionId)
-                                .set("modelName", modelName[0])
-                                .set("totalTokens", totalTokens[0])
-                                .set("elapsedMs", System.currentTimeMillis() - startTime).toJson();
-                        socket.send(msg);
                     }).subscribe();
 
             session.attrs().put("disposable", disposable);
@@ -198,33 +207,33 @@ public class WebSocketGate extends SimpleWebSocketListener {
         }
     }
 
-    private String onReActChunk(ReActChunk chunk, String finalSessionId, long[] totalTokens, String[] modelName) {
-        // 收集 metrics 信息（无论 isNormal 和 hasContent 状态，trace 都可能携带 metrics）
-        if (chunk.getTrace() != null) {
-            if (chunk.getTrace().getMetrics() != null) {
-                totalTokens[0] = chunk.getTrace().getMetrics().getTotalTokens();
-            }
-            if (chunk.getTrace().getConfig() != null && chunk.getTrace().getConfig().getChatModel() != null) {
-                modelName[0] = chunk.getTrace().getConfig().getChatModel().toString();
-            }
-        }
-
+    private void onReActChunk(ReActChunk chunk, String finalSessionId, WebSocket socket) {
         // 参考 CLI 的 CliShellNew.onFinalChunk 逻辑：
         // - isNormal==false: 内容通过 reason 类型发送（和 ReasonChunk 一样处理）
         // - isNormal==true: 这是最终汇总，内容已经通过 ReasonChunk 发送过了，跳过避免重复
         if (!chunk.isNormal() && chunk.hasContent()) {
             LOG.debug("[WS] sending reason from ReActChunk: {}",
                     chunk.getContent().substring(0, Math.min(50, chunk.getContent().length())));
-            return new ONode().set("type", "reason")
+            String msg = new ONode().set("type", "reason")
                     .set("sessionId", finalSessionId)
                     .set("text", chunk.getContent())
                     .toJson();
+            socket.send(msg);
         }
 
         // isNormal==true 或无内容时，内容已通过 ReasonChunk 完整发送，此处跳过
         LOG.debug("[WS] skipping ReActChunk (isNormal={}, hasContent={})",
                 chunk.isNormal(), chunk.hasContent());
-        return "";
+
+        Long start_time = chunk.getTrace().getOriginalPrompt().attrAs("start_time");
+
+        String msg2 = new ONode().set("type", "done")
+                .set("sessionId", finalSessionId)
+                .set("modelName", chunk.getTrace().getConfig().getChatModel().getModel())
+                .set("totalTokens", chunk.getTrace().getMetrics().getTotalTokens())
+                .set("elapsedMs", System.currentTimeMillis() - start_time).toJson();
+
+        socket.send(msg2);
     }
 
     private String onReasonChunk(ReasonChunk chunk, String finalSessionId) {
