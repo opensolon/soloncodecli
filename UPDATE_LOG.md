@@ -4,6 +4,7 @@
 
 * 添加 `soloncode --session=test` 指令（启动时指定默认会话id）
 * 添加 `soloncode serve` 指令或 `soloncode serve -server.port=4808` 启动无界面服务（作为 http 和 ws 服务）
+* 调整 `soloncode` http 端口默认改为：4808（之前是 8080）
 
 ### v2026.4.5
 
