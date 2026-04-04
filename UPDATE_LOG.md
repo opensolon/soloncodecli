@@ -4,6 +4,11 @@
 
 * 添加 `soloncode --session=test` 指令（启动时指定默认会话id）
 * 添加 `soloncode serve` 指令或 `soloncode serve -server.port=4808` 启动无界面服务（作为 http 和 ws 服务）
+* 优化 `soloncode-cli` websocket 的消息处理
+* 调整 `soloncode-desktop` 更名为 `soloncode-ide`
+* 完成 `soloncode-ide` 的上下文功能，通过文件树双击附加上下文
+* 取消 `soloncode-ide` 输入框的“#”（由双击取代）和“@”功能（通过自然语言按需调用）
+* 取消 `soloncode-ide` 底部栏的 llm 名字显示（由对话框的显示替代）
 * 调整 `soloncode` http 端口默认改为：4808（之前是 8080）
 
 ### v2026.4.5

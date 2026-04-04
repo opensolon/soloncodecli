@@ -175,7 +175,7 @@
   font-size: 14px;
   line-height: 1.5;
   resize: none;
-  min-height: 24px;
+  min-height: 50px;
   max-height: 150px;
   overflow-y: auto;
   font-family: inherit;

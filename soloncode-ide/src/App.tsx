@@ -857,7 +857,6 @@ function App() {
 
       {/* 底部状态栏 */}
       <StatusBar
-        model={settings.model}
         branch={gitStatus.branch}
         ahead={gitStatus.ahead}
         behind={gitStatus.behind}

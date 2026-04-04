@@ -7,8 +7,6 @@ import { Icon } from '../common/Icon';
 import './StatusBar.css';
 
 export interface StatusBarProps {
-  /** 当前 AI 模型名称 */
-  model?: string;
   /** Git 分支名 */
   branch?: string;
   /** ahead 数量 */
@@ -32,7 +30,6 @@ export interface StatusBarProps {
 }
 
 export function StatusBar({
-  model,
   branch,
   ahead = 0,
   behind = 0,
@@ -47,14 +44,6 @@ export function StatusBar({
   return (
     <div className="status-bar">
       <div className="status-left">
-        {/* AI 模型 */}
-        {model && (
-          <span className="status-item status-model" title="当前模型">
-            <Icon name="bot" size={12} />
-            <span>{model}</span>
-          </span>
-        )}
-
         {/* Git 分支 */}
         {branch && (
           <span className="status-item status-branch" title={`分支: ${branch}${ahead ? ` (ahead ${ahead})` : ''}${behind ? ` (behind ${behind})` : ''}`}>

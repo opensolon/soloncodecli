@@ -155,13 +155,18 @@ class WebSocketManager {
     ws.send(JSON.stringify(request));
   }
 
-  /** 取消当前请求：关闭连接，保留回调注册以便重新连接 */
-  cancel() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+  /** 发送中断信号，模拟正常消息发送 */
+  async interrupt(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.warn('[WS] Cannot interrupt: not connected');
+      return;
     }
-    this.connectingSessionId = null;
+    const request = {
+      type: 'chat',
+      content: '[(sec)interrupt]',
+      sessionId: this.connectingSessionId
+    };
+    this.ws.send(JSON.stringify(request));
   }
 
   disconnect() {
@@ -564,7 +569,7 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
 
   // 停止当前请求
   const handleStop = useCallback(() => {
-    WebSocketManager.getInstance().cancel();
+    WebSocketManager.getInstance().interrupt();
     clearLoadingTimer();
     setIsLoading(false);
 

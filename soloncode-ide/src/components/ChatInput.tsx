@@ -2,13 +2,7 @@ import { useState, FormEvent, KeyboardEvent, useRef, useEffect, useCallback } fr
 import { Icon } from './common/Icon';
 import './ChatInput.css';
 
-// 可用的智能体列表
-const AVAILABLE_AGENTS = [
-  { id: 'default', name: '助手', icon: 'bot', description: '通用编程助手' },
-  { id: 'explorer', name: '探索', icon: 'search', description: '探索代码库' },
-  { id: 'architect', name: '架构师', icon: 'code', description: '设计实现方案' },
-  { id: 'bash', name: '终端', icon: 'terminal', description: '执行命令' },
-];
+
 
 // 上下文引用项
 interface ContextRef {
@@ -65,7 +59,7 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
 
   // 自动完成状态
   const [showAutocomplete, setShowAutocomplete] = useState(false);
-  const [autocompleteType, setAutocompleteType] = useState<'context' | 'agent' | null>(null);
+  const [autocompleteType, setAutocompleteType] = useState<'context' | null>(null);
   const [autocompleteQuery, setAutocompleteQuery] = useState('');
   const [autocompletePosition, setAutocompletePosition] = useState({ start: 0, end: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -75,11 +69,7 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
 
   // 获取过滤后的自动完成选项
   const getFilteredOptions = useCallback(() => {
-    if (autocompleteType === 'agent') {
-      return AVAILABLE_AGENTS.filter(a =>
-        a.name.toLowerCase().includes(autocompleteQuery.toLowerCase())
-      );
-    }
+
     if (autocompleteType === 'context') {
       const defaultContexts: ContextRef[] = [
         { id: 'current-file', type: 'file', name: '当前文件' },
@@ -98,40 +88,6 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
   // 处理输入变化
   function handleInput(event: React.ChangeEvent<HTMLTextAreaElement>) {
     const value = event.target.value;
-    const cursorPos = event.target.selectionStart || 0;
-    const beforeCursor = value.substring(0, cursorPos);
-
-    const lastAtIndex = beforeCursor.lastIndexOf('@');
-    const lastHashIndex = beforeCursor.lastIndexOf('#');
-
-    let triggerType: 'agent' | 'context' | null = null;
-    let triggerIndex = -1;
-
-    if (lastAtIndex > lastHashIndex && lastAtIndex !== -1) {
-      const afterAt = beforeCursor.substring(lastAtIndex + 1);
-      if (!afterAt.includes(' ') && !afterAt.includes('\n')) {
-        triggerType = 'agent';
-        triggerIndex = lastAtIndex;
-      }
-    } else if (lastHashIndex !== -1) {
-      const afterHash = beforeCursor.substring(lastHashIndex + 1);
-      if (!afterHash.includes(' ') && !afterHash.includes('\n')) {
-        triggerType = 'context';
-        triggerIndex = lastHashIndex;
-      }
-    }
-
-    if (triggerType && triggerIndex !== -1) {
-      setAutocompleteType(triggerType);
-      setAutocompleteQuery(beforeCursor.substring(triggerIndex + 1));
-      setAutocompletePosition({ start: triggerIndex, end: cursorPos });
-      setShowAutocomplete(true);
-      setSelectedIndex(0);
-    } else {
-      setShowAutocomplete(false);
-      setAutocompleteType(null);
-    }
-
     setUserInput(value);
   }
 
@@ -140,31 +96,14 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
     const beforeTrigger = userInput.substring(0, autocompletePosition.start);
     const afterCursor = userInput.substring(autocompletePosition.end);
 
-    const trigger = autocompleteType === 'agent' ? '@' : '#';
+    const trigger = '@';
     const newValue = beforeTrigger + `${trigger}${item.name} ` + afterCursor;
 
     setUserInput(newValue);
     setShowAutocomplete(false);
     setAutocompleteType(null);
 
-    if (autocompleteType === 'context') {
-      const contextRef: ContextRef = {
-        id: item.id,
-        type: 'file',
-        name: item.name,
-      };
-      setContexts(prev => {
-        if (prev.find(c => c.id === item.id)) return prev;
-        return [...prev, contextRef];
-      });
-    }
 
-    if (autocompleteType === 'agent') {
-      const agent = AVAILABLE_AGENTS.find(a => a.id === item.id || a.name === item.name);
-      if (agent) {
-        setSelectedAgent(agent.id);
-      }
-    }
 
     setTimeout(() => {
       if (textareaRef.current) {
@@ -249,7 +188,6 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
   }, []);
 
   const filteredOptions = getFilteredOptions();
-  const selectedAgentInfo = AVAILABLE_AGENTS.find(a => a.id === selectedAgent);
 
   return (
     <div className="chat-input-wrapper">
@@ -345,29 +283,7 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
             </button>
           </div>
 
-          {/* 底部操作栏 */}
-          <div className="input-bottom-bar">
-            <button
-              type="button"
-              className="toolbar-btn"
-              title="引用上下文 (#)"
-              onClick={() => {
-                if (textareaRef.current) {
-                  const pos = textareaRef.current.selectionStart;
-                  setUserInput(prev => prev.slice(0, pos) + '#' + prev.slice(pos));
-                  textareaRef.current.focus();
-                  setTimeout(() => {
-                    setAutocompleteType('context');
-                    setAutocompleteQuery('');
-                    setAutocompletePosition({ start: pos, end: pos + 1 });
-                    setShowAutocomplete(true);
-                  }, 0);
-                }
-              }}
-            >
-              #
-            </button>
-          </div>
+
         </form>
 
         {/* 自动完成下拉框 - 简洁风格 */}
@@ -381,9 +297,7 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
                   onClick={() => selectAutocompleteItem(option)}
                 >
                   <Icon name={
-                    autocompleteType === 'agent'
-                      ? (option as any).icon || 'bot'
-                      : (option as any).type === 'folder' ? 'folder' : 'file'
+                    (option as any).type === 'folder' ? 'folder' : 'file'
                   } size={14} />
                   <span className="item-name">{option.name}</span>
                 </div>
@@ -395,7 +309,7 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [] }: Ch
         {/* 底部提示 */}
         <div className="input-footer">
           <span className="input-hint">
-            Enter 发送，Shift + Enter 换行，# 引用上下文，@ 选择智能体
+            Enter 发送，Shift + Enter 换行
           </span>
         </div>
       </div>
