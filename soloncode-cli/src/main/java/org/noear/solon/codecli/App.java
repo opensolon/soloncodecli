@@ -26,6 +26,7 @@ import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.codecli.portal.AcpLink;
 import org.noear.solon.codecli.portal.CliShellNew;
@@ -76,11 +77,17 @@ public class App {
         if (Solon.cfg().argx().flags().size() > 0) {
             String flag = Solon.cfg().argx().flagAt(0);
 
-            if ("run".equals(flag)) {
+            if (AgentFlags.FLAG_RUN.equals(flag)) {
                 //单次任务态
                 String prompt = Solon.cfg().argx().flagAt(1);
                 new CliShellOld(agentRuntime, agentProps).call(prompt);
                 Solon.stop();
+                return;
+            }
+
+            if (AgentFlags.FLAG_SERVE.equals(flag)) {
+                Solon.app().router().get(agentProps.getWebEndpoint(), new WebGate(agentRuntime, agentProps));
+                WebSocketRouter.getInstance().of(agentProps.getWsEndpoint(), new WebSocketGate(agentRuntime, agentProps));
                 return;
             }
 
@@ -102,6 +109,11 @@ public class App {
             Solon.app().router().get(agentProps.getWebEndpoint(), new WebGate(agentRuntime, agentProps));
         }
 
+        //ws
+        if (agentProps.isWsEnabled()) {
+            WebSocketRouter.getInstance().of(agentProps.getWsEndpoint(), new WebSocketGate(agentRuntime, agentProps));
+        }
+
         //acp
         if (agentProps.isAcpEnabled()) {
             AcpAgentTransport agentTransport;
@@ -115,9 +127,7 @@ public class App {
             new AcpLink(agentRuntime, agentTransport).run();
         }
 
-        if (agentProps.isWsEnabled()) {
-            WebSocketRouter.getInstance().of("ws", new WebSocketGate(agentRuntime, agentProps));
-        }
+
     }
 
     private static void initAgentProperties(SolonApp app) throws Throwable {
@@ -156,7 +166,19 @@ public class App {
         }
 
         if (c.isWsEnabled()) {
+            app.enableHttp(true);
             app.enableWebSocket(true);
+        }
+
+        if (AgentFlags.FLAG_SERVE.equals(app.cfg().argx().flagAt(0))) {
+            app.enableHttp(true);
+            app.enableWebSocket(true);
+
+            c.setCliEnabled(false);
+            c.setAcpEnabled(false);
+
+            //开始控制台日志
+            app.cfg().setProperty("solon.logging.appender.console.enable", "true");
         }
     }
 }

@@ -2,7 +2,8 @@
 
 ### v2026.4.6
 
-* 添加 `soloncode -session=test` 支持（启动时指定默认会话id）
+* 添加 `soloncode --session=test` 指令（启动时指定默认会话id）
+* 添加 `soloncode serve` 指令或 `soloncode serve -server.port=4808` 启动无界面服务（作为 http 和 ws 服务）
 
 ### v2026.4.5
 
