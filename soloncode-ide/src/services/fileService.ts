@@ -106,7 +106,7 @@ export default function App() {
 export default function Header() {
   return (
     <header>
-      <h1>SolonCode Desktop</h1>
+      <h1>SolonCode IDE</h1>
     </header>
   );
 }`,
