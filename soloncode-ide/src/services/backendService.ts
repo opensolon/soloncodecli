@@ -4,9 +4,7 @@
  */
 import { fileService } from './fileService';
 
-const DEFAULT_PORT = 8080;
-// Solon 默认 WebSocket 端口 = HTTP 端口 + 10000（见 app.yml server.websocket.port）
-const WS_PORT_OFFSET = 10000;
+const DEFAULT_PORT = 4808;
 
 // 检测 Tauri 环境
 function isTauriEnv(): boolean {
@@ -79,14 +77,13 @@ export const backendService = {
       console.log('[backendService] 后端进程 PID:', pid);
 
       // 等待就绪（检测 WebSocket 端口）
-      const wsPort = DEFAULT_PORT + WS_PORT_OFFSET;
-      const ready = await waitForReady(wsPort);
+      const ready = await waitForReady(DEFAULT_PORT);
       if (!ready) {
         console.error('[backendService] 后端启动超时');
         return null;
       }
 
-      return wsPort;
+      return DEFAULT_PORT;
     } catch (err) {
       console.warn('[backendService] 后端启动失败:', err);
       return null;

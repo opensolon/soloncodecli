@@ -785,10 +785,10 @@ fn find_install_script(app_handle: &tauri::AppHandle) -> Option<std::path::PathB
         for _ in 0..10 {
             if let Some(d) = dir {
                 if cfg!(windows) {
-                    let bat = d.join("soloncode-desktop").join("build").join("install-cli.bat");
+                    let bat = d.join("soloncode-ide").join("build").join("install-cli.bat");
                     if bat.exists() { return Some(bat); }
                 } else {
-                    let sh = d.join("soloncode-desktop").join("build").join("install-cli.sh");
+                    let sh = d.join("soloncode-ide").join("build").join("install-cli.sh");
                     if sh.exists() { return Some(sh); }
                 }
                 dir = d.parent();
