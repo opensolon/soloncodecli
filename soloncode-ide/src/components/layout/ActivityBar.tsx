@@ -1,7 +1,7 @@
 import { Icon } from '../common/Icon';
 import './ActivityBar.css';
 
-export type ActivityType = 'explorer' | 'search' | 'git' | 'extensions' | 'sessions' | 'settings';
+export type ActivityType = 'explorer' | 'git' | 'extensions' | 'sessions' | 'settings';
 
 interface ActivityBarProps {
   activeActivity: ActivityType;
@@ -10,13 +10,12 @@ interface ActivityBarProps {
 
 interface ActivityItem {
   id: ActivityType;
-  icon: 'explorer' | 'search' | 'git' | 'extensions' | 'sessions' | 'settings';
+  icon: 'explorer' | 'git' | 'extensions' | 'sessions' | 'settings';
   title: string;
 }
 
 const activities: ActivityItem[] = [
   { id: 'explorer', icon: 'explorer', title: '资源管理器' },
-  { id: 'search', icon: 'search', title: '搜索' },
   { id: 'git', icon: 'git', title: '源代码管理' },
   // { id: 'extensions', icon: 'extensions', title: '扩展' }, // 后期开发
   { id: 'sessions', icon: 'sessions', title: '会话' },
