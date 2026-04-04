@@ -1,3 +1,5 @@
+server.port: 18080
+
 solon.app:
   name: "soloncode"
 
