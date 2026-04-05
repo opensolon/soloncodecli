@@ -210,13 +210,6 @@ export function TitleBar({
           <Icon name="terminal" size={14} />
           <span>终端</span>
         </button>
-        <button
-          className="titlebar-btn"
-          onClick={onSwapPanels}
-          title="交换面板位置"
-        >
-          <Icon name="swap" size={14} />
-        </button>
       </div>
     </div>
   );
