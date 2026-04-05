@@ -97,8 +97,7 @@ export function TitleBar({
     { id: 'toggle-terminal', label: '切换终端', shortcut: 'Ctrl+`' },
     { id: 'divider1', label: '', divider: true },
     { id: 'toggle-editor', label: '切换编辑器', shortcut: 'Ctrl+E' },
-    { id: 'toggle-chat', label: '切换对话', shortcut: 'Ctrl+Shift+C' },
-    { id: 'swap-panels', label: '交换面板位置' },
+    { id: 'toggle-chat', label: '切换对话', shortcut: 'Ctrl+Shift+C' }
   ];
 
   // 帮助菜单项
