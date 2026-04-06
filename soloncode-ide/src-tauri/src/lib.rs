@@ -851,78 +851,6 @@ fn find_install_script(app_handle: &tauri::AppHandle) -> Option<std::path::PathB
     None
 }
 
-/// 查找 release 目录路径
-fn find_release_resource_dir(app_handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    // 1. Tauri 打包资源
-    if let Ok(resource_dir) = app_handle.path().resource_dir() {
-        let release = resource_dir.join("soloncode-cli").join("release");
-        if release.join("bin").exists() {
-            return Some(release);
-        }
-        // resources 可能直接平铺
-        let release_flat = resource_dir.join("release");
-        if release_flat.join("bin").exists() {
-            return Some(release_flat);
-        }
-    }
-
-    // 2. 开发模式
-    if let Ok(exe_dir) = std::env::current_exe() {
-        let mut dir = exe_dir.parent();
-        for _ in 0..10 {
-            if let Some(d) = dir {
-                let release = d.join("soloncode-cli").join("release");
-                if release.join("bin").exists() {
-                    return Some(release);
-                }
-                dir = d.parent();
-            } else {
-                break;
-            }
-        }
-    }
-
-    None
-}
-
-/// 自动安装 CLI（通过调用 install-cli 脚本）
-fn auto_install_cli(app_handle: &tauri::AppHandle) -> Result<(), String> {
-    let install_script = find_install_script(app_handle).ok_or("未找到 install-cli 安装脚本")?;
-
-    let release_dir =
-        find_release_resource_dir(app_handle).ok_or("未找到 soloncode-cli/release 资源目录")?;
-
-    println!("[soloncode] Running install script: {:?}", install_script);
-    println!("[soloncode] Release dir: {:?}", release_dir);
-
-    let release_dir_str = release_dir.to_string_lossy().to_string();
-    let status = if cfg!(windows) {
-        Command::new("cmd")
-            .args(["/C", &install_script.to_string_lossy(), &release_dir_str])
-            .output()
-            .map_err(|e| format!("执行安装脚本失败: {}", e))?
-    } else {
-        Command::new("bash")
-            .arg(&install_script)
-            .arg(&release_dir_str)
-            .output()
-            .map_err(|e| format!("执行安装脚本失败: {}", e))?
-    };
-
-    if !status.status.success() {
-        let stderr = String::from_utf8_lossy(&status.stderr);
-        let stdout = String::from_utf8_lossy(&status.stdout);
-        return Err(format!("CLI 安装失败: {}\n{}", stdout, stderr));
-    }
-
-    // 输出脚本日志
-    let stdout = String::from_utf8_lossy(&status.stdout);
-    for line in stdout.lines() {
-        println!("{}", line);
-    }
-
-    Ok(())
-}
 
 /// 启动后端 CLI 进程
 #[tauri::command]
@@ -938,9 +866,7 @@ fn start_backend(
     let soloncode_cmd = match find_soloncode_command() {
         Some(cmd) => cmd,
         None => {
-            println!("[soloncode] CLI not found, auto-installing...");
-            auto_install_cli(&app_handle)?;
-            find_soloncode_command().ok_or("CLI 安装后仍未找到 soloncode 命令".to_string())?
+            println!("[soloncode] CLI not found, please install...");
         }
     };
 
