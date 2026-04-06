@@ -909,7 +909,7 @@ function App() {
             {panelState.panelOrder.map(panel => renderPanel(panel))}
           </div>
           {/* 终端面板 - 支持多标签和调整大小 */}
-          <div className="terminal-wrapper" style={{ height: panelState.terminalHeight }}>
+          <div className="terminal-wrapper" style={{ height: panelState.terminalHeight, display: terminalVisible ? 'flex' : 'none' }}>
             <div
               className="resize-handle horizontal"
               onMouseDown={(e) => startResize('terminal', e)}
@@ -959,7 +959,7 @@ function App() {
                 <TerminalPanel
                   key={tab.id}
                   terminalId={tab.id}
-                  visible={terminalVisible && activeTerminalId === tab.id}
+                  visible={activeTerminalId === tab.id}
                   cwd={workspacePath || undefined}
                 />
               ))}

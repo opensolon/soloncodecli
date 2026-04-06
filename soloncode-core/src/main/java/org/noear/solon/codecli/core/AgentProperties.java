@@ -23,11 +23,8 @@ public class AgentProperties extends HarnessProperties {
 
     public final static String X_SESSION_ID = "X-Session-Id";
     public final static String X_SESSION_CWD = "X-Session-Cwd";
-    public final static String X_CTX = "X-Ctx";
 
     public final static String ARG_SESSION = "session";
-
-    private String uiType = "old";
 
     private String sessionId = "default"; //默认会话
 
@@ -45,9 +42,12 @@ public class AgentProperties extends HarnessProperties {
 
     private boolean wsEnabled = false;
     private String wsEndpoint = "/ws";
+
     private String startupSessionMode = "resume";
+    private String uiType = "old";
     private String uiTheme = "solon";
     private Map<String, Map<String, String>> uiThemes;
+
     public AgentProperties() {
         super(".soloncode/");
 

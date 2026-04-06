@@ -37,12 +37,13 @@
 .terminal-tabs-header {
   display: flex;
   align-items: center;
-  height: 28px;
+  height: 35px;
   background-color: var(--cb-vscode-sideBar-background);
   border-bottom: 1px solid var(--cb-vscode-panel-border);
-  padding: 0 4px;
+  padding: 0 8px;
   gap: 2px;
   overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .terminal-tab {
