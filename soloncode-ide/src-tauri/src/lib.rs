@@ -851,7 +851,6 @@ fn find_install_script(app_handle: &tauri::AppHandle) -> Option<std::path::PathB
     None
 }
 
-
 /// 启动后端 CLI 进程
 #[tauri::command]
 fn start_backend(
@@ -867,6 +866,7 @@ fn start_backend(
         Some(cmd) => cmd,
         None => {
             println!("[soloncode] CLI not found, please install...");
+            String::new()
         }
     };
 
