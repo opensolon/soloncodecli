@@ -30,7 +30,7 @@ irm https://solon.noear.org/soloncode/setup.ps1 | iex
 Yapılandırma (kurulumdan sonra mutlaka düzenlenmelidir):
 
 * Kurulum dizini: `~/soloncode/bin/`
-* `~/solnocode/bin/config.yml` yapılandırma dosyasını bulup `chatModel` yapılandırmasını düzenleyin (öncelikle)
+* `~/soloncode/config.yml` yapılandırma dosyasını bulup `chatModel` yapılandırmasını düzenleyin (öncelikle)
 * `chatModel` yapılandırma seçenekleri için bkz: [Model Yapılandırması ve İstek Seçenekleri](https://solon.noear.org/article/1087)
 
 ## Çalıştırma

@@ -32,7 +32,7 @@ irm https://solon.noear.org/soloncode/setup.ps1 | iex
 الإعداد (يجب تعديله بعد التثبيت):
 
 * دليل التثبيت: `~/soloncode/bin/`
-* حدد ملف التكوين `~/solnocode/bin/config.yml` وقم بتعديل تكوين `chatModel` (بشكل أساسي)
+* حدد ملف التكوين `~/soloncode/config.yml` وقم بتعديل تكوين `chatModel` (بشكل أساسي)
 * للاطلاع على خيارات تكوين `chatModel`، راجع: [تكوين النموذج وخيارات الطلب](https://solon.noear.org/article/1087)
 
 ## التشغيل
