@@ -22,6 +22,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,10 +31,6 @@ public class AcpLink implements Runnable {
     private final HarnessEngine agentRuntime;
     private final AcpAgentTransport agentTransport;
     private final AgentProperties agentProps;
-
-    public AcpLink(HarnessEngine agentRuntime, AcpAgentTransport agentTransport) {
-        this(agentRuntime, agentTransport, AgentProperties.get());
-    }
 
     public AcpLink(HarnessEngine agentRuntime, AcpAgentTransport agentTransport, AgentProperties agentProps) {
         this.agentRuntime = agentRuntime;
@@ -65,9 +62,25 @@ public class AcpLink implements Runnable {
                     String sessionId = UUID.randomUUID().toString();
                     String cwd = req.cwd();
 
-                    sessionStates.put(sessionId, new AcpSessionContext(cwd));
+                    sessionStates.put(sessionId, new AcpSessionContext(cwd, req.mcpServers()));
 
                     return Mono.just(new AcpSchema.NewSessionResponse(sessionId, null, null));
+                })
+                .loadSessionHandler(req -> {
+                    String sessionId = req.sessionId();
+                    String cwd = req.cwd();
+
+                    sessionStates.put(sessionId, new AcpSessionContext(cwd, req.mcpServers()));
+
+                    return Mono.just(new AcpSchema.LoadSessionResponse(null, null));
+                })
+                .cancelHandler(req -> {
+                    String sessionId = req.sessionId();
+                    AcpSessionContext context = sessionStates.get(sessionId);
+                    if (context != null) {
+                        context.setCancelled(true);
+                    }
+                    return Mono.empty();
                 })
                 .promptHandler((request, acpContext) -> {
                     String sessionId = request.sessionId();
@@ -260,13 +273,28 @@ public class AcpLink implements Runnable {
 
     public static class AcpSessionContext {
         private final String cwd;
+        private final List<AcpSchema.McpServer> mcpServers;
+        private volatile boolean cancelled;
 
-        public AcpSessionContext(String cwd) {
+        public AcpSessionContext(String cwd, List<AcpSchema.McpServer> mcpServers) {
             this.cwd = cwd;
+            this.mcpServers = mcpServers;
         }
 
         public String getCwd() {
             return cwd;
+        }
+
+        public List<AcpSchema.McpServer> getMcpServers() {
+            return mcpServers;
+        }
+
+        public boolean isCancelled() {
+            return cancelled;
+        }
+
+        public void setCancelled(boolean cancelled) {
+            this.cancelled = cancelled;
         }
     }
 }

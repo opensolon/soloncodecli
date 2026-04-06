@@ -124,7 +124,7 @@ public class App {
                         agentProps.getAcpTransport(), McpJsonMapper.getDefault());
             }
 
-            new AcpLink(agentRuntime, agentTransport).run();
+            new AcpLink(agentRuntime, agentTransport, agentProps).run();
         }
 
 
