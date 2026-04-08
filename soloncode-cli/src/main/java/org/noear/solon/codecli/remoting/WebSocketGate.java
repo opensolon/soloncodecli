@@ -35,6 +35,8 @@ import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Code CLI WebSocket 网关
@@ -327,6 +329,9 @@ public class WebSocketGate extends SimpleWebSocketListener {
 
                     LOG.info("[WS] Config updated: model={}", model);
 
+                    // 持久化到 YAML 文件
+                    saveConfigToFile(apiUrl, apiKey, model);
+
                     socket.send(new ONode()
                             .set("type", "config")
                             .set("status", "ok")
@@ -342,5 +347,44 @@ public class WebSocketGate extends SimpleWebSocketListener {
                     .set("text", e.getMessage())
                     .toJson());
         }
+    }
+
+    /**
+     * 将 chatModel 配置持久化到 YAML 文件（~/.soloncode/chat-model.yml）
+     */
+    private void saveConfigToFile(String apiUrl, String apiKey, String model) {
+        try {
+            String home = System.getProperty("user.home");
+            Path configDir = Path.of(home, ".soloncode");
+            Files.createDirectories(configDir);
+
+            Path configFile = configDir.resolve("chat-model.yml");
+
+            // 读取已有配置，保留未更新的字段
+            String existApiUrl = agentPros.getChatModel() != null ? agentPros.getChatModel().getApiUrl() : null;
+            String existApiKey = agentPros.getChatModel() != null ? agentPros.getChatModel().getApiKey() : null;
+            String existModel = agentPros.getChatModel() != null ? agentPros.getChatModel().getModel() : null;
+
+            String finalApiUrl = apiUrl != null ? apiUrl : existApiUrl;
+            String finalApiKey = apiKey != null ? apiKey : existApiKey;
+            String finalModel = model != null ? model : existModel;
+
+            StringBuilder yaml = new StringBuilder();
+            yaml.append("soloncode:\n");
+            yaml.append("  chatModel:\n");
+            if (finalApiUrl != null) yaml.append("    apiUrl: \"").append(escapeYaml(finalApiUrl)).append("\"\n");
+            if (finalApiKey != null) yaml.append("    apiKey: \"").append(escapeYaml(finalApiKey)).append("\"\n");
+            if (finalModel != null) yaml.append("    model: \"").append(escapeYaml(finalModel)).append("\"\n");
+
+            Files.writeString(configFile, yaml.toString());
+            LOG.info("[WS] Config persisted to: {}", configFile);
+        } catch (Exception e) {
+            LOG.error("[WS] Failed to persist config to YAML", e);
+        }
+    }
+
+    private String escapeYaml(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }

@@ -441,17 +441,22 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--cb-text-secondary);
-  gap: 8px;
+  gap: 12px;
+  user-select: none;
 }
 
-.empty-icon {
-  font-size: 48px;
-  opacity: 0.3;
+.empty-logo {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--cb-text-primary);
+  letter-spacing: 2px;
+  opacity: 0.85;
 }
 
-.empty-text {
+.empty-slogan {
   font-size: 14px;
+  color: var(--cb-text-secondary);
+  opacity: 0.6;
 }
 
 /* 代码高亮容器样式覆盖 */

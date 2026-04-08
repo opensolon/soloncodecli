@@ -143,7 +143,7 @@ function App() {
 
   // 面板状态 - 默认比例 1:2:5:2 (活动栏:侧边栏:编辑器:对话框)
   const [panelState, setPanelState] = useState<PanelState>({
-    editorVisible: true,
+    editorVisible: false,
     chatVisible: true,
     editorWidth: 0, // 将在 useEffect 中根据比例计算
     chatWidth: 0,   // 将在 useEffect 中根据比例计算
@@ -188,6 +188,9 @@ function App() {
     content: string;
     modified: boolean;
     language: string;
+    isImage?: boolean;
+    imageBase64?: string;
+    imageMimeType?: string;
   }>>([]);
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
 
@@ -290,10 +293,17 @@ function App() {
 
   // 切换面板可见性
   const togglePanel = useCallback((panel: 'editor' | 'chat') => {
-    setPanelState(prev => ({
-      ...prev,
-      [`${panel}Visible`]: !prev[`${panel}Visible`],
-    }));
+    setPanelState(prev => {
+      const newVisible = !prev[`${panel}Visible`];
+      // 收起对话面板时，同时收起侧边栏
+      if (panel === 'chat' && !newVisible) {
+        setSidebarCollapsed(true);
+      }
+      return {
+        ...prev,
+        [`${panel}Visible`]: newVisible,
+      };
+    });
   }, []);
 
   // 交换面板位置
@@ -774,24 +784,25 @@ function App() {
             theme={settings.theme}
             diffLines={diffLines}
           />
+          {panelState.chatVisible && (
           <div
             className="resize-handle vertical"
             onMouseDown={(e) => startResize('editor', e)}
           />
+          )}
         </div>
       );
     }
 
     if (panel === 'chat') {
-      // 始终渲染 ChatView，用 CSS 控制显隐，防止非切换操作刷新对话框
+      if (!panelState.chatVisible) return null;
+      // 仅对话面板可见时，居中显示并左右各留 15%
+      const onlyChat = !panelState.editorVisible;
       return (
         <div key="chat" className="panel-wrapper chat-wrapper" style={{
-          width: panelState.chatVisible ? panelState.chatWidth : 0,
-          flex: panelState.chatVisible ? '1 1 auto' : '0 0 0',
-          overflow: 'hidden',
-          opacity: panelState.chatVisible ? 1 : 0,
-          pointerEvents: panelState.chatVisible ? 'auto' : 'none',
-          transition: 'width 0.2s, opacity 0.2s',
+          width: onlyChat ? '70%' : panelState.chatWidth,
+          flex: onlyChat ? 'none' : '1 1 auto',
+          margin: onlyChat ? '0 15%' : undefined,
         }}>
           <ChatView
             currentConversation={currentConversation}

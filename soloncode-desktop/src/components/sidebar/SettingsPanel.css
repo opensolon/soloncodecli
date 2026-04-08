@@ -11,7 +11,7 @@
 
 .settings-modal {
   width: 800px;
-  max-height: 80vh;
+  height: 80vh;
   display: flex;
   flex-direction: column;
   background-color: var(--cb-vscode-sideBar-background);

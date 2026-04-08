@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{Read as IoRead, Write as IoWrite};
+use base64::Engine;
 use std::path::Path;
 use std::process::{Child, Command};
 use std::sync::Mutex;
@@ -67,6 +68,13 @@ fn run_git(args: &[&str], cwd: &str) -> Result<String, String> {
 #[tauri::command]
 fn read_file(path: &str) -> Result<String, String> {
     fs::read_to_string(path).map_err(|e| format!("读取文件失败: {}", e))
+}
+
+/// 读取文件为 Base64（用于图片等二进制文件预览）
+#[tauri::command]
+fn read_file_binary(path: &str) -> Result<String, String> {
+    let data = fs::read(path).map_err(|e| format!("读取文件失败: {}", e))?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(&data))
 }
 
 /// 写入文件内容
@@ -1002,6 +1010,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
             read_file,
+            read_file_binary,
             write_file,
             list_directory,
             list_directory_tree,

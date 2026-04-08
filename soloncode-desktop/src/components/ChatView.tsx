@@ -518,6 +518,16 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
     try {
       const wsManager = WebSocketManager.getInstance();
 
+      // 热更新：发消息前推送当前选择的供应商配置
+      const selectedProvider = providers.find(p => p.id === options.model);
+      if (selectedProvider) {
+        await wsManager.sendConfig({
+          apiUrl: selectedProvider.apiUrl,
+          apiKey: selectedProvider.apiKey,
+          model: selectedProvider.model,
+        });
+      }
+
       const request = {
         input: fullMessage,
         sessionId: sessionId,
@@ -546,7 +556,7 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
       });
       setIsLoading(false);
     }
-  }, [currentConversation, onNewSession, onUpdateSessionTitle, workspacePath]);
+  }, [currentConversation, onNewSession, onUpdateSessionTitle, workspacePath, providers]);
 
   async function loadConversationMessages(convId: string | number) {
     const storedMessages = await getMessagesByConversation(convId);
@@ -605,21 +615,42 @@ export function ChatView({ currentConversation, plugins, workspacePath, onUpdate
     };
   }, []);
 
+  // 模型切换时推送配置到后端
+  const handleModelChange = useCallback(async (providerId: string) => {
+    const provider = providers.find(p => p.id === providerId);
+    if (provider) {
+      try {
+        await WebSocketManager.getInstance().sendConfig({
+          apiUrl: provider.apiUrl,
+          apiKey: provider.apiKey,
+          model: provider.model,
+        });
+        console.log('[ChatView] 模型配置已推送:', provider.name, provider.model);
+      } catch (err) {
+        console.warn('[ChatView] 推送模型配置失败:', err);
+      }
+    }
+  }, [providers]);
+
+  const isEmpty = messages.length === 0 && !isLoading;
+
   return (
     <main className="main-content">
+      {!isEmpty && (
       <ChatHeader
         title={currentConversation.title}
         status={currentConversation.status}
         theme={currentTheme}
         onToggleTheme={toggleTheme}
       />
+      )}
       <ChatMessages
         ref={chatMessagesRef}
         messages={messages}
         isLoading={isLoading}
         theme={currentTheme}
       />
-      <ChatInput onSend={sendMessage} isLoading={isLoading} onStop={handleStop} providers={providers} activeProviderId={activeProviderId} />
+      <ChatInput onSend={sendMessage} isLoading={isLoading} onStop={handleStop} providers={providers} activeProviderId={activeProviderId} onModelChange={handleModelChange} />
     </main>
   );
 }

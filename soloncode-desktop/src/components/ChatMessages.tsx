@@ -159,6 +159,13 @@ export const ChatMessages = forwardRef<ChatMessagesRef, ChatMessagesProps>(
 
     return (
       <div className="chat-messages" ref={chatContainer}>
+        {messages.length === 0 && !isLoading && (
+          <div className="empty-messages">
+            <div className="empty-logo">SolonCode</div>
+            <div className="empty-slogan">做你想做的事</div>
+          </div>
+        )}
+
         {messages.map((message) => (
           <div
             key={message.id}

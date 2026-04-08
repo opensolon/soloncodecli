@@ -27,6 +27,7 @@ interface ChatInputProps {
   availableFiles?: ContextRef[];
   providers?: ModelProvider[];
   activeProviderId?: string;
+  onModelChange?: (providerId: string) => void;
 }
 
 export interface SendOptions {
@@ -35,7 +36,7 @@ export interface SendOptions {
   contexts: ContextRef[];
 }
 
-export function ChatInput({ onSend, isLoading, onStop, availableFiles = [], providers = [], activeProviderId }: ChatInputProps) {
+export function ChatInput({ onSend, isLoading, onStop, availableFiles = [], providers = [], activeProviderId, onModelChange }: ChatInputProps) {
   const enabledProviders = providers.filter(p => p.enabled && p.model);
 
   const [userInput, setUserInput] = useState('');
@@ -264,7 +265,10 @@ export function ChatInput({ onSend, isLoading, onStop, availableFiles = [], prov
                 <select
                   className="model-select"
                   value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedModel(e.target.value);
+                    onModelChange?.(e.target.value);
+                  }}
                 >
                   {enabledProviders.map(p => {
                     const preset = PROVIDER_PRESETS[p.type as keyof typeof PROVIDER_PRESETS];
