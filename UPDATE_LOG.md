@@ -7,6 +7,7 @@
 * 添加 soloncode-core models 配置属性（用于替代 chatModel 单配置）;
 * 优化 soloncode-core model 重试条件（改用新的空判断）
 * 优化 soloncode-cli ws 通道的输出打印
+* 调整 soloncode-core CLAUDE.md 更名为 CODE.md（内部自动生成）
 * 调整 soloncode-core restApis 更名为 apiServers；取消 chatModel（由 models 替代）
 
 ### v2026.4.6
