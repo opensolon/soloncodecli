@@ -19,7 +19,7 @@ public class DemoApp {
     public static void main(String[] args) throws Throwable {
         //--- 初始化（AgentRuntime 建议单测）
         AgentProperties properties = new AgentProperties();
-        properties.getModels().add("xxx", null);
+        properties.addModel( null);
 
         AgentSessionProvider sessionProvider = new AgentSessionProvider() {
             private Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();

@@ -145,7 +145,7 @@ public class App {
         app.cfg().getProp("soloncode").bindTo(c);
 
         if(c.getChatModel() != null){
-            c.addModel(c.getChatModel().getModel(), c.getChatModel());
+            c.addModel(c.getChatModel());
         }
 
         //设定默认会话id
