@@ -9,6 +9,7 @@
 * 优化 soloncode-cli ws 通道的输出打印
 * 调整 soloncode-core CLAUDE.md 更名为 CODE.md（内部自动生成）
 * 调整 soloncode-core restApis 更名为 apiServers；取消 chatModel（由 models 替代）
+* 修复 soloncode-core CodeSearchTool 失效的问题（mcp.exa.ai 变了地址）
 
 ### v2026.4.6
 
