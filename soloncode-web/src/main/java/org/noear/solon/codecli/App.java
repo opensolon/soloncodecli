@@ -25,7 +25,6 @@ import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.codecli.portal.WebGate;
 import org.noear.solon.ai.harness.HarnessEngine;
-import org.noear.solon.ai.harness.HarnessProperties;
 import org.noear.solon.core.util.Assert;
 
 import java.net.URL;
@@ -46,10 +45,6 @@ public class App {
         });
 
         AgentProperties agentProps = Solon.context().getBean(AgentProperties.class);
-
-        if (agentProps == null || agentProps.getChatModel() == null) {
-            throw new RuntimeException("ChatModel config not found");
-        }
 
         ChatModel chatModel = ChatModel.of(agentProps.getChatModel()).build();
         Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();

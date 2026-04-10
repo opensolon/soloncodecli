@@ -1,7 +1,7 @@
 
 
 
-### v2026.4.10
+### v2026.4.11
 
 * 添加 soloncode-core subagent 切换模型的能力; 
 * 添加 soloncode-core models 配置属性（用于替代 chatModel 单配置）;

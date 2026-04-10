@@ -24,7 +24,6 @@ import org.noear.solon.SolonApp;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
-import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
@@ -55,10 +54,6 @@ public class App {
         });
 
         AgentProperties agentProps = Solon.context().getBean(AgentProperties.class);
-
-        if (agentProps == null || agentProps.getChatModel() == null) {
-            throw new RuntimeException("ChatModel config not found");
-        }
 
         Map<String, AgentSession> sessionMap = new ConcurrentHashMap<>();
 
