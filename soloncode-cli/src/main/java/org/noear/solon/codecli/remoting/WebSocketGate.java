@@ -326,8 +326,9 @@ public class WebSocketGate extends SimpleWebSocketListener {
                     }
 
                     // 重建 ChatModel 并注入 kernel
-                    ChatModel newChatModel = ChatModel.of(agentPros.getChatModel()).build();
-                    kernel.setChatModel(newChatModel);
+                    agentPros.removeModel(agentPros.getChatModel().getNameOrModel());
+                    agentPros.addModel(agentPros.getChatModel());
+                    kernel.switchMainModel(agentPros.getChatModel().getNameOrModel());
 
                     LOG.info("[WS] Config updated: model={}", model);
 
