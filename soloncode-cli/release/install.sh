@@ -228,7 +228,7 @@ if [ -n "$MSYSTEM" ]; then
     fi
 fi
 
-exec java $JAVA_OPTS -jar "$SCRIPT_DIR/soloncode-cli.jar" "$@"
+java $JAVA_OPTS -jar "$SCRIPT_DIR/soloncode-cli.jar" "$@"
 LAUNCHER_EOF
 chmod +x "$TARGET_BIN_DIR/soloncode"
 echo "      Created: $TARGET_BIN_DIR/soloncode"
