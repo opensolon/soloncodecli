@@ -2,6 +2,7 @@
 ### v2026.4.18
 
 * 优化 soloncode-cli anthropic, openai-response 方言的异常兼容处理
+* 优化 solon-development-skill
 
 ### v2026.4.16
 
