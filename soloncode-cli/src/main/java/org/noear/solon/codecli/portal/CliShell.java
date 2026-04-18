@@ -56,8 +56,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Code CLI 终端
  */
 @Preview("3.9.4")
-public class CliShellOld implements Runnable {
-    private final static Logger LOG = LoggerFactory.getLogger(CliShellOld.class);
+public class CliShell implements Runnable {
+    private final static Logger LOG = LoggerFactory.getLogger(CliShell.class);
 
     private Terminal terminal;
     private LineReader reader;
@@ -74,7 +74,7 @@ public class CliShellOld implements Runnable {
             CYAN = "\033[36m",
             RESET = "\033[0m";
 
-    public CliShellOld(HarnessEngine agentRuntime, AgentProperties agentProps) {
+    public CliShell(HarnessEngine agentRuntime, AgentProperties agentProps) {
         this.agentRuntime = agentRuntime;
         this.agentProps = agentProps;
 

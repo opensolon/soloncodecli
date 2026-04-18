@@ -17,8 +17,6 @@
     <modules>
         <module>soloncode-parent</module>
         <module>soloncode-cli</module>
-
-        <module>solonclaw</module>
     </modules>
 
 </project>

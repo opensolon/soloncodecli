@@ -13,7 +13,7 @@ import org.noear.solon.annotation.*;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.codecli.portal.AcpLink;
-import org.noear.solon.codecli.portal.CliShellOld;
+import org.noear.solon.codecli.portal.CliShell;
 import org.noear.solon.codecli.portal.WebGate;
 import org.noear.solon.codecli.portal.WsGate;
 import org.noear.solon.core.util.JavaUtil;
@@ -78,7 +78,7 @@ public class Configurator {
             if (AgentFlags.FLAG_RUN.equals(flag)) { // java -jar soloncode.jar run '你好' // soloncode run '你好'
                 //单次任务态
                 String prompt = Solon.cfg().argx().flagAt(1);
-                new CliShellOld(agentRuntime, agentProps).call(prompt);
+                new CliShell(agentRuntime, agentProps).call(prompt);
                 Solon.stop();
                 return;
             }
@@ -104,7 +104,7 @@ public class Configurator {
 
 
         //cli - default
-        new Thread(new CliShellOld(agentRuntime, agentProps), "CLI-Interactive-Thread").start();
+        new Thread(new CliShell(agentRuntime, agentProps), "CLI-Interactive-Thread").start();
     }
 
 
