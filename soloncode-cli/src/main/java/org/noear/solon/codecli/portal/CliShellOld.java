@@ -53,7 +53,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Code CLI 终端 (Claude Code 风格对齐版)
+ * Code CLI 终端
  */
 @Preview("3.9.4")
 public class CliShellOld implements Runnable {
@@ -64,7 +64,7 @@ public class CliShellOld implements Runnable {
     private final HarnessEngine agentRuntime;
     private final AgentProperties agentProps;
 
-    // ANSI 颜色常量 - 严格对齐 Claude 极简风
+    // ANSI 颜色常量
     private final static String
             BOLD = "\033[1m",
             DIM = "\033[2m",
@@ -394,7 +394,7 @@ public class CliShellOld implements Runnable {
             // 仅在多任务并行且有内容时输出
             String content = thought.getAssistantMessage().getResultContent();
             if (Assert.isNotEmpty(content)) {
-                // 保持 Claude 风格的间接缩进，去掉首尾多余换行
+                // 保持间接缩进，去掉首尾多余换行
                 terminal.writer().println();
                 terminal.writer().print("  " + content.trim().replace("\n", "\n  "));
                 terminal.writer().println();

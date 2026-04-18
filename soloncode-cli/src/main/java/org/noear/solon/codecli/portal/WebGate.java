@@ -22,8 +22,10 @@ import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionEndChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
+import org.noear.solon.ai.agent.react.task.ThoughtChunk;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.ai.harness.agent.TaskSkill;
 import org.noear.solon.codecli.core.AgentProperties;import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.Handler;
 import org.noear.solon.core.util.Assert;
@@ -131,6 +133,8 @@ public class WebGate implements Handler {
                 .map(chunk -> {
                     if (chunk instanceof ReasonChunk) {
                         return onReasonChunk((ReasonChunk) chunk);
+                    } else if (chunk instanceof ThoughtChunk) {
+                        return onThoughtChunk((ThoughtChunk) chunk);
                     } else if (chunk instanceof ActionEndChunk) {
                         return onActionEndChunk((ActionEndChunk) chunk);
                     } else if (chunk instanceof ReActChunk) {
@@ -182,8 +186,27 @@ public class WebGate implements Handler {
         return "";
     }
 
+    private String onThoughtChunk(ThoughtChunk thought) {
+        if (thought.hasMeta(TaskSkill.TOOL_MULTITASK)) {
+            // 仅在多任务并行且有内容时输出
+            String content = thought.getAssistantMessage().getResultContent();
+            if (Assert.isNotEmpty(content)) {
+                return new ONode().set("type", "text")
+                        .set("text", content)
+                        .toJson();
+            }
+        }
+
+        return "";
+    }
+
     private String onActionEndChunk(ActionEndChunk action) {
         if (Assert.isNotEmpty(action.getToolName())) {
+            if (TaskSkill.TOOL_MULTITASK.equals(action.getToolName()) ||
+                    TaskSkill.TOOL_TASK.equals(action.getToolName())) {
+                return "";
+            }
+
             ONode oNode = new ONode().set("type", "action")
                     .set("text", action.getContent());
 
