@@ -1039,7 +1039,15 @@
 
             sess.eventSource = new EventSource(url);
             sess.eventSource.onmessage = function(event) { handleSSEData(sess, event.data); };
-            sess.eventSource.onerror = function() { finishStream(sess); };
+            sess.eventSource.onerror = function(err) {
+                console.error("SSE Error:", err);
+                // 显式关闭，防止浏览器自动重连
+                if (sess.eventSource) {
+                    sess.eventSource.close();
+                    sess.eventSource = null;
+                }
+                finishStream(sess);
+            };
         }
 
         /* ===== Send ===== */
@@ -1088,7 +1096,14 @@
 
             sess.eventSource = new EventSource(url);
             sess.eventSource.onmessage = function(event) { handleSSEData(sess, event.data); };
-            sess.eventSource.onerror = function() { finishStream(sess); };
+            sess.eventSource.onerror = function(err) {
+                console.error("SSE Connection Error", err);
+                if (sess.eventSource) {
+                    sess.eventSource.close();
+                    sess.eventSource = null;
+                }
+                finishStream(sess);
+            };
         }
 
         function sendWithFetch(sess, text, imageBase64, imageMime) {
@@ -1115,6 +1130,7 @@
                         buffer = lines.pop();
                         for (var i = 0; i < lines.length; i++) {
                             var line = lines[i].trim();
+                            if (line.length === 0) continue; // 跳过空行
                             if (line.startsWith('data:')) {
                                 var raw = line.substring(5).trim();
                                 handleSSEData(sess, raw);
@@ -1161,15 +1177,38 @@
             var wasStreaming = sess.isStreaming;
             sess.isStreaming = false;
             if (sess.silenceTimer) { clearTimeout(sess.silenceTimer); sess.silenceTimer = null; }
+
+            // --- 新增：强刷逻辑，必须在 resetStreamState 之前执行 ---
+            // 1. 取消还没跑的动画帧
+            if (sess.contentRafId) { cancelAnimationFrame(sess.contentRafId); sess.contentRafId = null; }
+            if (sess.reasonRafId) { cancelAnimationFrame(sess.reasonRafId); sess.reasonRafId = null; }
+
+            // 2. 立即把 Buffer 内容渲染出来
+            if (sess.reasonBuffer) {
+                var el = ensureAssistantBubble(sess);
+                el.innerHTML = renderMd(sess.reasonBuffer);
+            }
+            // 如果有思考中的内容，也刷一下
+            if (sess.thinkingBlockEl && sess.thinkingBuffer) {
+                if (sess.thinkingBodyMdEl) sess.thinkingBodyMdEl.innerHTML = renderMd(sess.thinkingBuffer);
+            }
+            // ---------------------------------------------------
+
             removeThinking(sess);
             removeInlineThinking(sess);
             finishThinkingBlock(sess);
             finishPendingTool(sess);
+
             if (sess.eventSource) { sess.eventSource.close(); sess.eventSource = null; }
+
+            // resetStreamState 会清空 buffer，所以必须在上面强刷完后再调
             resetStreamState(sess);
+
             if (sess.sessionId === activeSessionId) {
                 isStreaming = false;
                 setBtnSendMode();
+                // 只有在活动会话才滚动
+                scrollToBottom(true);
                 chatInput.focus();
             }
             loadSessionHistory();
