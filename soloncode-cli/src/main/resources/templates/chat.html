@@ -176,6 +176,13 @@
         .msg-action-btn { background: none; border: 1px solid var(--border-color); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--text-secondary); font-size: 12px; transition: all 0.15s; display: flex; align-items: center; gap: 4px; }
         .msg-action-btn:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
 
+        /* User Message Copy */
+        .msg-row.user { gap: 8px; }
+        .user-copy-btn { background: none; border: none; border-radius: 8px; padding: 4px; cursor: pointer; color: var(--text-secondary); font-size: 14px; line-height: 1; opacity: 0; transition: opacity 0.2s, background 0.15s, color 0.15s; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .msg-row.user:hover .user-copy-btn { opacity: 0.6; }
+        .user-copy-btn:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--text-primary); }
+        .user-copy-btn.copied { color: #22c55e; opacity: 1 !important; }
+
         /* Thinking */
         .inline-thinking { display: flex; align-items: center; gap: 8px; padding: 8px 0; color: var(--text-secondary); font-size: 13px; }
         .thinking-row { display: flex; gap: 14px; margin-bottom: 28px; animation: msg-in 0.25s ease-out; }
@@ -749,7 +756,7 @@
         function appendUserMessage(sess, text, imageDataUrl) {
             var row = document.createElement('div');
             row.className = 'msg-row user';
-            row.innerHTML = '<div class="msg-bubble"></div><div class="msg-avatar">我</div>';
+            row.innerHTML = '<button class="user-copy-btn" title="复制"><i class="layui-icon layui-icon-file"></i></button><div class="msg-bubble"></div><div class="msg-avatar">我</div>';
             var bubble = row.querySelector('.msg-bubble');
             if (imageDataUrl) {
                 var img = document.createElement('img');
@@ -760,6 +767,22 @@
             var span = document.createElement('span');
             span.textContent = text;
             bubble.appendChild(span);
+
+            var copyBtn = row.querySelector('.user-copy-btn');
+            copyBtn.addEventListener('click', function() {
+                var txt = bubble.innerText || '';
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(txt).then(function() {
+                        copyBtn.classList.add('copied');
+                        copyBtn.innerHTML = '<i class="layui-icon layui-icon-ok" style="font-size:14px"></i>';
+                        setTimeout(function() {
+                            copyBtn.classList.remove('copied');
+                            copyBtn.innerHTML = '<i class="layui-icon layui-icon-file"></i>';
+                        }, 1500);
+                    });
+                }
+            });
+
             sess.container.appendChild(row);
             if (sess.sessionId === activeSessionId) scrollToBottom(true);
         }

@@ -153,10 +153,6 @@ public class WebGate implements Handler {
                     // 在订阅开始时，将 disposable 存入 session
                     session.attrs().put("disposable", disposable);
                 })
-                .doFinally(signal -> {
-                    // 流结束或被取消后，清理掉引用，避免内存泄漏
-                    session.attrs().remove("disposable");
-                })
                 .onErrorResume(e -> {
                     String message = new ONode().set("type", "error")
                             .set("text", e.getMessage())
@@ -181,7 +177,10 @@ public class WebGate implements Handler {
                     }
                     return Flux.just("[DONE]");
                 }))
-                .delayElements(Duration.ofMillis(50));
+                .doFinally(signal -> {
+                    // 流结束或被取消后，清理掉引用，避免内存泄漏
+                    session.attrs().remove("disposable");
+                });
     }
 
     private String onReasonChunk(ReasonChunk reason) {
