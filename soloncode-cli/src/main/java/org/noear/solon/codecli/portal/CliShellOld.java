@@ -224,7 +224,7 @@ public class CliShellOld implements Runnable {
                             onActionEndChunk((ActionEndChunk) chunk, isFirstReasonChunk);
                         } else if (chunk instanceof ReActChunk) {
                             // ReActChunk 为全量，ReAct 完成任务时的最后答复
-                            onFinalChunk((ReActChunk) chunk, isFirstReasonChunk, isFirstConversation);
+                            onFinalChunk((ReActChunk) chunk);
                         }
                     })
                     .doOnError(e -> {
@@ -328,7 +328,7 @@ public class CliShellOld implements Runnable {
         }
     }
 
-    private void onFinalChunk(ReActChunk react, AtomicBoolean isFirstReasonChunk, AtomicBoolean isFirstConversation) {
+    private void onFinalChunk(ReActChunk react) {
         Long start_time = react.getTrace().getOriginalPrompt().attrAs("start_time");
 
         StringBuilder buf = new StringBuilder();
@@ -357,7 +357,6 @@ public class CliShellOld implements Runnable {
 
     private void onReasonChunk(ReasonChunk reason, AtomicBoolean isFirstReasonChunk, AtomicBoolean isFirstConversation) {
         if (!reason.isToolCalls() && reason.hasContent()) {
-            //打印 think 或者 不是 think
             if (agentProps.isThinkPrinted() || !reason.getMessage().isThinking()) {
                 String delta = clearThink(reason.getContent());
                 onReasonChunkDo(delta, isFirstReasonChunk, isFirstConversation);

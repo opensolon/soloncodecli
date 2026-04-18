@@ -138,7 +138,7 @@ public class WebGate implements Handler {
                     } else if (chunk instanceof ActionEndChunk) {
                         return onActionEndChunk((ActionEndChunk) chunk);
                     } else if (chunk instanceof ReActChunk) {
-                        return onReActChunk((ReActChunk) chunk);
+                        return onFinalChunk((ReActChunk) chunk);
                     }
 
                     return "";
@@ -225,7 +225,7 @@ public class WebGate implements Handler {
         return "";
     }
 
-    private String onReActChunk(ReActChunk react) {
+    private String onFinalChunk(ReActChunk react) {
         StringBuilder buf = new StringBuilder();
 
         Long start_time = react.getTrace().getOriginalPrompt().attrAs("start_time");
