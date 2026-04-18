@@ -58,7 +58,15 @@ public class WebController {
         mv.put("appTitle", Solon.cfg().appTitle());
         mv.put("sseEndpoint", config.getWebEndpoint());
         mv.put("workspace", config.getWorkspace());
+        mv.put("workname", getLastSegment(config.getWorkspace()));
         return mv;
+    }
+
+    public static String getLastSegment(String pathStr) {
+        Path path = Paths.get(pathStr);
+        // getFileName() 会返回路径中最后一级的文件或目录名
+        Path fileName = path.getFileName();
+        return fileName == null ? "" : fileName.toString();
     }
 
     /**
