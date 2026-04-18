@@ -1,4 +1,9 @@
 
+
+### v2026.4.20
+
+* 优化 启动时打印主代理模型
+
 ### v2026.4.18
 
 * 优化 soloncode-cli anthropic, openai-response 方言的异常兼容处理
