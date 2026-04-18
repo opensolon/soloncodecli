@@ -249,7 +249,7 @@ public class CliShellOld implements Runnable {
             if (isInterrupted.get()) {
                 terminal.writer().println(DIM + "[Task interrupted]" + RESET);
                 terminal.flush();
-                session.addMessage(ChatMessage.ofAssistant("用户中途取消了这个任务."));
+                session.addMessage(ChatMessage.ofAssistant("用户已取消任务."));
                 return;
             }
 

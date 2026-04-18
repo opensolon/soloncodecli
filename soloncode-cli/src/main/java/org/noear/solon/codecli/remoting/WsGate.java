@@ -111,11 +111,11 @@ public class WsGate extends SimpleWebSocketListener {
             AgentSession session = kernel.getSession(sessionId);
 
             if("[(sec)interrupt]".equals(req.getInput())) {
-                Disposable disposable = (Disposable)session.attrs().get("disposable");
+                Disposable disposable = (Disposable)session.attrs().remove("disposable");
                 if (disposable != null) {
                     disposable.dispose();
                 }
-                session.addMessage(ChatMessage.ofAssistant("用户中途取消了这个任务."));
+                session.addMessage(ChatMessage.ofAssistant("用户已取消任务."));
 
                 String msg = new ONode().set("type", "reason")
                         .set("sessionId", session.getSessionId())

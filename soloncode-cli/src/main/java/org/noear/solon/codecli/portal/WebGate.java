@@ -145,6 +145,17 @@ public class WebGate implements Handler {
                     return "";
                 })
                 .filter(Assert::isNotEmpty)
+                .doOnSubscribe(disposable -> {
+                    // 在订阅开始时，将 disposable 存入 session
+                    Disposable old = (Disposable) session.attrs().put("disposable", disposable);
+                    if (old != null && !old.isDisposed()) {
+                        old.dispose();
+                    }
+                })
+                .doFinally(signal -> {
+                    // 流结束或被取消后，清理掉引用，避免内存泄漏
+                    session.attrs().remove("disposable");
+                })
                 .onErrorResume(e -> {
                     String message = new ONode().set("type", "error")
                             .set("text", e.getMessage())
