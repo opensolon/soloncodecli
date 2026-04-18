@@ -116,6 +116,7 @@ public class WsGate extends SimpleWebSocketListener {
                     disposable.dispose();
                 }
                 session.addMessage(ChatMessage.ofAssistant("用户已取消任务."));
+                LOG.info("用户已取消任务.");
 
                 String msg = new ONode().set("type", "reason")
                         .set("sessionId", session.getSessionId())

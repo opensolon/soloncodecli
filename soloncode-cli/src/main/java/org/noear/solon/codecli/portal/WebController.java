@@ -29,6 +29,8 @@ import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ModelAndView;
 import org.noear.solon.core.util.Assert;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
 
 import java.io.BufferedReader;
@@ -49,6 +51,8 @@ import java.util.List;
  */
 @Controller
 public class WebController {
+    private static final Logger LOG = LoggerFactory.getLogger(WebController.class);
+
     @Inject
     HarnessEngine agentRuntime;
 
@@ -184,8 +188,7 @@ public class WebController {
             disposable.dispose();
         }
         session.addMessage(ChatMessage.ofAssistant("用户已取消任务."));
-
-        Log.info("用户已取消任务...");
+        LOG.info("用户已取消任务.");
 
         ctx.output("{\"ok\":true}");
     }

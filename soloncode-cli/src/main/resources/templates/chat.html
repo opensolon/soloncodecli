@@ -504,8 +504,15 @@
         welcomeSendBtn.addEventListener('click', function() { sendMessage(); });
         chatSendBtn.addEventListener('click', function() {
             if (isStreaming && activeSessionId && sessionMap[activeSessionId]) {
-                // 停止流
-                finishStream(sessionMap[activeSessionId]);
+                try {
+                    //提交 interrupt
+                    let xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/chat/sessions/interrupt?sessionId=' + encodeURIComponent(sess.sessionId), true);
+                    xhr.send();
+                }finally {
+                    // 停止流
+                    finishStream(sessionMap[activeSessionId]);
+                }
             } else {
                 sendMessage();
             }
@@ -1126,11 +1133,6 @@
             finishPendingTool(sess);
             if (sess.eventSource) { sess.eventSource.close(); sess.eventSource = null; }
             resetStreamState(sess);
-            if (wasStreaming) {
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', '/chat/sessions/interrupt?sessionId=' + encodeURIComponent(sess.sessionId), true);
-                xhr.send();
-            }
             if (sess.sessionId === activeSessionId) {
                 isStreaming = false;
                 setBtnSendMode();
