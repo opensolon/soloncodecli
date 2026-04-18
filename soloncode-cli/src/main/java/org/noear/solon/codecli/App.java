@@ -15,30 +15,14 @@
  */
 package org.noear.solon.codecli;
 
-import com.agentclientprotocol.sdk.agent.transport.StdioAcpAgentTransport;
-import com.agentclientprotocol.sdk.agent.transport.WebSocketSolonAcpAgentTransport;
-import com.agentclientprotocol.sdk.spec.AcpAgentTransport;
-import io.modelcontextprotocol.json.McpJsonMapper;
 import org.noear.solon.Solon;
 import org.noear.solon.SolonApp;
-import org.noear.solon.ai.agent.AgentSession;
-import org.noear.solon.ai.agent.AgentSessionProvider;
-import org.noear.solon.ai.agent.session.FileAgentSession;
-import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
-import org.noear.solon.codecli.portal.AcpLink;
-import org.noear.solon.codecli.portal.CliShellOld;
-import org.noear.solon.codecli.portal.WebGate;
-import org.noear.solon.codecli.remoting.WsGate;
 import org.noear.solon.core.util.Assert;
-import org.noear.solon.core.util.JavaUtil;
-import org.noear.solon.net.websocket.WebSocketRouter;
 
 import java.net.URL;
 import java.nio.file.Paths;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cli 应用
@@ -103,6 +87,9 @@ public class App {
             enabledAcp(app, c);
             return;
         }
+
+        //cli
+        app.cfg().setProperty("solon.logging.appender.console.enable", "false");
     }
 
     private static void enabledWeb(SolonApp app, AgentProperties c) {
