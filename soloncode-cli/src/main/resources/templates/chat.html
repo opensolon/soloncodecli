@@ -927,9 +927,11 @@
             sess.reasonBuffer = append ? sess.reasonBuffer + clean : clean;
             if (!sess.contentRafId) {
                 sess.contentRafId = requestAnimationFrame(function() {
-                    sess.contentRafId = null;
                     var el = ensureAssistantBubble(sess);
                     el.innerHTML = renderMd(sess.reasonBuffer);
+
+                    sess.contentRafId = null;
+
                     if (sess.sessionId === activeSessionId) scrollToBottom();
                 });
             }
@@ -1127,11 +1129,20 @@
 
         /* ===== SSE Data Handling (Session-Aware) ===== */
         function handleSSEData(sess, raw) {
-            if (raw === '[DONE]') { finishStream(sess); return; }
+            if (raw === '[DONE]') {
+                console.log("Stream finished");
+                finishStream(sess);
+                return;
+            }
+
             try {
                 var chunk = JSON.parse(raw);
-                if (sess.silenceTimer) clearTimeout(sess.silenceTimer);
+                if (sess.silenceTimer) {
+                    clearTimeout(sess.silenceTimer);
+                }
+
                 removeInlineThinking(sess);
+
                 switch (chunk.type) {
                     case 'reason': finishPendingTool(sess); appendReasonChunk(sess, chunk.text); break;
                     case 'text':   finishThinkingBlock(sess); finishPendingTool(sess); appendContentChunk(sess, chunk.text, true); break;
