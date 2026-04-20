@@ -4,8 +4,18 @@ import lombok.Getter;
 import lombok.Setter;
 
 import org.noear.solon.ai.chat.ChatConfig;
+import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.HarnessProperties;
+import org.noear.solon.core.util.IoUtil;
+import org.noear.solon.core.util.ResourceUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 
@@ -18,9 +28,11 @@ import java.util.Map;
 @Getter
 @Setter
 public class AgentProperties extends HarnessProperties {
+    private static final Logger LOG = LoggerFactory.getLogger(AgentProperties.class);
     /**
      * @deprecated 2026.4.10 {@link #getModels()}
-     * */
+     *
+     */
     @Deprecated
     private ChatConfig chatModel;
 
@@ -55,5 +67,96 @@ public class AgentProperties extends HarnessProperties {
 
         getSkillPools().put("@opencode_skills", Paths.get(getWorkspace(), OPENCODE_SKILLS).toString());
         getSkillPools().put("@claude_skills", Paths.get(getWorkspace(), CLAUDE_SKILLS).toString());
+
+        getAgentPools().add(Paths.get(getUserHome(), getHarnessAgents()).toString()); //global
+        getAgentPools().add(Paths.get(getWorkspace(), getHarnessAgents()).toString()); //local
+    }
+
+    /**
+     * 当前目录
+     */
+    public static String getUserDir() {
+        return System.getProperty("user.dir");
+    }
+
+    /**
+     * 用户主目录
+     */
+    public static String getUserHome() {
+        return System.getProperty("user.home");
+    }
+
+    public URL getConfigUrl() throws MalformedURLException {
+        //1. 资源文件（一般开发时）
+        URL tmp = ResourceUtil.getResource(HarnessEngine.NAME_CONFIG_YML);
+        if (tmp != null) {
+            return tmp;
+        }
+
+        //2. 工作区配置
+        Path path = Paths.get(getUserDir(), getHarnessHome(), HarnessEngine.NAME_CONFIG_YML);
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //3. 用户目录区配置
+        path = Paths.get(getUserHome(), getHarnessHome(), HarnessEngine.NAME_CONFIG_YML);
+
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //4. 程序边上的配置文件
+        tmp = ResourceUtil.getResourceByFile(HarnessEngine.NAME_CONFIG_YML);
+        if (tmp != null) {
+            return tmp;
+        }
+
+        return null;
+    }
+
+    public URL getAgentsUrl() throws MalformedURLException {
+        //1. 工作区配置
+        Path path = Paths.get(getWorkspace(), getHarnessHome(), HarnessEngine.NAME_AGENTS_MD);
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //2. 用户目录区配置
+        path = Paths.get(getUserHome(), getHarnessHome(), HarnessEngine.NAME_AGENTS_MD);
+
+        if (Files.exists(path)) {
+            return path.toUri().toURL();
+        }
+
+        //3. 程序边上的配置文件
+        URL tmp = ResourceUtil.getResourceByFile(HarnessEngine.NAME_AGENTS_MD);
+        if (tmp != null) {
+            return tmp;
+        }
+
+        return null;
+    }
+
+    public String getAgentsMd() {
+        try {
+            URL agentsUrl = getAgentsUrl();
+
+            if (agentsUrl != null) {
+                try (InputStream is = agentsUrl.openStream()) {
+                    String content = IoUtil.transferToString(is, "utf-8").trim();
+
+                    if (content.length() > 10000) { // 例如限制在 1万字符以内
+                        LOG.warn("AGENTS.md is too large, truncating...");
+                        return content.substring(0, 10000);
+                    }
+                    return content;
+                }
+            }
+        } catch (Throwable e) {
+            LOG.warn("AGENTS.md load failure: {}", e.getMessage(), e);
+        }
+
+        return null;
     }
 }

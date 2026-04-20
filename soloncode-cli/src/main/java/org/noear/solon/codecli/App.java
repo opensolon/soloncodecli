@@ -61,6 +61,9 @@ public class App {
         //设定默认工作区
         c.setWorkspace(workspace);
 
+        //设定系统提示词
+        c.setSystemPrompt(c.getAgentsMd());
+
         //推入容器
         app.context().wrapAndPut(AgentProperties.class, c);
 
@@ -92,11 +95,11 @@ public class App {
     private static void enabledWeb(SolonApp app, AgentProperties c) {
         String port = app.cfg().argx().flagAt(1);
 
-        if("0".equals(port)){
-            port =  findAvailablePort();
+        if ("0".equals(port)) {
+            port = findAvailablePort();
         }
 
-        if(Assert.isNotEmpty(port) && Assert.isNumber(port)){
+        if (Assert.isNotEmpty(port) && Assert.isNumber(port)) {
             // soloncode web 1212 //= soloncode web -server.port=1212
             app.cfg().setProperty("server.port", port);
         }
