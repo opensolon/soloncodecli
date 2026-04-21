@@ -30,8 +30,7 @@ public class DemoApp {
             }
         };
 
-        HarnessEngine agentRuntime = HarnessEngine.builder()
-                .properties(properties)
+        HarnessEngine agentRuntime = HarnessEngine.of(properties)
                 .sessionProvider(sessionProvider)
                 .build();
 

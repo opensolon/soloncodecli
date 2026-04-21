@@ -51,8 +51,7 @@ public class Configurator {
         AgentSessionProvider sessionProvider = (sessionId) -> sessionMap.computeIfAbsent(sessionId, key ->
                 new FileAgentSession(key, Paths.get(props.getWorkspace(), props.getHarnessSessions()).resolve(key).normalize().toFile().toString()));
 
-        HarnessEngine engine = HarnessEngine.builder()
-                .properties(props)
+        HarnessEngine engine = HarnessEngine.of(props)
                 .sessionProvider(sessionProvider)
                 .build();
 

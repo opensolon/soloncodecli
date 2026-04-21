@@ -126,7 +126,7 @@ public class WsGate extends SimpleWebSocketListener {
 
                 String msg2 = new ONode().set("type", "done")
                         .set("sessionId", session.getSessionId())
-                        .set("modelName", kernel.getMainAgent().getConfig().getChatModel().getModel())
+                        .set("modelName", kernel.getMainModel().getModel())
                         .set("totalTokens", 0)
                         .set("elapsedMs", 0).toJson();
 
@@ -219,7 +219,7 @@ public class WsGate extends SimpleWebSocketListener {
 
         String msg2 = new ONode().set("type", "done")
                 .set("sessionId", finalSessionId)
-                .set("modelName", chunk.getTrace().getConfig().getChatModel().getModel())
+                .set("modelName", chunk.getTrace().getOptions().getChatModel().getModel())
                 .set("totalTokens", chunk.getTrace().getMetrics().getTotalTokens())
                 .set("elapsedMs", System.currentTimeMillis() - start_time).toJson();
 
