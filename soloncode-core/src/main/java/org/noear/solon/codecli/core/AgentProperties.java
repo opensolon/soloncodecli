@@ -48,6 +48,7 @@ public class AgentProperties extends HarnessProperties {
 
     public final static String ARG_SESSION = "session";
 
+
     private String sessionId = "default"; //默认会话
 
     private boolean thinkPrinted = false;

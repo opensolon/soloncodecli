@@ -514,7 +514,7 @@
                 try {
                     //提交 interrupt
                     let xhr = new XMLHttpRequest();
-                    xhr.open('POST', '/chat/sessions/interrupt?sessionId=' + encodeURIComponent(sess.sessionId), true);
+                    xhr.open('POST', '/chat/interrupt?sessionId=' + encodeURIComponent(sess.sessionId), true);
                     xhr.send();
                 }finally {
                     // 停止流
@@ -589,7 +589,7 @@
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4 && xhr.status === 200) {
                     try {
-                        var list = JSON.parse(xhr.responseText);
+                        var list = JSON.parse(xhr.responseText).data;
                         chatHistory = [];
                         for (var i = 0; i < list.length; i++) {
                             chatHistory.push({ label: list[i].label, sessionId: list[i].sessionId });
@@ -725,7 +725,7 @@
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4 && xhr.status === 200) {
                     try {
-                        var msgs = JSON.parse(xhr.responseText);
+                        var msgs = JSON.parse(xhr.responseText).data;
                         sess.container.innerHTML = '';
                         resetStreamState(sess);
                         for (var i = 0; i < msgs.length; i++) {

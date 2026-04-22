@@ -101,8 +101,7 @@ public class WebGate implements Handler {
         if (Assert.isNotEmpty(input)) {
             if ("call".equals(mode)) {
                 ctx.contentType(MimeType.TEXT_PLAIN_UTF8_VALUE);
-                String result = agentRuntime.getMainAgent()
-                        .prompt(input)
+                String result = agentRuntime.prompt(input)
                         .session(session)
                         .options(o -> {
                             if (Assert.isNotEmpty(sessionCwd)) {

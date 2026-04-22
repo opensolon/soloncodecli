@@ -167,8 +167,7 @@ public class WsGate extends SimpleWebSocketListener {
 
 
             String finalCwd = cwd;
-            Disposable disposable = kernel.getMainAgent()
-                    .prompt(prompt)
+            Disposable disposable = kernel.prompt(prompt)
                     .session(session)
                     .options(o -> {
                         o.toolContextPut(HarnessEngine.ATTR_CWD, finalCwd);
@@ -308,9 +307,9 @@ public class WsGate extends SimpleWebSocketListener {
                     }
 
                     // 重建 ChatModel 并注入 kernel
-                    agentPros.removeModel(agentPros.getChatModel().getNameOrModel());
+                    agentPros.removeModel(agentPros.getChatModel().getModel());
                     agentPros.addModel(agentPros.getChatModel());
-                    kernel.switchMainModel(agentPros.getChatModel().getNameOrModel());
+                    kernel.switchMainModel(agentPros.getChatModel().getModel());
 
                     LOG.info("[WS] Config updated: model={}", model);
 

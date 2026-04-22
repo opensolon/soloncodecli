@@ -18,15 +18,18 @@ package org.noear.solon.codecli.portal;
 import org.noear.snack4.ONode;
 import org.noear.solon.Solon;
 import org.noear.solon.ai.agent.AgentSession;
+import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Inject;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.annotation.Param;
+import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ModelAndView;
+import org.noear.solon.core.handle.Result;
 import org.noear.solon.core.util.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -72,12 +75,14 @@ public class WebController {
         return mv;
     }
 
-    public static String getLastSegment(String pathStr) {
+    private static String getLastSegment(String pathStr) {
         Path path = Paths.get(pathStr);
         // getFileName() 会返回路径中最后一级的文件或目录名
         Path fileName = path.getFileName();
         return fileName == null ? "" : fileName.toString();
     }
+
+    //---------------
 
     /**
      * 加载用户消息历史记录
@@ -86,10 +91,10 @@ public class WebController {
      * @date 2026年3月14日
      */
     @Mapping("/chat/sessions")
-    public List<Map> sessions(Context ctx) throws Exception {
+    public Result<List<Map>> sessions(Context ctx) throws Exception {
         Path sessionsPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions").toAbsolutePath().normalize();
         File sessionsDir = sessionsPath.toFile();
-        List<Map> result = new ArrayList<>();
+        List<Map> data = new ArrayList<>();
 
         if (sessionsDir.exists() && sessionsDir.isDirectory()) {
             File[] dirs = sessionsDir.listFiles(f -> f.isDirectory() && f.getName().startsWith("web-"));
@@ -109,12 +114,75 @@ public class WebController {
                     item.put("sessionId", sid);
                     item.put("label", label.length() > 30 ? label.substring(0, 30) + "..." : label);
                     item.put("time", dir.lastModified());
-                    result.add(item);
+                    data.add(item);
                 }
             }
         }
 
-        return result;
+        return Result.succeed(data);
+    }
+
+    /**
+     * 删除消息记录
+     *
+     * @author oisin
+     * @date 2026年3月15日
+     */
+    @Mapping("/chat/sessions/delete")
+    public Result deleteSession(Context ctx, @Param("sessionId") String sessionId) throws Exception {
+        // Security: prevent path traversal
+        if (sessionId.contains("..") || sessionId.contains("/") || sessionId.contains("\\")) {
+            return Result.failure();
+        }
+
+        Path sessionPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
+        File sessionDir = sessionPath.toFile();
+
+        if (sessionDir.exists() && sessionDir.isDirectory()) {
+            deleteDirectory(sessionDir);
+        }
+
+        return Result.succeed();
+    }
+
+
+    /**
+     * 获取消息详细记录信息
+     *
+     * @author oisin
+     * @date 2026年3月15日
+     */
+    @Mapping("/chat/models")
+    public Result<Map> models(Context ctx, @Param(value = "sessionId", required = false) String sessionId) throws Exception {
+        Map<String, Object> data = new LinkedHashMap<>();
+        List<Map> list = new ArrayList<>();
+
+        for (ChatConfig config : agentProps.getModels()) {
+            Map<String, String> item = new LinkedHashMap<>();
+            item.put(config.getModel(), config.getDescription());
+            list.add(item);
+        }
+        data.put("list", list);
+
+        if (Assert.isNotEmpty(sessionId)) {
+            AgentSession session = agentRuntime.getSession(sessionId);
+            String selected = session.getContext().getOrDefault(AgentFlags.VAR_MODEL_SELECTED, agentRuntime.getMainModel().getModel());
+
+            data.put("selected", selected);
+        } else {
+            data.put("selected", agentRuntime.getMainModel().getModel());
+        }
+
+        return Result.succeed(data);
+    }
+
+    @Mapping("/chat/models/select")
+    public Result models_select(Context ctx, @Param("sessionId") String sessionId, @Param("modelName") String modelName) throws Exception {
+        AgentSession session = agentRuntime.getSession(sessionId);
+
+        session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, modelName);
+
+        return Result.succeed();
     }
 
     /**
@@ -124,13 +192,8 @@ public class WebController {
      * @date 2026年3月15日
      */
     @Mapping("/chat/messages")
-    public List<Map> messages(Context ctx, @Param(value = "sessionId", required = false) String sessionId) throws Exception {
-        List<Map> result = new ArrayList<>();
-
-        if (Assert.isEmpty(sessionId)) {
-            return result;
-        }
-
+    public Result<List<Map>> messages(Context ctx, @Param("sessionId") String sessionId) throws Exception {
+        List<Map> data = new ArrayList<>();
         Path sessionsPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
         File msgFile = new File(sessionsPath.toFile(), sessionId + ".messages.ndjson");
 
@@ -149,30 +212,21 @@ public class WebController {
                         Map<String, String> item = new LinkedHashMap<>();
                         item.put("role", role);
                         item.put("content", content);
-                        result.add(item);
+                        data.add(item);
                     }
                 }
             }
         }
 
-        return result;
+        return Result.succeed(data);
     }
 
-    @Mapping("/chat/sessions/interrupt")
-    public Map interruptSession(Context ctx, @Param(value = "sessionId", required = false) String sessionId) {
-        Map<String, Boolean> result = new LinkedHashMap<>();
-
-        if (Assert.isEmpty(sessionId)) {
-            result.put("ok", false);
-            return result;
-        }
-
+    @Mapping("/chat/interrupt")
+    public Result interruptSession(Context ctx, @Param("sessionId") String sessionId) {
         // Security: prevent path traversal
         if (sessionId.contains("..") || sessionId.contains("/") || sessionId.contains("\\")) {
-            result.put("ok", false);
-            return result;
+            return Result.failure();
         }
-
 
         AgentSession session = agentRuntime.getSession(sessionId);
 
@@ -183,40 +237,7 @@ public class WebController {
         session.addMessage(ChatMessage.ofAssistant("用户已取消任务."));
         LOG.info("用户已取消任务.");
 
-        result.put("ok", true);
-        return result;
-    }
-
-    /**
-     * 删除消息记录
-     *
-     * @author oisin
-     * @date 2026年3月15日
-     */
-    @Mapping("/chat/sessions/delete")
-    public Map deleteSession(Context ctx, @Param(value = "sessionId", required = false) String sessionId) throws Exception {
-        Map<String, Boolean> result = new LinkedHashMap<>();
-
-        if (sessionId == null || sessionId.isEmpty()) {
-            result.put("ok", false);
-            return result;
-        }
-
-        // Security: prevent path traversal
-        if (sessionId.contains("..") || sessionId.contains("/") || sessionId.contains("\\")) {
-            result.put("ok", false);
-            return result;
-        }
-
-        Path sessionPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
-        File sessionDir = sessionPath.toFile();
-
-        if (sessionDir.exists() && sessionDir.isDirectory()) {
-            deleteDirectory(sessionDir);
-        }
-
-        result.put("ok", true);
-        return result;
+        return Result.succeed();
     }
 
     private void deleteDirectory(File dir) {

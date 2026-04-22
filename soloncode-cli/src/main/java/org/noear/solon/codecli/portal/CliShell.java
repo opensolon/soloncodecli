@@ -216,8 +216,7 @@ public class CliShell implements Runnable {
 
             Prompt prompt = Prompt.of(currentInput).attrPut("start_time", System.currentTimeMillis());
 
-            Disposable disposable = agentRuntime.getMainAgent()
-                    .prompt(prompt)
+            Disposable disposable = agentRuntime.prompt(prompt)
                     .session(session)
                     .stream()
                     .subscribeOn(Schedulers.boundedElastic())
