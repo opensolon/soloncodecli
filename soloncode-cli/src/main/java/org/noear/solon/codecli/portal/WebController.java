@@ -21,13 +21,9 @@ import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.harness.HarnessEngine;
-import org.noear.solon.annotation.Controller;
-import org.noear.solon.annotation.Inject;
-import org.noear.solon.annotation.Mapping;
-import org.noear.solon.annotation.Param;
+import org.noear.solon.annotation.*;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
-import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ModelAndView;
 import org.noear.solon.core.handle.Result;
 import org.noear.solon.core.util.Assert;
@@ -65,6 +61,7 @@ public class WebController {
      * @author oisin
      * @date 2026年3月14日
      */
+    @Get
     @Mapping("/")
     public ModelAndView chat() {
         ModelAndView mv = new ModelAndView("chat.html");
@@ -91,6 +88,7 @@ public class WebController {
      * @author oisin
      * @date 2026年3月14日
      */
+    @Get
     @Mapping("/chat/sessions")
     public Result<List<Map>> sessions() throws Exception {
         Path sessionsPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions").toAbsolutePath().normalize();
@@ -129,6 +127,7 @@ public class WebController {
      * @author oisin
      * @date 2026年3月15日
      */
+    @Post
     @Mapping("/chat/sessions/delete")
     public Result deleteSession(@Param("sessionId") String sessionId) throws Exception {
         // Security: prevent path traversal
@@ -153,6 +152,7 @@ public class WebController {
      * @author oisin
      * @date 2026年3月15日
      */
+    @Get
     @Mapping("/chat/models")
     public Result<Map> models(@Param(value = "sessionId", required = false) String sessionId) throws Exception {
         Map<String, Object> data = new LinkedHashMap<>();
@@ -160,7 +160,7 @@ public class WebController {
 
         for (ChatConfig config : agentProps.getModels()) {
             Map<String, String> item = new LinkedHashMap<>();
-            item.put(config.getModel(), config.getDescription());
+            item.put(config.getModel(), config.getDescriptionOrModel());
             list.add(item);
         }
         data.put("list", list);
@@ -177,6 +177,7 @@ public class WebController {
         return Result.succeed(data);
     }
 
+    @Post
     @Mapping("/chat/models/select")
     public Result models_select(@Param("sessionId") String sessionId, @Param("modelName") String modelName) throws Exception {
         AgentSession session = agentRuntime.getSession(sessionId);
@@ -192,6 +193,7 @@ public class WebController {
      * @author oisin
      * @date 2026年3月15日
      */
+    @Get
     @Mapping("/chat/messages")
     public Result<List<Map>> messages(@Param("sessionId") String sessionId) throws Exception {
         List<Map> data = new ArrayList<>();
@@ -222,6 +224,7 @@ public class WebController {
         return Result.succeed(data);
     }
 
+    @Post
     @Mapping("/chat/interrupt")
     public Result interruptSession(@Param("sessionId") String sessionId) {
         // Security: prevent path traversal

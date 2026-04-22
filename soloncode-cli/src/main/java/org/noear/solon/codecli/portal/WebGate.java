@@ -23,9 +23,11 @@ import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionEndChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.react.task.ThoughtChunk;
+import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.agent.TaskSkill;
+import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.Handler;
@@ -79,7 +81,9 @@ public class WebGate implements Handler {
             }
         }
 
-        AgentSession session = agentRuntime.getSession(sessionId);
+        final AgentSession session = agentRuntime.getSession(sessionId);
+        final String modelSelected = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+        final ChatModel chatModel = agentRuntime.getModelOrMain(modelSelected);
 
         // HITL approve/reject handling
         String hitlAction = ctx.param("hitlAction");
@@ -94,9 +98,10 @@ public class WebGate implements Handler {
             }
             // Resume streaming after HITL decision
             ctx.contentType(MimeType.TEXT_EVENT_STREAM_UTF8_VALUE);
-            ctx.returnValue(buildStreamFlux(session, sessionCwd, null));
+            ctx.returnValue(buildStreamFlux(session, chatModel, sessionCwd, null));
             return;
         }
+
 
         if (Assert.isNotEmpty(input)) {
             if ("call".equals(mode)) {
@@ -104,6 +109,9 @@ public class WebGate implements Handler {
                 String result = agentRuntime.prompt(input)
                         .session(session)
                         .options(o -> {
+                            //切换模型
+                            o.chatModel(chatModel);
+
                             if (Assert.isNotEmpty(sessionCwd)) {
                                 o.toolContextPut(HarnessEngine.ATTR_CWD, sessionCwd);
                             }
@@ -114,18 +122,20 @@ public class WebGate implements Handler {
                 ctx.output(result);
             } else {
                 ctx.contentType(MimeType.TEXT_EVENT_STREAM_UTF8_VALUE);
-                ctx.returnValue(buildStreamFlux(session, sessionCwd, input));
+                ctx.returnValue(buildStreamFlux(session, chatModel, sessionCwd, input));
             }
         }
     }
 
-    private Flux<String> buildStreamFlux(AgentSession session, String sessionCwd, String input) {
+    private Flux<String> buildStreamFlux(AgentSession session, ChatModel chatModel, String sessionCwd, String input) {
         Prompt prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
 
         return agentRuntime.getMainAgent()
                 .prompt(prompt)
                 .session(session)
                 .options(o -> {
+                    o.chatModel(chatModel);
+
                     if (Assert.isNotEmpty(sessionCwd)) {
                         o.toolContextPut(HarnessEngine.ATTR_CWD, sessionCwd);
                     }
