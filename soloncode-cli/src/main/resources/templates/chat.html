@@ -94,7 +94,7 @@
         .welcome-input-box:focus-within { border-color: var(--accent); box-shadow: var(--shadow-lg), 0 0 0 4px rgba(79,110,247,0.08); }
         .welcome-input-box textarea { border: none; outline: none; resize: none; background: transparent; padding: 18px 20px 8px; font-family: var(--font-sans); font-size: 15px; color: var(--text-primary); min-height: 54px; max-height: 140px; line-height: 1.6; }
         .welcome-input-box textarea::placeholder { color: var(--text-secondary); }
-        .welcome-toolbar { display: flex; align-items: center; justify-content: flex-end; padding: 8px 14px; }
+        .welcome-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; gap: 8px; }
         .welcome-send-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
         .welcome-send-btn:hover { background: var(--accent-hover); transform: scale(1.06); }
 
@@ -215,13 +215,32 @@
         .input-box:focus-within { border-color: var(--accent); box-shadow: var(--shadow), 0 0 0 3px rgba(79,110,247,0.06); }
         .input-box textarea { border: none; outline: none; resize: none; background: transparent; padding: 14px 16px 6px; font-family: var(--font-sans); font-size: 14px; color: var(--text-primary); min-height: 44px; max-height: 140px; line-height: 1.6; }
         .input-box textarea::placeholder { color: var(--text-secondary); }
-        .input-toolbar { display: flex; align-items: center; justify-content: flex-end; padding: 6px 10px; }
+        .input-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; gap: 8px; }
         .send-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; }
         .send-btn:hover { background: var(--accent-hover); }
         .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .send-btn.stop-mode { background: #ef4444; }
         .send-btn.stop-mode:hover { background: #dc2626; }
         .send-btn.stop-mode .stop-icon { width: 14px; height: 14px; background: #fff; border-radius: 3px; }
+
+        /* Model Selector */
+        .model-selector { position: relative; display: flex; align-items: center; }
+        .model-selector-current { display: flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-input-box); color: var(--text-secondary); font-size: 12px; cursor: pointer; transition: all 0.2s; white-space: nowrap; max-width: 200px; }
+        .model-selector-current:hover { border-color: var(--accent); color: var(--text-primary); background: var(--bg-hover); }
+        .model-selector-current .model-name { overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+        .model-selector-current .model-arrow { font-size: 12px; transition: transform 0.2s; }
+        .model-selector.open .model-arrow { transform: rotate(180deg); }
+        .model-dropdown { position: absolute; bottom: 100%; left: 0; margin-bottom: 6px; background: var(--bg-input-box); border: 1px solid var(--border-color); border-radius: 10px; box-shadow: var(--shadow-lg); min-width: 220px; max-height: 280px; overflow-y: auto; display: none; z-index: 100; animation: drop-up 0.15s ease-out; }
+        .model-selector.open .model-dropdown { display: block; }
+        @keyframes drop-up { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .model-dropdown-item { padding: 10px 14px; cursor: pointer; font-size: 13px; color: var(--text-primary); display: flex; flex-direction: column; gap: 2px; transition: background 0.15s; }
+        .model-dropdown-item:hover { background: var(--bg-hover); }
+        .model-dropdown-item.active { background: var(--accent-light); color: var(--accent); }
+        .model-dropdown-item .model-item-name { font-weight: 500; font-size: 13px; }
+        .model-dropdown-item .model-item-desc { font-size: 11px; color: var(--text-secondary); }
+        .model-dropdown-item.active .model-item-desc { color: var(--accent); opacity: 0.7; }
+        .model-dropdown::-webkit-scrollbar { width: 4px; }
+        .model-dropdown::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 2px; }
 
         /* Image Preview */
         .img-preview-wrap { padding: 8px 14px 0; display: none; }
@@ -278,6 +297,13 @@
                 </div>
                 <textarea id="welcomeInput" placeholder="和我聊聊天吧..." rows="1" autofocus></textarea>
                 <div class="welcome-toolbar">
+                    <div class="model-selector" id="welcomeModelSelector">
+                        <div class="model-selector-current" id="welcomeModelCurrent" title="切换模型">
+                            <span class="model-name" id="welcomeModelName">加载中...</span>
+                            <i class="layui-icon layui-icon-down model-arrow"></i>
+                        </div>
+                        <div class="model-dropdown" id="welcomeModelDropdown"></div>
+                    </div>
                     <button class="welcome-send-btn" id="welcomeSendBtn" title="发送">
                         <i class="layui-icon layui-icon-release"></i>
                     </button>
@@ -297,6 +323,13 @@
                     </div>
                     <textarea id="chatInput" placeholder="请输入消息..." rows="1"></textarea>
                     <div class="input-toolbar">
+                        <div class="model-selector" id="chatModelSelector">
+                            <div class="model-selector-current" id="chatModelCurrent" title="切换模型">
+                                <span class="model-name" id="chatModelName">加载中...</span>
+                                <i class="layui-icon layui-icon-down model-arrow"></i>
+                            </div>
+                            <div class="model-dropdown" id="chatModelDropdown"></div>
+                        </div>
                         <button class="send-btn" id="chatSendBtn" title="发送">
                             <i class="layui-icon layui-icon-release"></i>
                         </button>
@@ -751,6 +784,108 @@
 
         /* Load on startup */
         loadSessionHistory();
+
+        /* ===== Model Selector ===== */
+        var modelList = [];       // [{name, desc}, ...]
+        var selectedModel = '';   // current selected model name
+
+        function loadModels() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/chat/models', true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        var resp = JSON.parse(xhr.responseText).data;
+                        selectedModel = resp.selected || '';
+                        modelList = [];
+                        var list = resp.list || [];
+                        for (let obj of list) {
+                            modelList.push({ name: obj.model, desc: obj.description });
+                        }
+                        renderModelUI();
+                    } catch (e) {
+                        console.error('Failed to parse models:', e);
+                    }
+                }
+            };
+            xhr.send();
+        }
+
+        function renderModelUI() {
+            var chatName = document.getElementById('chatModelName');
+            var welcomeName = document.getElementById('welcomeModelName');
+            var chatDropdown = document.getElementById('chatModelDropdown');
+            var welcomeDropdown = document.getElementById('welcomeModelDropdown');
+
+            var displayName = selectedModel.length > 24 ? selectedModel.substring(0, 24) + '...' : selectedModel;
+            if (chatName) chatName.textContent = displayName || '默认模型';
+            if (welcomeName) welcomeName.textContent = displayName || '默认模型';
+
+            var html = '';
+            for (var i = 0; i < modelList.length; i++) {
+                var m = modelList[i];
+                var cls = m.name === selectedModel ? ' active' : '';
+                html += '<div class="model-dropdown-item' + cls + '" data-model="' + escapeHtml(m.name) + '">'
+                    + '<span class="model-item-name">' + escapeHtml(m.name) + '</span>'
+                    + (m.desc ? '<span class="model-item-desc">' + escapeHtml(m.desc) + '</span>' : '')
+                    + '</div>';
+            }
+            if (chatDropdown) chatDropdown.innerHTML = html;
+            if (welcomeDropdown) welcomeDropdown.innerHTML = html;
+        }
+
+        function selectModel(modelName) {
+            var sid = SESSION_ID;
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/chat/models/select?sessionId=' + encodeURIComponent(sid) + '&modelName=' + encodeURIComponent(modelName), true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    selectedModel = modelName;
+                    renderModelUI();
+                }
+            };
+            xhr.send();
+        }
+
+        // Toggle dropdown open/close
+        function initModelSelector(selectorId, currentId, dropdownId) {
+            var selector = document.getElementById(selectorId);
+            var current = document.getElementById(currentId);
+            var dropdown = document.getElementById(dropdownId);
+            if (!selector || !current || !dropdown) return;
+
+            current.addEventListener('click', function(e) {
+                e.stopPropagation();
+                // Close all other selectors
+                document.querySelectorAll('.model-selector.open').forEach(function(el) {
+                    if (el.id !== selectorId) el.classList.remove('open');
+                });
+                selector.classList.toggle('open');
+            });
+
+            dropdown.addEventListener('click', function(e) {
+                var item = e.target.closest('.model-dropdown-item');
+                if (!item) return;
+                e.stopPropagation();
+                var modelName = item.getAttribute('data-model');
+                if (modelName && modelName !== selectedModel) {
+                    selectModel(modelName);
+                }
+                selector.classList.remove('open');
+            });
+        }
+
+        // Close all dropdowns on outside click
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.model-selector.open').forEach(function(el) {
+                el.classList.remove('open');
+            });
+        });
+
+        initModelSelector('chatModelSelector', 'chatModelCurrent', 'chatModelDropdown');
+        initModelSelector('welcomeModelSelector', 'welcomeModelCurrent', 'welcomeModelDropdown');
+
+        loadModels();
 
         /* ===== Message Rendering (Session-Aware) ===== */
         function appendUserMessage(sess, text, imageDataUrl) {

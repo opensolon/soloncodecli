@@ -160,7 +160,8 @@ public class WebController {
 
         for (ChatConfig config : agentProps.getModels()) {
             Map<String, String> item = new LinkedHashMap<>();
-            item.put(config.getModel(), config.getDescriptionOrModel());
+            item.put("model", config.getModel());
+            item.put("description", config.getDescriptionOrModel());
             list.add(item);
         }
         data.put("list", list);
