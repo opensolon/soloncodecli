@@ -256,8 +256,9 @@
         .messages-wrap::-webkit-scrollbar-track, .sidebar-list::-webkit-scrollbar-track, .thinking-block-body::-webkit-scrollbar-track { background: transparent; }
 
         /* Voice Input */
-        .voice-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-        .voice-btn:hover { background: color-mix(in srgb, var(--accent) 85%, #000); transform: scale(1.05); box-shadow: 0 3px 12px rgba(0,0,0,0.2); }
+        .voice-btn { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--accent); color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+        .voice-btn:hover { background: var(--accent-hover); transform: scale(1.05); }
+        .voice-btn svg { width: 20px; height: 20px; fill: #fff; }
         .voice-btn.recording { background: #ef4444; color: #fff; animation: voice-pulse 1.2s ease-in-out infinite; }
         .voice-btn.recording:hover { background: #dc2626; color: #fff; }
         .voice-btn.hidden { display: none; }
@@ -314,7 +315,7 @@
                     </div>
                     <div style="display:flex;align-items:center;gap:6px">
                         <button class="voice-btn hidden" id="welcomeVoiceBtn" title="语音输入">
-                            <i class="layui-icon layui-icon-speaker"></i>
+                            <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                         </button>
                         <button class="welcome-send-btn" id="welcomeSendBtn" title="发送">
                             <i class="layui-icon layui-icon-release"></i>
@@ -345,7 +346,7 @@
                         </div>
                         <div style="display:flex;align-items:center;gap:6px">
                             <button class="voice-btn hidden" id="chatVoiceBtn" title="语音输入">
-                                <i class="layui-icon layui-icon-speaker"></i>
+                                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
                             </button>
                             <button class="send-btn" id="chatSendBtn" title="发送">
                                 <i class="layui-icon layui-icon-release"></i>
