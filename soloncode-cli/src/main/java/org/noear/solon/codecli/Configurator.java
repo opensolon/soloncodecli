@@ -16,9 +16,10 @@ import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.codecli.portal.AcpLink;
 import org.noear.solon.codecli.portal.CliShell;
-import org.noear.solon.codecli.portal.WebGate;
+import org.noear.solon.codecli.portal.WebController;
 import org.noear.solon.codecli.portal.WsGate;
 import org.noear.solon.core.AppContext;
+import org.noear.solon.core.BeanWrap;
 import org.noear.solon.core.util.JavaUtil;
 import org.noear.solon.core.util.RunUtil;
 import org.noear.solon.net.websocket.WebSocketRouter;
@@ -122,8 +123,11 @@ public class Configurator {
 
 
     private void runWeb(HarnessEngine agentRuntime, AgentProperties agentProps, CliShell cliShell) {
+        //ws
         WebSocketRouter.getInstance().of(agentProps.getWsEndpoint(), new WsGate(agentRuntime, agentProps));
-        Solon.app().router().get(agentProps.getWebEndpoint(), new WebGate(agentRuntime));
+        //web
+        BeanWrap webBean = Solon.context().wrapAndPut(WebController.class, new WebController(agentRuntime));
+        Solon.app().router().add(webBean);
 
         if (cliShell == null) {
             return;

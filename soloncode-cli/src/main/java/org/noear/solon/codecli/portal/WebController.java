@@ -18,18 +18,29 @@ package org.noear.solon.codecli.portal;
 import org.noear.snack4.ONode;
 import org.noear.solon.Solon;
 import org.noear.solon.ai.agent.AgentSession;
+import org.noear.solon.ai.agent.react.ReActChunk;
+import org.noear.solon.ai.agent.react.intercept.HITL;
+import org.noear.solon.ai.agent.react.intercept.HITLTask;
+import org.noear.solon.ai.agent.react.task.ActionEndChunk;
+import org.noear.solon.ai.agent.react.task.ReasonChunk;
+import org.noear.solon.ai.agent.react.task.ThoughtChunk;
 import org.noear.solon.ai.chat.ChatConfig;
+import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.ai.harness.agent.TaskSkill;
 import org.noear.solon.annotation.*;
 import org.noear.solon.codecli.core.AgentFlags;
-import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ModelAndView;
 import org.noear.solon.core.handle.Result;
 import org.noear.solon.core.util.Assert;
+import org.noear.solon.core.util.MimeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.Disposable;
+import reactor.core.publisher.Flux;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -37,6 +48,7 @@ import java.io.FileInputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.*;
 
 /**
@@ -44,15 +56,14 @@ import java.util.*;
  * @author oisin 2026-3-13
  * @author noear 2026-4-18
  */
-@Controller
 public class WebController {
     private static final Logger LOG = LoggerFactory.getLogger(WebController.class);
 
-    @Inject
-    HarnessEngine agentRuntime;
+    private final HarnessEngine engine;
 
-    @Inject
-    private AgentProperties agentProps;
+    public WebController(HarnessEngine engine) {
+        this.engine = engine;
+    }
 
     /**
      * 对话主界面
@@ -67,9 +78,8 @@ public class WebController {
         ModelAndView mv = new ModelAndView("chat.html");
         mv.put("appTitle", Solon.cfg().appTitle());
         mv.put("appVersion", AgentFlags.getVersion());
-        mv.put("sseEndpoint", agentProps.getWebEndpoint());
-        mv.put("workspace", agentProps.getWorkspace());
-        mv.put("workname", getLastSegment(agentProps.getWorkspace()));
+        mv.put("workspace", engine.getProps().getWorkspace());
+        mv.put("workname", getLastSegment(engine.getProps().getWorkspace()));
         return mv;
     }
 
@@ -91,7 +101,7 @@ public class WebController {
     @Get
     @Mapping("/chat/sessions")
     public Result<List<Map>> sessions() throws Exception {
-        Path sessionsPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions").toAbsolutePath().normalize();
+        Path sessionsPath = Paths.get(engine.getProps().getWorkspace(), ".soloncode", "sessions").toAbsolutePath().normalize();
         File sessionsDir = sessionsPath.toFile();
         List<Map> data = new ArrayList<>();
 
@@ -135,7 +145,7 @@ public class WebController {
             return Result.failure();
         }
 
-        Path sessionPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
+        Path sessionPath = Paths.get(engine.getProps().getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
         File sessionDir = sessionPath.toFile();
 
         if (sessionDir.exists() && sessionDir.isDirectory()) {
@@ -158,7 +168,7 @@ public class WebController {
         Map<String, Object> data = new LinkedHashMap<>();
         List<Map> list = new ArrayList<>();
 
-        for (ChatConfig config : agentProps.getModels()) {
+        for (ChatConfig config : engine.getProps().getModels()) {
             Map<String, String> item = new LinkedHashMap<>();
             item.put("model", config.getNameOrModel());
             item.put("description", config.getDescriptionOrModel());
@@ -167,13 +177,13 @@ public class WebController {
         data.put("list", list);
 
         if (Assert.isNotEmpty(sessionId)) {
-            AgentSession session = agentRuntime.getSession(sessionId);
+            AgentSession session = engine.getSession(sessionId);
             String selected = session.getContext().getOrDefault(AgentFlags.VAR_MODEL_SELECTED,
-                    agentRuntime.getMainModel().getNameOrModel());
+                    engine.getMainModel().getNameOrModel());
 
             data.put("selected", selected);
         } else {
-            data.put("selected", agentRuntime.getMainModel().getNameOrModel());
+            data.put("selected", engine.getMainModel().getNameOrModel());
         }
 
         return Result.succeed(data);
@@ -182,7 +192,7 @@ public class WebController {
     @Post
     @Mapping("/chat/models/select")
     public Result models_select(@Param("sessionId") String sessionId, @Param("modelName") String modelName) throws Exception {
-        AgentSession session = agentRuntime.getSession(sessionId);
+        AgentSession session = engine.getSession(sessionId);
 
         session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, modelName);
 
@@ -201,7 +211,7 @@ public class WebController {
     @Mapping("/chat/messages")
     public Result<List<Map>> messages(@Param("sessionId") String sessionId) throws Exception {
         List<Map> data = new ArrayList<>();
-        Path sessionsPath = Paths.get(agentProps.getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
+        Path sessionsPath = Paths.get(engine.getProps().getWorkspace(), ".soloncode", "sessions", sessionId).toAbsolutePath().normalize();
         File msgFile = new File(sessionsPath.toFile(), sessionId + ".messages.ndjson");
 
         if (msgFile.exists()) {
@@ -236,7 +246,7 @@ public class WebController {
             return Result.failure();
         }
 
-        AgentSession session = agentRuntime.getSession(sessionId);
+        AgentSession session = engine.getSession(sessionId);
 
         Disposable disposable = (Disposable) session.attrs().remove("disposable");
         if (disposable != null) {
@@ -279,5 +289,207 @@ public class WebController {
             // ignore
         }
         return null;
+    }
+
+    @Mapping("/chat/input")
+    public void chat_input(Context ctx, String input, String model, String sessionId) throws Throwable {
+        if (sessionId == null || sessionId.isEmpty()) {
+            sessionId = ctx.headerOrDefault("X-Session-Id", "web");
+        }
+        String sessionCwd = ctx.header("X-Session-Cwd");//工作区
+
+        if (sessionId.contains("..") || sessionId.contains("/") || sessionId.contains("\\")) {
+            ctx.status(400);
+            ctx.output("Invalid Session ID");
+            return;
+        }
+
+        if (Assert.isNotEmpty(sessionCwd)) {
+            //只有第一次传有效（后续的无效）
+            if (sessionCwd.contains("..")) {
+                ctx.status(400);
+                ctx.output("Invalid Session Cwd");
+                return;
+            }
+        }
+
+        final AgentSession session = engine.getSession(sessionId);
+        session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, model);
+        final ChatModel chatModel = engine.getModelOrMain(model);
+
+        // HITL approve/reject handling
+        String hitlAction = ctx.param("hitlAction");
+        if (Assert.isNotEmpty(hitlAction)) {
+            HITLTask task = HITL.getPendingTask(session);
+            if (task != null) {
+                if ("approve".equals(hitlAction)) {
+                    HITL.approve(session, task.getToolName());
+                } else {
+                    HITL.reject(session, task.getToolName());
+                }
+            }
+            // Resume streaming after HITL decision
+            ctx.contentType(MimeType.TEXT_EVENT_STREAM_UTF8_VALUE);
+            ctx.returnValue(buildStreamFlux(session, chatModel, sessionCwd, null));
+            return;
+        }
+
+        if (Assert.isNotEmpty(input)) {
+            ctx.contentType(MimeType.TEXT_EVENT_STREAM_UTF8_VALUE);
+            ctx.returnValue(buildStreamFlux(session, chatModel, sessionCwd, input));
+        }
+    }
+
+    private Flux<String> buildStreamFlux(AgentSession session, ChatModel chatModel, String sessionCwd, String input) {
+        Prompt prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
+
+        return engine.prompt(prompt)
+                .session(session)
+                .options(o -> {
+                    o.chatModel(chatModel);
+
+                    if (Assert.isNotEmpty(sessionCwd)) {
+                        o.toolContextPut(HarnessEngine.ATTR_CWD, sessionCwd);
+                    }
+                })
+                .stream()
+                .map(chunk -> {
+                    if (chunk instanceof ReasonChunk) {
+                        return onReasonChunk((ReasonChunk) chunk);
+                    } else if (chunk instanceof ThoughtChunk) {
+                        return onThoughtChunk((ThoughtChunk) chunk);
+                    } else if (chunk instanceof ActionEndChunk) {
+                        return onActionEndChunk((ActionEndChunk) chunk);
+                    } else if (chunk instanceof ReActChunk) {
+                        return onFinalChunk((ReActChunk) chunk);
+                    }
+
+                    return "";
+                })
+                .filter(Assert::isNotEmpty)
+                .doOnSubscribe(subscription -> {
+                    // 将 Subscription 包装为 Disposable
+                    Disposable disposable = subscription::cancel;
+
+                    // 在订阅开始时，将 disposable 存入 session
+                    session.attrs().put("disposable", disposable);
+                })
+                .onErrorResume(e -> {
+                    String message = new ONode().set("type", "error")
+                            .set("text", e.getMessage())
+                            .toJson();
+
+                    return Flux.just(message);
+                })
+                .concatWith(Flux.defer(() -> {
+                    // Check HITL state after stream completes
+                    if (HITL.isHitl(session)) {
+                        HITLTask task = HITL.getPendingTask(session);
+                        if (task != null) {
+                            String command = "bash".equals(task.getToolName())
+                                    ? String.valueOf(task.getArgs().get("command"))
+                                    : null;
+                            String hitlMsg = new ONode().set("type", "hitl")
+                                    .set("toolName", task.getToolName())
+                                    .set("command", command)
+                                    .toJson();
+                            return Flux.just(hitlMsg, "[DONE]");
+                        }
+                    }
+                    return Flux.just("[DONE]");
+                }))
+                .doFinally(signal -> {
+                    // 流结束或被取消后，清理掉引用，避免内存泄漏
+                    session.attrs().remove("disposable");
+                });
+    }
+
+    private String onReasonChunk(ReasonChunk reason) {
+        if (!reason.isToolCalls() && reason.hasContent()) {
+            if (reason.getMessage().isThinking()) {
+                return new ONode().set("type", "reason")
+                        .set("text", reason.getContent())
+                        .toJson();
+            } else {
+                return new ONode().set("type", "text")
+                        .set("text", reason.getContent())
+                        .toJson();
+            }
+        }
+
+        return "";
+    }
+
+    private String onThoughtChunk(ThoughtChunk thought) {
+        if (thought.hasMeta(TaskSkill.TOOL_MULTITASK)) {
+            // 仅在多任务并行且有内容时输出
+            String content = thought.getAssistantMessage().getResultContent();
+            if (Assert.isNotEmpty(content)) {
+                return new ONode().set("type", "text")
+                        .set("text", content)
+                        .toJson();
+            }
+        }
+
+        return "";
+    }
+
+    private String onActionEndChunk(ActionEndChunk action) {
+        if (Assert.isNotEmpty(action.getToolName())) {
+            if (TaskSkill.TOOL_MULTITASK.equals(action.getToolName()) ||
+                    TaskSkill.TOOL_TASK.equals(action.getToolName())) {
+                return "";
+            }
+
+            ONode oNode = new ONode().set("type", "action")
+                    .set("text", action.getContent());
+
+            if (Assert.isNotEmpty(action.getToolName())) {
+                if (engine.getName().equals(action.getAgentName())) {
+                    oNode.set("toolName", action.getToolName());
+                } else {
+                    oNode.set("toolName", action.getAgentName() + "/" + action.getToolName());
+                }
+                oNode.set("args", action.getArgs());
+            }
+
+            return oNode.toJson();
+        }
+
+        return "";
+    }
+
+    private String onFinalChunk(ReActChunk react) {
+        StringBuilder buf = new StringBuilder();
+
+        Long start_time = react.getTrace().getOriginalPrompt().attrAs("start_time");
+
+
+        buf.append(" (");
+
+        buf.append(react.getTrace().getOptions().getChatModel().getNameOrModel());
+
+        if (react.getTrace().getMetrics() != null) {
+            if (buf.length() > 2) {
+                buf.append(", ");
+            }
+
+            buf.append(react.getTrace().getMetrics().getTotalTokens()).append(" tokens");
+        }
+
+        if (start_time != null) {
+            if (buf.length() > 2) {
+                buf.append(", ");
+            }
+
+            long seconds = Duration.ofMillis(System.currentTimeMillis() - start_time).getSeconds();
+            buf.append(seconds).append(" seconds");
+        }
+
+        buf.append(")");
+
+        return new ONode().set("type", "text")
+                .set("text", buf.toString())
+                .toJson();
     }
 }
