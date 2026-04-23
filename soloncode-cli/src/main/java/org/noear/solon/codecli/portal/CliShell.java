@@ -32,6 +32,7 @@ import org.noear.solon.ai.agent.react.intercept.HITLTask;
 import org.noear.solon.ai.agent.react.task.ActionEndChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.react.task.ThoughtChunk;
+import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
@@ -39,6 +40,7 @@ import org.noear.solon.ai.harness.agent.TaskSkill;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.util.Assert;
+import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.lang.Preview;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -184,15 +186,52 @@ public class CliShell implements Runnable {
             System.exit(0);
             return true;
         }
+
         if ("/resume".equals(cmd)) {
             performAgentTask(session, null);
             return true;
         }
+
         if ("/clear".equals(cmd)) {
             session.clear();
             printWelcome(); // 推荐加上，让用户清屏后不至于面对一个完全的黑洞
             return true;
         }
+
+        if (cmd.startsWith("/model")) {
+            MultiMap<String> args = MultiMap.from(cmd.split(" "));
+            String flag = args.flagAt(1);
+            String currentModel = agentRuntime.getMainModel().getModel();
+
+            if ("ls".equals(flag) || Assert.isEmpty(flag)) {
+                // 列出所有可用模型，当前模型高亮标记
+                terminal.writer().println(BOLD + "Models:" + RESET);
+                for (ChatConfig m : agentProps.getModels()) {
+                    String model = m.getModel();
+                    String desc = m.getDescriptionOrModel();
+                    String suffix = model.equals(currentModel) ? " " + GREEN + "(active)" + RESET : "";
+                    String label = model.equals(desc) ? model : model + DIM + " - " + desc + RESET;
+                    terminal.writer().println("  " + label + suffix);
+                }
+                terminal.writer().println(DIM + "\nUsage: /model <name>" + RESET);
+                terminal.flush();
+            } else if ("help".equals(flag)) {
+                terminal.writer().println(BOLD + "/model" + RESET + " - Model management");
+                terminal.writer().println(DIM + "  /model" + RESET + "          List all available models");
+                terminal.writer().println(DIM + "  /model ls" + RESET + "       List all available models");
+                terminal.writer().println(DIM + "  /model <name>" + RESET + "   Switch to the specified model");
+                terminal.flush();
+            } else {
+                // 切换模型
+                agentRuntime.switchMainModel(flag);
+                String newModel = agentRuntime.getMainModel().getModel();
+                terminal.writer().println(GREEN + "Model switched to: " + RESET + BOLD + newModel + RESET);
+                terminal.flush();
+            }
+
+            return true;
+        }
+
         return false;
     }
 
@@ -345,16 +384,22 @@ public class CliShell implements Runnable {
         StringBuilder buf = new StringBuilder();
         buf.append(" (");
 
-        if (react.getTrace().getMetrics() != null) {
-            buf.append(react.getTrace().getMetrics().getTotalTokens()).append(" tokens");
-        }
+        buf.append(react.getTrace().getOptions().getChatModel().getModel());
 
-        if (start_time != null) {
-            long seconds = Duration.ofMillis(System.currentTimeMillis() - start_time).getSeconds();
+        if (react.getTrace().getMetrics() != null) {
             if (buf.length() > 2) {
                 buf.append(", ");
             }
 
+            buf.append(react.getTrace().getMetrics().getTotalTokens()).append(" tokens");
+        }
+
+        if (start_time != null) {
+            if (buf.length() > 2) {
+                buf.append(", ");
+            }
+
+            long seconds = Duration.ofMillis(System.currentTimeMillis() - start_time).getSeconds();
             buf.append(seconds).append(" seconds");
         }
 

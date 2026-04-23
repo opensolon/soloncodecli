@@ -131,8 +131,7 @@ public class WebGate implements Handler {
     private Flux<String> buildStreamFlux(AgentSession session, ChatModel chatModel, String sessionCwd, String input) {
         Prompt prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
 
-        return agentRuntime.getMainAgent()
-                .prompt(prompt)
+        return agentRuntime.prompt(prompt)
                 .session(session)
                 .options(o -> {
                     o.chatModel(chatModel);
