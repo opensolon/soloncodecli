@@ -1214,10 +1214,10 @@
             }
             if (fileAttachment) {
                 var tag = document.createElement('div');
-                tag.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(0,0,0,0.08);border:1px solid rgba(0,0,0,0.12);border-radius:6px;margin-bottom:8px;font-size:13px;color:var(--text-primary);';
+                tag.style.cssText = 'display:inline-flex;align-items:center;gap:6px;padding:6px 10px;background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.25);border-radius:6px;margin-bottom:8px;font-size:13px;color:#fff;';
                 tag.innerHTML = '<span>' + (fileAttachment.type === 'text' ? '📄' : '📎') + '</span>'
                     + '<span style="font-weight:500">' + escapeHtml(fileAttachment.name) + '</span>'
-                    + '<span style="opacity:0.65;font-size:11px">(' + formatFileSize(fileAttachment.size) + ')</span>';
+                    + '<span style="opacity:0.7;font-size:11px">(' + formatFileSize(fileAttachment.size) + ')</span>';
                 bubble.appendChild(tag);
             }
             var span = document.createElement('span');
