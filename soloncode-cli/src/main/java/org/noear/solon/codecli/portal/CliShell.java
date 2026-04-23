@@ -33,6 +33,7 @@ import org.noear.solon.ai.agent.react.task.ActionEndChunk;
 import org.noear.solon.ai.agent.react.task.ReasonChunk;
 import org.noear.solon.ai.agent.react.task.ThoughtChunk;
 import org.noear.solon.ai.chat.ChatConfig;
+import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
@@ -121,8 +122,9 @@ public class CliShell implements Runnable {
             }
         }
 
-        printWelcome();
-        return agentRuntime.getSession(sessionId);
+        AgentSession session = agentRuntime.getSession(sessionId);
+        printWelcome(session);
+        return session;
     }
 
     /**
@@ -194,16 +196,18 @@ public class CliShell implements Runnable {
 
         if ("/clear".equals(cmd)) {
             session.clear();
-            printWelcome(); // 推荐加上，让用户清屏后不至于面对一个完全的黑洞
+            printWelcome(session); // 推荐加上，让用户清屏后不至于面对一个完全的黑洞
             return true;
         }
 
         if (cmd.startsWith("/model")) {
             MultiMap<String> args = MultiMap.from(cmd.split(" "));
             String flag = args.flagAt(1);
-            String currentModel = agentRuntime.getMainModel().getModel();
 
             if ("ls".equals(flag) || Assert.isEmpty(flag)) {
+                String currentModel = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+                currentModel = agentRuntime.getModelOrMain(currentModel).getModel();
+
                 // 列出所有可用模型，当前模型高亮标记
                 terminal.writer().println(BOLD + "Models:" + RESET);
                 for (ChatConfig m : agentProps.getModels()) {
@@ -223,9 +227,10 @@ public class CliShell implements Runnable {
                 terminal.flush();
             } else {
                 // 切换模型
-                agentRuntime.switchMainModel(flag);
-                String newModel = agentRuntime.getMainModel().getModel();
-                terminal.writer().println(GREEN + "Model switched to: " + RESET + BOLD + newModel + RESET);
+                session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, flag);
+                session.updateSnapshot();
+
+                terminal.writer().println(GREEN + "Model switched to: " + RESET + BOLD + flag + RESET);
                 terminal.flush();
             }
 
@@ -242,6 +247,9 @@ public class CliShell implements Runnable {
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
         final AtomicBoolean isFirstConversation = new AtomicBoolean(true);
 
+        String modelSelected = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+        ChatModel chatModel = agentRuntime.getModelOrMain(modelSelected);
+
         while (true) {
             // 简化状态提示：只在非首次且任务未完成时打印等待符
             if (currentInput == null && !isTaskCompleted.get()) {
@@ -257,6 +265,9 @@ public class CliShell implements Runnable {
 
             Disposable disposable = agentRuntime.prompt(prompt)
                     .session(session)
+                    .options(o -> {
+                        o.chatModel(chatModel);
+                    })
                     .stream()
                     .subscribeOn(Schedulers.boundedElastic())
                     .doOnNext(chunk -> {
@@ -329,7 +340,7 @@ public class CliShell implements Runnable {
 
             while (latch.getCount() > 0) {
                 int c = terminal.reader().read(50);
-                if(c > 0) {
+                if (c > 0) {
                     if (c == 27 || c == '\r' || c == '\n') {
                         disposable.dispose();
                         isInterrupted.set(true);
@@ -553,26 +564,35 @@ public class CliShell implements Runnable {
     }
 
 
-    protected void printWelcome() {
-//        terminal.puts(InfoCmp.Capability.clear_screen);
-//        terminal.flush();
+    protected void printWelcome(AgentSession session) {
+        final ChatModel chatModel;
+
+        if (session == null) {
+            chatModel = agentRuntime.getMainModel();
+        } else {
+            String modelSelected = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+            chatModel = agentRuntime.getModelOrMain(modelSelected);
+        }
 
         String path = new File(agentRuntime.getProps().getWorkspace()).getAbsolutePath();
         // 连带版本号，紧凑排列
-        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + agentRuntime.getMainModel().getModel() + RESET);
+        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(DIM + "Tips: " + RESET + "(esc)" + DIM + " interrupt | " +
-                RESET + "'/exit'" + DIM + ": quit | " +
-                RESET + "'/resume'" + DIM + ": resume | " +
-                RESET + "'/clear'" + DIM + ": reset" + RESET);
+                RESET + "'/exit'" + DIM + " | " +
+                RESET + "'/resume'" + DIM + " | " +
+                RESET + "'/clear'" + DIM + " | " +
+                RESET + "'/model'" + DIM + RESET);
 
         terminal.flush();
     }
 
     public void printWelcome(String text) {
+        final ChatModel chatModel = agentRuntime.getMainModel();
+
         String path = new File(agentRuntime.getProps().getWorkspace()).getAbsolutePath();
         // 连带版本号，紧凑排列
-        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + agentRuntime.getMainModel().getModel() + RESET);
+        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(text);
         terminal.flush();
