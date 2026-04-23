@@ -126,7 +126,7 @@ public class WsGate extends SimpleWebSocketListener {
 
                 String msg2 = new ONode().set("type", "done")
                         .set("sessionId", session.getSessionId())
-                        .set("modelName", kernel.getMainModel().getModel())
+                        .set("modelName", kernel.getMainModel().getConfig().getNameOrModel())
                         .set("totalTokens", 0)
                         .set("elapsedMs", 0).toJson();
 
@@ -218,7 +218,7 @@ public class WsGate extends SimpleWebSocketListener {
 
         String msg2 = new ONode().set("type", "done")
                 .set("sessionId", finalSessionId)
-                .set("modelName", chunk.getTrace().getOptions().getChatModel().getModel())
+                .set("modelName", chunk.getTrace().getOptions().getChatModel().getNameOrModel())
                 .set("totalTokens", chunk.getTrace().getMetrics().getTotalTokens())
                 .set("elapsedMs", System.currentTimeMillis() - start_time).toJson();
 
@@ -307,9 +307,9 @@ public class WsGate extends SimpleWebSocketListener {
                     }
 
                     // 重建 ChatModel 并注入 kernel
-                    agentPros.removeModel(agentPros.getChatModel().getModel());
+                    agentPros.removeModel(agentPros.getChatModel().getNameOrModel());
                     agentPros.addModel(agentPros.getChatModel());
-                    kernel.switchMainModel(agentPros.getChatModel().getModel());
+                    kernel.switchMainModel(agentPros.getChatModel().getNameOrModel());
 
                     LOG.info("[WS] Config updated: model={}", model);
 
@@ -347,7 +347,7 @@ public class WsGate extends SimpleWebSocketListener {
             // 读取已有配置，保留未更新的字段
             String existApiUrl = agentPros.getChatModel() != null ? agentPros.getChatModel().getApiUrl() : null;
             String existApiKey = agentPros.getChatModel() != null ? agentPros.getChatModel().getApiKey() : null;
-            String existModel = agentPros.getChatModel() != null ? agentPros.getChatModel().getModel() : null;
+            String existModel = agentPros.getChatModel() != null ? agentPros.getChatModel().getNameOrModel() : null;
 
             String finalApiUrl = apiUrl != null ? apiUrl : existApiUrl;
             String finalApiKey = apiKey != null ? apiKey : existApiKey;

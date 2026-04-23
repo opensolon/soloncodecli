@@ -206,12 +206,12 @@ public class CliShell implements Runnable {
 
             if ("ls".equals(flag) || Assert.isEmpty(flag)) {
                 String currentModel = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
-                currentModel = agentRuntime.getModelOrMain(currentModel).getModel();
+                currentModel = agentRuntime.getModelOrMain(currentModel).getNameOrModel();
 
                 // 列出所有可用模型，当前模型高亮标记
                 terminal.writer().println(BOLD + "Models:" + RESET);
                 for (ChatConfig m : agentProps.getModels()) {
-                    String model = m.getModel();
+                    String model = m.getNameOrModel();
                     String desc = m.getDescriptionOrModel();
                     String suffix = model.equals(currentModel) ? " " + GREEN + "(active)" + RESET : "";
                     String label = model.equals(desc) ? model : model + DIM + " - " + desc + RESET;
@@ -401,7 +401,7 @@ public class CliShell implements Runnable {
         StringBuilder buf = new StringBuilder();
         buf.append(" (");
 
-        buf.append(react.getTrace().getOptions().getChatModel().getModel());
+        buf.append(react.getTrace().getOptions().getChatModel().getNameOrModel());
 
         if (react.getTrace().getMetrics() != null) {
             if (buf.length() > 2) {
@@ -582,7 +582,7 @@ public class CliShell implements Runnable {
 
         String path = new File(agentRuntime.getProps().getWorkspace()).getAbsolutePath();
         // 连带版本号，紧凑排列
-        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getModel() + RESET);
+        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getNameOrModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(DIM + "Tips: " + RESET + "(esc)" + DIM + " interrupt | " +
                 RESET + "'/exit'" + DIM + " | " +
@@ -598,7 +598,7 @@ public class CliShell implements Runnable {
 
         String path = new File(agentRuntime.getProps().getWorkspace()).getAbsolutePath();
         // 连带版本号，紧凑排列
-        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getModel() + RESET);
+        terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getNameOrModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(text);
         terminal.flush();

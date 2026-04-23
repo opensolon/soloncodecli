@@ -255,7 +255,7 @@ public class WebGate implements Handler {
 
         buf.append(" (");
 
-        buf.append(react.getTrace().getOptions().getChatModel().getModel());
+        buf.append(react.getTrace().getOptions().getChatModel().getNameOrModel());
 
         if (react.getTrace().getMetrics() != null) {
             if (buf.length() > 2) {

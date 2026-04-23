@@ -160,7 +160,7 @@ public class WebController {
 
         for (ChatConfig config : agentProps.getModels()) {
             Map<String, String> item = new LinkedHashMap<>();
-            item.put("model", config.getModel());
+            item.put("model", config.getNameOrModel());
             item.put("description", config.getDescriptionOrModel());
             list.add(item);
         }
@@ -168,11 +168,12 @@ public class WebController {
 
         if (Assert.isNotEmpty(sessionId)) {
             AgentSession session = agentRuntime.getSession(sessionId);
-            String selected = session.getContext().getOrDefault(AgentFlags.VAR_MODEL_SELECTED, agentRuntime.getMainModel().getModel());
+            String selected = session.getContext().getOrDefault(AgentFlags.VAR_MODEL_SELECTED,
+                    agentRuntime.getMainModel().getNameOrModel());
 
             data.put("selected", selected);
         } else {
-            data.put("selected", agentRuntime.getMainModel().getModel());
+            data.put("selected", agentRuntime.getMainModel().getNameOrModel());
         }
 
         return Result.succeed(data);
