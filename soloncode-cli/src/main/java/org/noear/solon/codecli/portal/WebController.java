@@ -341,7 +341,13 @@ public class WebController {
     }
 
     private Flux<String> buildStreamFlux(AgentSession session, ChatModel chatModel, String sessionCwd, String input) {
-        Prompt prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
+        final Prompt prompt;
+        if("/resume".equals(input)){
+            prompt = Prompt.of().attrPut("start_time", System.currentTimeMillis());
+        } else {
+            prompt = Prompt.of(input).attrPut("start_time", System.currentTimeMillis());
+        }
+
 
         return engine.prompt(prompt)
                 .session(session)
@@ -375,6 +381,8 @@ public class WebController {
                     session.attrs().put("disposable", disposable);
                 })
                 .onErrorResume(e -> {
+                    LOG.error("Task fail: {}", e.getMessage(), e);
+
                     String message = new ONode().set("type", "error")
                             .set("text", e.getMessage())
                             .toJson();

@@ -292,6 +292,8 @@ public class CliShell implements Runnable {
                         }
                     })
                     .doOnError(e -> {
+                        LOG.error("Task fail: {}", e.getMessage(), e);
+
                         terminal.writer().println("\n" + RED + "── Error ────────────────" + RESET);
                         terminal.writer().println(e.getMessage());
                         terminal.flush();
