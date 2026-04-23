@@ -255,6 +255,14 @@
         .messages-wrap::-webkit-scrollbar-thumb, .sidebar-list::-webkit-scrollbar-thumb, .thinking-block-body::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
         .messages-wrap::-webkit-scrollbar-track, .sidebar-list::-webkit-scrollbar-track, .thinking-block-body::-webkit-scrollbar-track { background: transparent; }
 
+        /* Voice Input */
+        .voice-btn { width: 36px; height: 36px; border-radius: 50%; border: none; background: transparent; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; transition: all 0.2s; flex-shrink: 0; }
+        .voice-btn:hover { background: var(--bg-hover); color: var(--accent); }
+        .voice-btn.recording { background: #ef4444; color: #fff; animation: voice-pulse 1.2s ease-in-out infinite; }
+        .voice-btn.recording:hover { background: #dc2626; color: #fff; }
+        .voice-btn.hidden { display: none; }
+        @keyframes voice-pulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.4); } 50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+
         @media (max-width: 768px) { .sidebar { display: none; } }
     </style>
 </head>
@@ -304,9 +312,14 @@
                         </div>
                         <div class="model-dropdown" id="welcomeModelDropdown"></div>
                     </div>
-                    <button class="welcome-send-btn" id="welcomeSendBtn" title="发送">
-                        <i class="layui-icon layui-icon-release"></i>
-                    </button>
+                    <div style="display:flex;align-items:center;gap:6px">
+                        <button class="voice-btn hidden" id="welcomeVoiceBtn" title="语音输入">
+                            <i class="layui-icon layui-icon-speaker"></i>
+                        </button>
+                        <button class="welcome-send-btn" id="welcomeSendBtn" title="发送">
+                            <i class="layui-icon layui-icon-release"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -330,9 +343,14 @@
                             </div>
                             <div class="model-dropdown" id="chatModelDropdown"></div>
                         </div>
-                        <button class="send-btn" id="chatSendBtn" title="发送">
-                            <i class="layui-icon layui-icon-release"></i>
-                        </button>
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <button class="voice-btn hidden" id="chatVoiceBtn" title="语音输入">
+                                <i class="layui-icon layui-icon-speaker"></i>
+                            </button>
+                            <button class="send-btn" id="chatSendBtn" title="发送">
+                                <i class="layui-icon layui-icon-release"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -788,6 +806,102 @@
 
         /* Load on startup */
         loadSessionHistory();
+
+        /* ===== Voice Input (Web Speech API) ===== */
+        var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var recognition = null;
+        var voiceRecording = false;
+        var voiceTargetInput = null; // 当前语音目标 textarea
+        var voiceBaseText = '';      // 开始录音时 textarea 已有文本
+
+        var welcomeVoiceBtn = document.getElementById('welcomeVoiceBtn');
+        var chatVoiceBtn = document.getElementById('chatVoiceBtn');
+
+        function initVoice() {
+            if (!SpeechRecognition) return; // 浏览器不支持
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-CN';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+
+            recognition.onresult = function(event) {
+                var interimTranscript = '';
+                var finalTranscript = '';
+                for (var i = event.resultIndex; i < event.results.length; i++) {
+                    var transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                if (voiceTargetInput) {
+                    voiceTargetInput.value = voiceBaseText + finalTranscript + interimTranscript;
+                    autoResize(voiceTargetInput);
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.warn('Speech recognition error:', event.error);
+                stopVoiceRecording();
+            };
+
+            recognition.onend = function() {
+                // 如果还在录音状态（非手动停止），自动重启（continuous 模式下浏览器可能自动断开）
+                if (voiceRecording) {
+                    try { recognition.start(); } catch(e) { stopVoiceRecording(); }
+                }
+            };
+
+            // 显示语音按钮
+            welcomeVoiceBtn.classList.remove('hidden');
+            chatVoiceBtn.classList.remove('hidden');
+        }
+
+        function startVoiceRecording(inputEl) {
+            if (!recognition) return;
+            if (voiceRecording) { stopVoiceRecording(); return; }
+
+            voiceTargetInput = inputEl;
+            voiceBaseText = inputEl.value;
+            voiceRecording = true;
+
+            try { recognition.start(); } catch(e) {}
+
+            // 更新按钮状态
+            var btn = (inputEl === welcomeInput) ? welcomeVoiceBtn : chatVoiceBtn;
+            btn.classList.add('recording');
+            btn.title = '正在录音，点击停止';
+        }
+
+        function stopVoiceRecording() {
+            if (!recognition) return;
+            voiceRecording = false;
+            try { recognition.stop(); } catch(e) {}
+
+            // 更新按钮状态
+            welcomeVoiceBtn.classList.remove('recording');
+            chatVoiceBtn.classList.remove('recording');
+            welcomeVoiceBtn.title = '语音输入';
+            chatVoiceBtn.title = '语音输入';
+
+            // 保留识别到的文本，重置基线以便下次追加
+            if (voiceTargetInput) {
+                voiceBaseText = voiceTargetInput.value;
+            }
+            voiceTargetInput = null;
+        }
+
+        welcomeVoiceBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            startVoiceRecording(welcomeInput);
+        });
+        chatVoiceBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            startVoiceRecording(chatInput);
+        });
+
+        initVoice();
 
         /* ===== Model Selector ===== */
         var modelList = [];        // [{name, desc}, ...] (shared, only loaded once)
