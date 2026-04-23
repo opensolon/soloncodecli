@@ -371,7 +371,7 @@ public class WebController {
             for (UploadedFile attachment : attachments) {
                 String fileName = attachment.getName();
                 if (fileName != null && !fileName.contains("..") && !fileName.contains("/") && !fileName.contains("\\")) {
-                    String ext = fileName.contains(".") ? fileName.substring(fileName.lastIndexOf(".")).toLowerCase() : "";
+                    String ext = "." + attachment.getExtension();
 
                     // All files: save to workspace first
                     Path savePath = Paths.get(engine.getProps().getWorkspace(), fileName).toAbsolutePath().normalize();
