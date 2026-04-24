@@ -23,7 +23,9 @@ soloncode:
 
   cliPrintSimplified: true
 
-#  skillPools: # 技能池（可以多个）
+  userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; SolonCode/1.0; +https://solon.noear.org/)"
+
+    #  skillPools: # 技能池（可以多个）
 #    "@media": "/path/to/media-skills"
 
   modelRetries: 3
@@ -34,7 +36,6 @@ soloncode:
       apiKey: "******"
       model: "glm-5.0"
       timeout: "300s"
-      userAgent: "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; SolonCode/1.0; +https://solon.noear.org/)"
 #      defaultOptions:
 #        enable_thinking: false #不同模型可能不同
 #        temperature: 0.2
