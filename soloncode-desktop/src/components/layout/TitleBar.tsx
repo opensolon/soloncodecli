@@ -4,6 +4,7 @@
  */
 import { DropdownMenu, type MenuItem } from '../common/DropdownMenu';
 import { Icon } from '../common/Icon';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import './TitleBar.css';
 
 interface TitleBarProps {
@@ -155,8 +156,19 @@ export function TitleBar({
     }
   };
 
+  const handleWindowAction = async (action: 'minimize' | 'toggleMaximize' | 'close') => {
+    try {
+      const win = getCurrentWindow();
+      if (action === 'minimize') await win.minimize();
+      else if (action === 'toggleMaximize') await win.toggleMaximize();
+      else await win.close();
+    } catch (err) {
+      console.error('[TitleBar] 窗口操作失败:', err);
+    }
+  };
+
   return (
-    <div className="title-bar" data-tauri-drag-region>
+    <div className="title-bar">
       {/* 左侧菜单 */}
       <div className="title-bar-left">
         <DropdownMenu
@@ -220,6 +232,19 @@ export function TitleBar({
         >
           <Icon name="swap" size={14} />
         </button>
+
+        {/* 窗口控制按钮 */}
+        <div className="window-controls">
+          <button className="window-btn minimize" onClick={() => handleWindowAction('minimize')} title="最小化">
+            &#x2500;
+          </button>
+          <button className="window-btn maximize" onClick={() => handleWindowAction('toggleMaximize')} title="最大化">
+            &#x25A1;
+          </button>
+          <button className="window-btn close" onClick={() => handleWindowAction('close')} title="关闭">
+            &#x2715;
+          </button>
+        </div>
       </div>
     </div>
   );

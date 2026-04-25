@@ -55,11 +55,11 @@
 }
 
 .git-status.modified {
-  color: #e2c08d;
+  color: #89d185;
 }
 
 .git-status.added {
-  color: #89d185;
+  color: #e8a855;
 }
 
 .git-status.deleted {
@@ -130,4 +130,33 @@
 /* 剪切项半透明 */
 .file-node.cut-item {
   opacity: 0.5;
+}
+
+/* Git 状态 - 文件名颜色 */
+.file-node.git-modified .file-name {
+  color: #89d185;
+}
+
+.file-node.git-modified .file-icon {
+  color: #89d185;
+}
+
+.file-node.git-added .file-name {
+  color: #e8a855;
+}
+
+.file-node.git-added .file-icon {
+  color: #e8a855;
+}
+
+.file-node.git-deleted .file-name {
+  color: #c74e39;
+}
+
+.file-node.git-deleted .file-icon {
+  color: #c74e39;
+}
+
+.file-node.git-untracked .file-name {
+  color: var(--cb-text-secondary);
 }

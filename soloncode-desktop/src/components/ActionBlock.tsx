@@ -13,6 +13,17 @@ interface ActionBlockProps {
   theme?: Theme;
 }
 
+function buildTitle(toolName: string, args?: Record<string, unknown>): string {
+  let title = toolName;
+  if (args && Object.keys(args).length > 0) {
+    const params = Object.entries(args)
+      .map(([k, v]) => `${k}: "${typeof v === 'string' ? v : JSON.stringify(v)}"`)
+      .join(', ');
+    title += `(${params})`;
+  }
+  return title.length > 20 ? title.slice(0, 20) + '...' : title;
+}
+
 export function ActionBlock({ text, toolName, args, theme }: ActionBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -23,17 +34,11 @@ export function ActionBlock({ text, toolName, args, theme }: ActionBlockProps) {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <span className="action-block-icon">⚡</span>
-        <span className="action-block-title">{toolName || '工具执行'}</span>
+        <span className="action-block-title" title={toolName || ''}>{buildTitle(toolName || '工具执行', args)}</span>
         <span className={`action-block-arrow ${isExpanded ? 'expanded' : ''}`}>▼</span>
       </div>
       {isExpanded && (
         <div className="action-block-content">
-          {args && (
-            <div className="action-block-args">
-              <div className="action-block-args-label">参数</div>
-              <pre>{JSON.stringify(args, null, 2)}</pre>
-            </div>
-          )}
           <div className="action-block-result">
             <ReactMarkdown
               remarkPlugins={[remarkBreaks]}

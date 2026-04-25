@@ -15,7 +15,7 @@ interface ActivityItem {
 }
 
 const activities: ActivityItem[] = [
-  { id: 'explorer', icon: 'explorer', title: '资源管理器' },
+  { id: 'explorer', icon: 'explorer', title: '项目管理' },
   { id: 'git', icon: 'git', title: '源代码管理' },
   { id: 'sessions', icon: 'sessions', title: '会话' },
   { id: 'skills', icon: 'skills', title: 'Skills' },

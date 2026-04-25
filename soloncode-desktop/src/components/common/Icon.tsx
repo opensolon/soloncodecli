@@ -3,6 +3,8 @@ import './Icon.css';
 export type IconName =
   // 文件类型
   | 'file' | 'folder' | 'folder-open' | 'folder-root' | 'folder-add'
+  | 'file-ts' | 'file-js' | 'file-json' | 'file-css' | 'file-html' | 'file-md'
+  | 'file-java' | 'file-rs' | 'file-py' | 'file-img' | 'file-lock' | 'file-yml'
   // 功能图标
   | 'explorer' | 'search' | 'git' | 'extensions' | 'sessions' | 'settings'
   | 'chat' | 'terminal' | 'code' | 'skills' | 'agents'
@@ -25,6 +27,18 @@ interface IconProps {
 const iconPaths: Record<IconName, string> = {
   // 文件类型
   'file': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm4 14H6V4h7v5h5v7z',
+  'file-ts': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM9 15h6M9 12h4',
+  'file-js': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM9 12h2a2 2 0 0 1 0 4H9M13 15a2 2 0 0 0 2 2',
+  'file-json': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 11h2M14 11h2M10 15h4',
+  'file-css': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 11h3a2 2 0 0 1 0 4H9',
+  'file-html': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 13l2-2-2-2M14 9l2 2-2 2',
+  'file-md': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 13l2-3 2 3 3-5',
+  'file-java': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM10 15V11M10 11h2.5a1.5 1.5 0 0 0 0-3H10',
+  'file-rs': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM9 11a3 3 0 0 1 6 0c0 2-3 2-3 4',
+  'file-py': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM9 11h6M9 14h6',
+  'file-img': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 15l3-3 2 2 3-4',
+  'file-lock': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM10 13v-2a2 2 0 0 1 4 0v2M9 13h6v3H9z',
+  'file-yml': 'M14 2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM8 11l3 4M14 11l-3 4M8 8h8',
   'folder': 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z',
   'folder-open': 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v2H2',
   'folder-root': 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z M12 9v4M10 11h4',
@@ -108,6 +122,19 @@ export function Icon({ name, size = 16, className = '' }: IconProps) {
 // 文件图标映射
 export function getFileIconName(filename: string): IconName {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-  // 所有文件都用统一的文件图标
-  return 'file';
+  const map: Record<string, IconName> = {
+    ts: 'file-ts', tsx: 'file-ts',
+    js: 'file-js', jsx: 'file-js', mjs: 'file-js',
+    json: 'file-json',
+    css: 'file-css', scss: 'file-css', less: 'file-css',
+    html: 'file-html', htm: 'file-html',
+    md: 'file-md', mdx: 'file-md',
+    java: 'file-java',
+    rs: 'file-rs',
+    py: 'file-py',
+    png: 'file-img', jpg: 'file-img', jpeg: 'file-img', gif: 'file-img', svg: 'file-img', ico: 'file-img', webp: 'file-img',
+    lock: 'file-lock',
+    yml: 'file-yml', yaml: 'file-yml', toml: 'file-yml',
+  };
+  return map[ext] || 'file';
 }

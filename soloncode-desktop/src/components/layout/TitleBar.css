@@ -118,3 +118,34 @@
     display: inline;
   }
 }
+
+/* 窗口控制按钮 */
+.window-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-left: 8px;
+}
+
+.window-btn {
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--cb-text-primary, #cccccc);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.window-btn:hover {
+  background: var(--cb-vscode-list-hoverBackground, #2a2d2e);
+}
+
+.window-btn.close:hover {
+  background: #e81123;
+  color: white;
+}

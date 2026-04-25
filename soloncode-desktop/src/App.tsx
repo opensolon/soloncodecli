@@ -29,6 +29,7 @@ interface FileTreeNode {
   type: 'folder' | 'file';
   path: string;
   children?: FileTreeNode[];
+  gitStatus?: 'modified' | 'added' | 'deleted' | 'untracked';
 }
 
 // 将 FileInfo 转换为 FileTreeNode
@@ -39,6 +40,22 @@ function convertToFileTree(files: FileInfo[]): FileTreeNode[] {
     path: f.path,
     children: f.children ? convertToFileTree(f.children) : undefined,
   }));
+}
+
+// 将 git status 合并到文件树（git paths 是相对路径，file tree 是绝对路径）
+function mergeGitStatus(files: FileTreeNode[], gitFiles: { path: string; status: 'modified' | 'added' | 'deleted' | 'untracked' }[], workspacePath: string): FileTreeNode[] {
+  // 统一用 / 分隔的相对路径做 key
+  const normalize = (p: string) => p.replace(/\\/g, '/');
+  const wsPrefix = normalize(workspacePath).replace(/\/$/, '') + '/';
+  const map = new Map(gitFiles.map(f => [normalize(f.path), f.status]));
+  return files.map(f => {
+    const relPath = normalize(f.path).replace(wsPrefix, '');
+    return {
+      ...f,
+      gitStatus: map.get(relPath) || map.get(normalize(f.path)),
+      children: f.children ? mergeGitStatus(f.children, gitFiles, workspacePath) : undefined,
+    };
+  });
 }
 
 // 空 Git 状态（初始值）
@@ -773,7 +790,7 @@ function App() {
       case 'explorer':
         return (
           <ExplorerPanel
-            files={workspaceFiles}
+            files={mergeGitStatus(workspaceFiles, gitStatus.files, workspacePath || '')}
             workspaceName={workspaceName}
             hasWorkspace={!!workspacePath}
             workspacePath={workspacePath || undefined}
