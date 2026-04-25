@@ -49,6 +49,28 @@ export interface DbMcpServer {
   sortOrder: number;
 }
 
+/** Skill 配置 */
+export interface DbSkill {
+  id?: number;
+  name: string;
+  description: string;
+  path: string;
+  enabled: number;     // 0 | 1
+  source: string;      // 'manual' | 'discovered'
+  sortOrder: number;
+}
+
+/** Agent 配置 */
+export interface DbAgent {
+  id?: number;
+  name: string;
+  description: string;
+  path: string;
+  enabled: number;     // 0 | 1
+  source: string;      // 'manual' | 'discovered'
+  sortOrder: number;
+}
+
 // ==================== 数据库定义 ====================
 
 class SolonCodeDatabase extends Dexie {
@@ -57,6 +79,8 @@ class SolonCodeDatabase extends Dexie {
   globalSettings!: Table<DbGlobalSetting>;
   providers!: Table<DbProvider>;
   mcpServers!: Table<DbMcpServer>;
+  skills!: Table<DbSkill>;
+  agents!: Table<DbAgent>;
 
   constructor() {
     super('SolonCodeDB');
@@ -66,6 +90,14 @@ class SolonCodeDatabase extends Dexie {
       globalSettings: 'key',
       providers: 'id, type, enabled, sortOrder',
       mcpServers: '++id, name, enabled, sortOrder',
+    });
+    // v4: 新增 skills 表
+    this.version(4).stores({
+      skills: '++id, name, enabled, source, sortOrder',
+    });
+    // v5: 新增 agents 表
+    this.version(5).stores({
+      agents: '++id, name, enabled, source, sortOrder',
     });
   }
 }

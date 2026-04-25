@@ -2,6 +2,7 @@
  * 设置服务 - 持久化到 IndexedDB 结构化表
  */
 import { db, getSetting, setSetting } from '../db';
+import { fileService } from './fileService';
 
 // ==================== 类型定义 ====================
 
@@ -11,6 +12,27 @@ export interface McpServerConfig {
   command: string;
   args: string[];
   enabled: boolean;
+}
+
+export type SkillGroup = 'global' | 'project' | 'claude' | 'codex';
+
+export interface SkillConfig {
+  id?: number;
+  name: string;
+  description: string;
+  path: string;
+  enabled: boolean;
+  source: 'manual' | 'discovered';
+  group: SkillGroup;
+}
+
+export interface AgentConfig {
+  id?: number;
+  name: string;
+  description: string;
+  path: string;
+  enabled: boolean;
+  source: 'manual' | 'discovered';
 }
 
 export type ProviderType = 'zhipu' | 'openai' | 'deepseek' | 'claude' | 'custom';
@@ -88,6 +110,8 @@ export interface GeneralSettings {
 export interface AppSettings extends GeneralSettings {
   providers: ModelProvider[];
   mcpServers: McpServerConfig[];
+  skills: SkillConfig[];
+  agents: AgentConfig[];
 }
 
 let _providerIdCounter = 0;
@@ -122,7 +146,95 @@ const defaultGeneral: GeneralSettings = {
 
 // ==================== 服务层 ====================
 
+/**
+ * 简易 YAML 解析器 — 仅支持最多两层缩进的 key: value 结构
+ * 返回 Record<string, Record<string, string>> 形式的嵌套对象
+ */
+export function parseSimpleYaml(text: string): Record<string, Record<string, string>> {
+  const result: Record<string, Record<string, string>> = {};
+  let currentSection = '';
+
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\r$/, '');
+    // 跳过空行和注释
+    if (!line.trim() || line.trim().startsWith('#')) continue;
+
+    const indent = line.length - line.trimStart().length;
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+
+    const key = line.slice(0, colonIdx).trim();
+    const value = line.slice(colonIdx + 1).trim();
+
+    if (indent === 0) {
+      // 顶层 section
+      currentSection = key;
+      if (!result[currentSection]) {
+        result[currentSection] = {};
+      }
+      // 如果同一行有值（如 `model: gpt-4`），存为 _value
+      if (value) {
+        result[currentSection]['_value'] = value;
+      }
+    } else if (currentSection) {
+      // 子级 key-value
+      result[currentSection][key] = value;
+    }
+  }
+  return result;
+}
+
 export const settingsService = {
+  /**
+   * 从工作区配置文件加载设置
+   * 读取 {workspacePath}/.soloncode/config.yml，解析后返回部分 GeneralSettings
+   * 文件不存在时返回 null（不报错）；YAML 解析失败时返回 null 并 console.warn
+   */
+  async loadConfigFile(workspacePath: string): Promise<Partial<GeneralSettings> | null> {
+    const configPath = `${workspacePath}/.soloncode/config.yml`;
+
+    // 检查文件是否存在，不存在则静默返回 null
+    try {
+      const exists = await fileService.pathExists(configPath);
+      if (!exists) return null;
+    } catch {
+      return null;
+    }
+
+    // 读取文件内容
+    let content: string;
+    try {
+      content = await fileService.readFile(configPath);
+    } catch {
+      return null;
+    }
+
+    // 解析 YAML
+    try {
+      const parsed = parseSimpleYaml(content);
+      const result: Partial<GeneralSettings> = {};
+
+      // agent 段 → maxSteps
+      if (parsed.agent) {
+        if (parsed.agent.maxSteps) {
+          const steps = parseInt(parsed.agent.maxSteps, 10);
+          if (!isNaN(steps) && steps > 0) {
+            result.maxSteps = steps;
+          }
+        }
+      }
+
+      // model 段的 provider/apiUrl/model 字段属于 ModelProvider 级别，
+      // 不直接映射到 GeneralSettings。调用方（App.tsx）可通过
+      // parseConfigFile() 获取原始解析结果来处理 provider 更新。
+
+      return Object.keys(result).length > 0 ? result : null;
+    } catch (e) {
+      console.warn('[settingsService] 解析配置文件失败:', configPath, e);
+      return null;
+    }
+  },
+
   /**
    * 加载完整设置（常规 + providers + mcpServers）
    */
@@ -215,14 +327,25 @@ export const settingsService = {
       enabled: !!r.enabled,
     }));
 
-    return { ...general, providers, mcpServers };
+    // 4. Skills
+    const skillRows = await db.skills.toArray();
+    const skills: SkillConfig[] = skillRows.map(r => ({
+      id: r.id,
+      name: r.name,
+      description: r.description,
+      path: r.path,
+      enabled: !!r.enabled,
+      source: r.source as 'manual' | 'discovered',
+    }));
+
+    return { ...general, providers, mcpServers, skills, agents: [] };
   },
 
   /**
    * 保存完整设置
    */
   async save(settings: AppSettings): Promise<void> {
-    const { providers, mcpServers, ...general } = settings;
+    const { providers, mcpServers, skills, agents, ...general } = settings;
 
     // 1. 常规设置
     await db.globalSettings.put({ key: 'general', value: JSON.stringify(general) });
@@ -253,6 +376,141 @@ export const settingsService = {
         enabled: s.enabled ? 1 : 0,
         sortOrder: 0,
       });
+    }
+
+    // 4. Skills：全量覆盖
+    await db.skills.clear();
+    for (let i = 0; i < (skills || []).length; i++) {
+      const s = (skills || [])[i];
+      await db.skills.add({
+        name: s.name,
+        description: s.description,
+        path: s.path,
+        enabled: s.enabled ? 1 : 0,
+        source: s.source,
+        sortOrder: i,
+      });
+    }
+
+    // 5. Agents：全量覆盖
+    await db.agents.clear();
+    for (let i = 0; i < (agents || []).length; i++) {
+      const a = (agents || [])[i];
+      await db.agents.add({
+        name: a.name,
+        description: a.description,
+        path: a.path,
+        enabled: a.enabled ? 1 : 0,
+        source: a.source,
+        sortOrder: i,
+      });
+    }
+  },
+
+  /**
+   * 扫描工作区 .soloncode/skills/ 目录，自动发现 skills
+   * 每个包含 SKILL.md 的子目录视为一个 skill
+   */
+  async scanSkillsDir(workspacePath: string): Promise<SkillConfig[]> {
+    const skillsDir = `${workspacePath}/.soloncode/skills`;
+    try {
+      const exists = await fileService.pathExists(skillsDir);
+      if (!exists) return [];
+      const entries = await fileService.listDirectory(skillsDir);
+      const skills: SkillConfig[] = [];
+      for (const entry of entries) {
+        if (entry.isDir) {
+          const skillMdPath = `${entry.path}/SKILL.md`;
+          const hasMd = await fileService.pathExists(skillMdPath);
+          if (hasMd) {
+            skills.push({
+              name: entry.name,
+              description: '',
+              path: entry.path,
+              enabled: true,
+              source: 'discovered',
+              group: 'project',
+            });
+          }
+        }
+      }
+      return skills;
+    } catch (err) {
+      console.warn('[settingsService] 扫描 skills 目录失败:', err);
+      return [];
+    }
+  },
+
+  /**
+   * 扫描工作区中的第三方 skill 目录（如 .claude/commands/, .codex/）
+   * 每个 .md 文件视为一个 skill
+   */
+  async scanThirdPartySkills(workspacePath: string): Promise<SkillConfig[]> {
+    const scanConfigs: Array<{ dir: string; group: SkillGroup; ext: string }> = [
+      { dir: '.claude/commands', group: 'claude', ext: '.md' },
+      { dir: '.codex', group: 'codex', ext: '.md' },
+    ];
+
+    const skills: SkillConfig[] = [];
+
+    for (const { dir, group, ext } of scanConfigs) {
+      try {
+        const fullPath = `${workspacePath}/${dir}`;
+        const exists = await fileService.pathExists(fullPath);
+        if (!exists) continue;
+
+        const entries = await fileService.listDirectory(fullPath);
+        for (const entry of entries) {
+          if (!entry.isDir && entry.name.endsWith(ext)) {
+            const name = entry.name.slice(0, -ext.length);
+            skills.push({
+              name,
+              description: '',
+              path: entry.path,
+              enabled: true,
+              source: 'discovered',
+              group,
+            });
+          }
+        }
+      } catch {
+        // 目录不存在或无权限，跳过
+      }
+    }
+
+    return skills;
+  },
+
+  /**
+   * 扫描工作区 .soloncode/agents/ 目录，自动发现 agents
+   * 每个包含 AGENT.md 的子目录视为一个 agent
+   */
+  async scanAgentsDir(workspacePath: string): Promise<AgentConfig[]> {
+    const agentsDir = `${workspacePath}/.soloncode/agents`;
+    try {
+      const exists = await fileService.pathExists(agentsDir);
+      if (!exists) return [];
+      const entries = await fileService.listDirectory(agentsDir);
+      const agents: AgentConfig[] = [];
+      for (const entry of entries) {
+        if (entry.isDir) {
+          const agentMdPath = `${entry.path}/AGENT.md`;
+          const hasMd = await fileService.pathExists(agentMdPath);
+          if (hasMd) {
+            agents.push({
+              name: entry.name,
+              description: '',
+              path: entry.path,
+              enabled: true,
+              source: 'discovered',
+            });
+          }
+        }
+      }
+      return agents;
+    } catch (err) {
+      console.warn('[settingsService] 扫描 agents 目录失败:', err);
+      return [];
     }
   },
 };
