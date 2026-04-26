@@ -1,5 +1,5 @@
 /**
- * 资源管理器面板
+ * 项目管理面板
  * @author bai
  */
 import { useState, useCallback } from 'react';
@@ -350,7 +350,7 @@ export function ExplorerPanel({
     return (
       <div key={node.path}>
         <div
-          className={`file-node ${node.type}${isExpanded ? ' expanded' : ''}${isCut ? ' cut-item' : ''}`}
+          className={`file-node ${node.type}${isExpanded ? ' expanded' : ''}${isCut ? ' cut-item' : ''}${node.gitStatus ? ` git-${node.gitStatus}` : ''}`}
           style={{ paddingLeft: `${indent + 8}px` }}
           onClick={() => {
             if (isRenaming) return;
@@ -409,7 +409,7 @@ export function ExplorerPanel({
   return (
     <div className="explorer-panel">
       <div className="panel-header">
-        <span className="panel-title">资源管理器</span>
+        <span className="panel-title">项目管理</span>
         {hasWorkspace && (
           <div className="panel-actions">
             <button className="panel-action" title="新建文件" onClick={onNewFile}>

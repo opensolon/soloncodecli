@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Icon, type IconName } from '../common/Icon';
 import {
   type McpServerConfig,
+  type SkillConfig,
   type ModelProvider,
   type ProviderType,
   PROVIDER_PRESETS,
@@ -27,9 +28,12 @@ export interface Settings {
 
   // MCP 服务器
   mcpServers: McpServerConfig[];
+
+  // Skills
+  skills: SkillConfig[];
 }
 
-type SettingsMenuKey = 'general' | 'model' | 'mcp';
+type SettingsMenuKey = 'general' | 'model' | 'mcp' | 'skills';
 
 interface SettingsPanelProps {
   visible: boolean;
@@ -42,6 +46,7 @@ const menuItems: { key: SettingsMenuKey; icon: IconName; label: string }[] = [
   { key: 'general', icon: 'settings', label: '常规' },
   { key: 'model', icon: 'bot', label: '模型' },
   { key: 'mcp', icon: 'extensions', label: 'MCP 服务器' },
+  { key: 'skills', icon: 'skills', label: 'Skills' },
 ];
 
 export function SettingsPanel({ visible, settings, onSettingsChange, onClose }: SettingsPanelProps) {
@@ -91,6 +96,26 @@ export function SettingsPanel({ visible, settings, onSettingsChange, onClose }: 
     setLocalSettings(prev => ({
       ...prev,
       mcpServers: prev.mcpServers.map((s, i) => i === index ? { ...s, ...updates } : s),
+    }));
+  }
+
+  // ---- Skills ----
+  function handleAddSkill() {
+    setLocalSettings(prev => ({
+      ...prev,
+      skills: [...prev.skills, { name: '', description: '', path: '', enabled: true, source: 'manual' as const, group: 'project' as const }],
+    }));
+  }
+  function handleRemoveSkill(index: number) {
+    setLocalSettings(prev => ({
+      ...prev,
+      skills: prev.skills.filter((_, i) => i !== index),
+    }));
+  }
+  function handleUpdateSkill(index: number, updates: Partial<SkillConfig>) {
+    setLocalSettings(prev => ({
+      ...prev,
+      skills: prev.skills.map((s, i) => i === index ? { ...s, ...updates } : s),
     }));
   }
 
@@ -168,6 +193,14 @@ export function SettingsPanel({ visible, settings, onSettingsChange, onClose }: 
                 onAdd={handleAddMcpServer}
                 onRemove={handleRemoveMcpServer}
                 onUpdate={handleUpdateMcpServer}
+              />
+            )}
+            {activeMenu === 'skills' && (
+              <SkillsSettings
+                skills={localSettings.skills}
+                onAdd={handleAddSkill}
+                onRemove={handleRemoveSkill}
+                onUpdate={handleUpdateSkill}
               />
             )}
           </div>
@@ -332,9 +365,16 @@ function ModelSettings({ settings, updateSetting, providers, activeProviderId, o
               onChange={e => {
                 const t = e.target.value as ProviderType;
                 const preset = PROVIDER_PRESETS[t as keyof typeof PROVIDER_PRESETS];
-                const updates: Partial<ModelProvider> = { type: t, name: preset?.label || '自定义' };
-                if (preset && !activeProvider.apiUrl) updates.apiUrl = preset.apiUrl;
-                if (preset && !activeProvider.model) updates.model = preset.models[0]?.value || '';
+                const updates: Partial<ModelProvider> = { type: t };
+                if (preset) {
+                  updates.name = preset.label;
+                  updates.apiUrl = preset.apiUrl;
+                  updates.model = preset.models[0]?.value || '';
+                } else {
+                  updates.name = '自定义';
+                  updates.apiUrl = '';
+                  updates.model = '';
+                }
                 onUpdateProvider(activeProvider.id, updates);
               }}>
               {Object.entries(PROVIDER_PRESETS).map(([key, val]) => (
@@ -436,6 +476,64 @@ function McpSettings({ servers, onAdd, onRemove, onUpdate }: {
                 value={server.args.join(' ')}
                 onChange={e => onUpdate(index, { args: e.target.value.split(' ').filter(Boolean) })}
                 placeholder="-y @modelcontextprotocol/server-memory" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ==================== Skills 设置 ==================== */
+function SkillsSettings({ skills, onAdd, onRemove, onUpdate }: {
+  skills: SkillConfig[];
+  onAdd: () => void;
+  onRemove: (index: number) => void;
+  onUpdate: (index: number, updates: Partial<SkillConfig>) => void;
+}) {
+  return (
+    <div className="settings-section-content">
+      <div className="settings-section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Skills</span>
+        <button className="mcp-add-btn" onClick={onAdd}>+ 添加</button>
+      </div>
+
+      {skills.length === 0 && (
+        <div className="mcp-empty">暂无 Skill 配置，点击上方"添加"按钮新增</div>
+      )}
+
+      {skills.map((skill, index) => (
+        <div key={index} className="mcp-server-card">
+          <div className="mcp-server-header">
+            <label className="checkbox-label">
+              <input type="checkbox" checked={skill.enabled}
+                onChange={e => onUpdate(index, { enabled: e.target.checked })} />
+              <span>启用</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {skill.source === 'discovered' && (
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', opacity: 0.7 }}>自动发现</span>
+              )}
+              <button className="mcp-remove-btn" onClick={() => onRemove(index)}>
+                <Icon name="close" size={12} />
+              </button>
+            </div>
+          </div>
+          <div className="mcp-server-fields">
+            <div className="mcp-field">
+              <label>名称</label>
+              <input type="text" className="setting-input" value={skill.name}
+                onChange={e => onUpdate(index, { name: e.target.value })} placeholder="my-skill" />
+            </div>
+            <div className="mcp-field">
+              <label>描述</label>
+              <input type="text" className="setting-input" value={skill.description}
+                onChange={e => onUpdate(index, { description: e.target.value })} placeholder="Skill 描述" />
+            </div>
+            <div className="mcp-field">
+              <label>路径</label>
+              <input type="text" className="setting-input" value={skill.path}
+                onChange={e => onUpdate(index, { path: e.target.value })} placeholder=".soloncode/skills/my-skill" />
             </div>
           </div>
         </div>

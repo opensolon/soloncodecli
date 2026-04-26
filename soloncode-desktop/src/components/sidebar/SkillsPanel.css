@@ -1,0 +1,46 @@
+.skills-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.skills-panel .panel-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.skills-panel .file-node.disabled-item {
+  opacity: 0.5;
+}
+
+.tree-checkbox {
+  margin-left: auto;
+  accent-color: var(--cb-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* 分组头 */
+.skill-group-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--cb-text-secondary);
+  background-color: var(--cb-vscode-sideBar-background);
+  border-top: 1px solid var(--cb-vscode-panel-border);
+}
+
+.skill-group-header:hover {
+  background-color: var(--cb-vscode-list-hoverBackground);
+}
+
+.skill-group-label {
+  flex: 1;
+}

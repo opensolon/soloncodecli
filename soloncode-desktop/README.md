@@ -100,6 +100,106 @@ soloncode-desktop/
 
 桌面端通过 WebSocket 连接 [soloncode-cli](../soloncode-cli)（Java/Solon 框架）。后端负责 AI 模型调用、Agent 执行等核心逻辑。
 
-## License
 
-Private
+## Skill 扫描注入流程
+
+### 目录约定
+- **全局 Skills**: `~/.soloncode/skills/` — 每个 skill 是一个子目录，必须包含 `SKILL.md`
+- **工作区 Skills**: `{workspacePath}/.soloncode/skills/` — 同结构
+
+### SKILL.md 格式
+```yaml
+---
+name: my-skill
+description: 技能描述
+---
+
+技能的具体内容（Markdown 正文）
+```
+
+### 扫描时机
+1. **打开工作区时**（App.tsx `openFolderByPath`）— 调用 `settingsService.scanSkillsDir(workspacePath)` 扫描工作区 `.soloncode/skills/`，去重后合并到 `settings.skills`
+2. **恢复上次工作区时**（App.tsx `loadLastFolder`）— 同上逻辑
+3. **SkillsPanel 挂载时** — 调用 Tauri 命令 `list_skills` 扫描全局 `~/.soloncode/skills/`，覆盖到 `settings.skills`
+4. **手动刷新** — 点击 SkillsPanel 的刷新按钮，重新执行 `list_skills`
+
+### 数据流
+```
+Tauri 后端 (list_skills)
+  → 读取 ~/.soloncode/skills/ 子目录
+  → 解析每个子目录的 SKILL.md frontmatter (name, description)
+  → 检查 .disabled 标记文件判断 enabled
+  → 返回 SkillInfo[]
+
+前端 settingsService.scanSkillsDir(workspacePath)
+  → 读取 {workspacePath}/.soloncode/skills/ 子目录
+  → 检查每个子目录是否含 SKILL.md
+  → 返回 SkillConfig[] (source: 'discovered')
+```
+
+### 持久化
+- 前端: IndexedDB `skills` 表（v4 migration），字段: id, name, description, path, enabled, source, sortOrder
+- 后端: 文件系统 `.disabled` 标记文件控制启用/禁用
+
+### Tauri 命令
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `list_skills` | 无 | 扫描 `~/.soloncode/skills/` 返回 SkillInfo[] |
+| `toggle_skill` | skillPath: string, enabled: bool | 创建/删除 `.disabled` 标记文件 |
+
+---
+
+## Agent 注入流程
+
+Agent 与 Skill 采用完全相同的扫描注入模式。
+
+### 目录约定
+- **全局 Agents**: `~/.soloncode/agents/` — 每个 agent 是一个子目录，必须包含 `AGENT.md`
+- **工作区 Agents**: `{workspacePath}/.soloncode/agents/` — 同结构
+
+### AGENT.md 格式
+```yaml
+---
+name: my-agent
+description: Agent 描述
+---
+
+Agent 的具体配置内容（Markdown 正文）
+```
+
+### 扫描时机
+1. **打开工作区时**（App.tsx `openFolderByPath`）— 调用 `settingsService.scanAgentsDir(workspacePath)` 扫描工作区 `.soloncode/agents/`，去重后合并到 `settings.agents`
+2. **恢复上次工作区时**（App.tsx `loadLastFolder`）— 同上逻辑
+3. **AgentsPanel 挂载时** — 调用 Tauri 命令 `list_agents` 扫描全局 `~/.soloncode/agents/`，覆盖到 `settings.agents`
+4. **手动刷新** — 点击 AgentsPanel 的刷新按钮，重新执行 `list_agents`
+
+### 数据流
+```
+Tauri 后端 (list_agents)
+  → 读取 ~/.soloncode/agents/ 子目录
+  → 解析每个子目录的 AGENT.md frontmatter (name, description)
+  → 检查 .disabled 标记文件判断 enabled
+  → 返回 AgentInfo[]
+
+前端 settingsService.scanAgentsDir(workspacePath)
+  → 读取 {workspacePath}/.soloncode/agents/ 子目录
+  → 检查每个子目录是否含 AGENT.md
+  → 返回 AgentConfig[] (source: 'discovered')
+```
+
+### 持久化
+- 前端: IndexedDB `agents` 表（v5 migration），字段: id, name, description, path, enabled, source, sortOrder
+- 后端: 文件系统 `.disabled` 标记文件控制启用/禁用
+
+### Tauri 命令
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `list_agents` | 无 | 扫描 `~/.soloncode/agents/` 返回 AgentInfo[] |
+| `toggle_agent` | agentPath: string, enabled: bool | 创建/删除 `.disabled` 标记文件 |
+
+### 选择逻辑
+- 用户在 AgentsPanel 点击 agent name → `App.tsx` 保存 `activeAgent` 状态
+- 当前仅前端选择，尚未传递给后端
+
+### 配置文件
+工作区 `.soloncode/config.yml` 中 `agent.maxSteps` 字段通过 `settingsService.loadConfigFile()` 加载，通过文件监听自动热更新。

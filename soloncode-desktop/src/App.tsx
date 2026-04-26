@@ -7,6 +7,8 @@ import { ExplorerPanel } from './components/sidebar/ExplorerPanel';
 import { GitPanel } from './components/sidebar/GitPanel';
 import { ExtensionsPanel } from './components/sidebar/ExtensionsPanel';
 import { SessionsPanel, type Session } from './components/sidebar/SessionsPanel';
+import { SkillsPanel } from './components/sidebar/SkillsPanel';
+import { AgentsPanel } from './components/sidebar/AgentsPanel';
 import { getAllConversations, saveConversation, deleteConversation, updateConversation, saveLastFolder, loadLastFolder, saveLastSessionId, loadLastSessionId } from './db';
 import { SettingsPanel, type Settings } from './components/sidebar/SettingsPanel';
 import { EditorPanel } from './components/editor/EditorPanel';
@@ -27,6 +29,7 @@ interface FileTreeNode {
   type: 'folder' | 'file';
   path: string;
   children?: FileTreeNode[];
+  gitStatus?: 'modified' | 'added' | 'deleted' | 'untracked';
 }
 
 // 将 FileInfo 转换为 FileTreeNode
@@ -37,6 +40,22 @@ function convertToFileTree(files: FileInfo[]): FileTreeNode[] {
     path: f.path,
     children: f.children ? convertToFileTree(f.children) : undefined,
   }));
+}
+
+// 将 git status 合并到文件树（git paths 是相对路径，file tree 是绝对路径）
+function mergeGitStatus(files: FileTreeNode[], gitFiles: { path: string; status: 'modified' | 'added' | 'deleted' | 'untracked' }[], workspacePath: string): FileTreeNode[] {
+  // 统一用 / 分隔的相对路径做 key
+  const normalize = (p: string) => p.replace(/\\/g, '/');
+  const wsPrefix = normalize(workspacePath).replace(/\/$/, '') + '/';
+  const map = new Map(gitFiles.map(f => [normalize(f.path), f.status]));
+  return files.map(f => {
+    const relPath = normalize(f.path).replace(wsPrefix, '');
+    return {
+      ...f,
+      gitStatus: map.get(relPath) || map.get(normalize(f.path)),
+      children: f.children ? mergeGitStatus(f.children, gitFiles, workspacePath) : undefined,
+    };
+  });
 }
 
 // 空 Git 状态（初始值）
@@ -65,6 +84,8 @@ const defaultSettings: Settings = {
   shell: 'bash', terminalFontSize: 14,
   providers: [], activeProviderId: '', maxSteps: 30,
   mcpServers: [],
+  skills: [],
+  agents: [],
 };
 
 // 面板位置类型
@@ -83,6 +104,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<string>('default');
 
   // 启动时从 IndexedDB 加载设置
   useEffect(() => {
@@ -242,6 +264,35 @@ function App() {
         setWorkspaceFiles(convertToFileTree(files));
         setActiveActivity('explorer');
 
+        // 自动发现 skills（项目级 + 第三方）
+        const allDiscoveredSkills = [
+          ...await settingsService.scanSkillsDir(lastFolder),
+          ...await settingsService.scanThirdPartySkills(lastFolder),
+        ];
+        if (allDiscoveredSkills.length > 0) {
+          setSettings(prev => {
+            const existingPaths = new Set(prev.skills.map(s => s.path));
+            const newSkills = allDiscoveredSkills.filter(s => !existingPaths.has(s.path));
+            if (newSkills.length > 0) {
+              return { ...prev, skills: [...prev.skills, ...newSkills] };
+            }
+            return prev;
+          });
+        }
+
+        // 自动发现 agents
+        const discoveredAgents = await settingsService.scanAgentsDir(lastFolder);
+        if (discoveredAgents.length > 0) {
+          setSettings(prev => {
+            const existingPaths = new Set(prev.agents.map(a => a.path));
+            const newAgents = discoveredAgents.filter(a => !existingPaths.has(a.path));
+            if (newAgents.length > 0) {
+              return { ...prev, agents: [...prev.agents, ...newAgents] };
+            }
+            return prev;
+          });
+        }
+
         // 恢复该文件夹的最后会话
         const lastSessionId = await loadLastSessionId(lastFolder);
         if (lastSessionId) {
@@ -268,6 +319,21 @@ function App() {
       if (workspacePath) {
         const files = await fileService.listDirectoryTree(workspacePath, 10);
         setWorkspaceFiles(convertToFileTree(files));
+      }
+    },
+    enabled: !!workspacePath,
+  });
+
+  // 配置文件监听 - .soloncode/ 目录变化时自动重载设置
+  useFileWatcher({
+    workspacePath: workspacePath ? `${workspacePath}/.soloncode` : null,
+    onChange: async (_changedPaths) => {
+      if (workspacePath) {
+        const configUpdate = await settingsService.loadConfigFile(workspacePath);
+        if (configUpdate) {
+          setSettings(prev => ({ ...prev, ...configUpdate }));
+          showToast('配置已重新加载');
+        }
       }
     },
     enabled: !!workspacePath,
@@ -501,6 +567,35 @@ function App() {
       setWorkspaceFiles(convertToFileTree(files));
       setActiveActivity('explorer');
 
+      // 自动发现 skills（项目级 + 第三方）
+      const allDiscoveredSkills = [
+        ...await settingsService.scanSkillsDir(selectedPath),
+        ...await settingsService.scanThirdPartySkills(selectedPath),
+      ];
+      if (allDiscoveredSkills.length > 0) {
+        setSettings(prev => {
+          const existingPaths = new Set(prev.skills.map(s => s.path));
+          const newSkills = allDiscoveredSkills.filter(s => !existingPaths.has(s.path));
+          if (newSkills.length > 0) {
+            return { ...prev, skills: [...prev.skills, ...newSkills] };
+          }
+          return prev;
+        });
+      }
+
+      // 自动发现 agents
+      const discoveredAgents = await settingsService.scanAgentsDir(selectedPath);
+      if (discoveredAgents.length > 0) {
+        setSettings(prev => {
+          const existingPaths = new Set(prev.agents.map(a => a.path));
+          const newAgents = discoveredAgents.filter(a => !existingPaths.has(a.path));
+          if (newAgents.length > 0) {
+            return { ...prev, agents: [...prev.agents, ...newAgents] };
+          }
+          return prev;
+        });
+      }
+
       // 恢复该文件夹的最后会话
       const lastSessionId = await loadLastSessionId(selectedPath);
       if (lastSessionId) {
@@ -695,7 +790,7 @@ function App() {
       case 'explorer':
         return (
           <ExplorerPanel
-            files={workspaceFiles}
+            files={mergeGitStatus(workspaceFiles, gitStatus.files, workspacePath || '')}
             workspaceName={workspaceName}
             hasWorkspace={!!workspacePath}
             workspacePath={workspacePath || undefined}
@@ -759,6 +854,30 @@ function App() {
             onSelectSession={setCurrentSessionId}
             onNewSession={handleNewSession}
             onDeleteSession={handleDeleteSession}
+          />
+        );
+      case 'skills':
+        return (
+          <SkillsPanel
+            skills={settings.skills}
+            onSkillsChange={(skills) => setSettings(prev => ({ ...prev, skills }))}
+            onFileSelect={(path) => {
+              setPanelState(prev => ({ ...prev, editorVisible: true }));
+              handleFileSelect(path);
+            }}
+          />
+        );
+      case 'agents':
+        return (
+          <AgentsPanel
+            agents={settings.agents}
+            onAgentsChange={(agents) => setSettings(prev => ({ ...prev, agents }))}
+            activeAgent={activeAgent}
+            onAgentChange={setActiveAgent}
+            onFileSelect={(path) => {
+              setPanelState(prev => ({ ...prev, editorVisible: true }));
+              handleFileSelect(path);
+            }}
           />
         );
       default:

@@ -131,6 +131,7 @@ export function EditorPanel({
       return;
     }
 
+    const themeSuffix = activeTheme === 'dark' ? 'dark' : 'light';
     const decorations: editor.IModelDeltaDecoration[] = diffLines.map((d) => {
       const line = d.line;
 
@@ -139,9 +140,9 @@ export function EditorPanel({
           range: new (window as any).monaco.Range(line, 1, line, 1),
           options: {
             isWholeLine: true,
-            glyphMarginClassName: 'diff-added-glyph',
+            className: `diff-added-line-${themeSuffix}`,
             overviewRuler: {
-              color: '#4ade80',
+              color: '#60a5fa',
               position: 2,
             },
           },
@@ -151,7 +152,7 @@ export function EditorPanel({
           range: new (window as any).monaco.Range(line, 1, line, 1),
           options: {
             isWholeLine: true,
-            glyphMarginClassName: 'diff-deleted-glyph',
+            className: `diff-deleted-line-${themeSuffix}`,
             overviewRuler: {
               color: '#ef4444',
               position: 2,
@@ -164,9 +165,9 @@ export function EditorPanel({
         range: new (window as any).monaco.Range(line, 1, line, 1),
         options: {
           isWholeLine: true,
-          glyphMarginClassName: 'diff-modified-glyph',
+          className: `diff-modified-line-${themeSuffix}`,
           overviewRuler: {
-            color: '#60a5fa',
+            color: '#4ade80',
             position: 2,
           },
         },
@@ -174,7 +175,7 @@ export function EditorPanel({
     });
 
     decorationsRef.current = editorInstance.createDecorationsCollection(decorations);
-  }, [diffLines]);
+  }, [diffLines, activeTheme]);
 
   const handleEditorChange = (value: string | undefined) => {
     if (activeFilePath && value !== undefined) {

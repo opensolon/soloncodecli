@@ -980,6 +980,275 @@ fn stop_backend() -> Result<(), String> {
     Ok(())
 }
 
+// ==================== 配置文件读写 ====================
+
+/// 读取 ~/.soloncode/config.yml 中的 chatModel 配置
+/// 返回 { apiUrl, apiKey, model } 的 JSON 字符串
+#[tauri::command]
+fn read_global_chat_model() -> Result<serde_json::Value, String> {
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE").unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+    let config_path = Path::new(&home).join(".soloncode").join("config.yml");
+
+    // 先尝试 chat-model.yml（前端推送写入的文件）
+    let chat_model_path = Path::new(&home).join(".soloncode").join("chat-model.yml");
+
+    let mut api_url = String::new();
+    let mut api_key = String::new();
+    let mut model = String::new();
+
+    // 解析 YAML 中的 chatModel 字段（简单行解析，避免引入 yaml 依赖）
+    let parse_chat_model = |content: &str, api_url: &mut String, api_key: &mut String, model: &mut String| {
+        let mut in_chat_model = false;
+        let mut in_soloncode = false;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("soloncode:") {
+                in_soloncode = true;
+                in_chat_model = false;
+                continue;
+            }
+            if in_soloncode && trimmed.starts_with("chatModel:") {
+                in_chat_model = true;
+                continue;
+            }
+            if in_chat_model {
+                // 检查缩进是否还在 chatModel 块内（至少4个空格）
+                let indent = line.len() - line.trim_start().len();
+                if indent < 4 && !trimmed.is_empty() {
+                    in_chat_model = false;
+                    in_soloncode = false;
+                    continue;
+                }
+                if trimmed.starts_with("apiUrl:") {
+                    *api_url = trimmed.trim_start_matches("apiUrl:").trim()
+                        .trim_matches('"').to_string();
+                } else if trimmed.starts_with("apiKey:") {
+                    *api_key = trimmed.trim_start_matches("apiKey:").trim()
+                        .trim_matches('"').to_string();
+                } else if trimmed.starts_with("model:") {
+                    *model = trimmed.trim_start_matches("model:").trim()
+                        .trim_matches('"').to_string();
+                }
+            }
+        }
+    };
+
+    // 优先读 chat-model.yml
+    if chat_model_path.exists() {
+        if let Ok(content) = fs::read_to_string(&chat_model_path) {
+            parse_chat_model(&content, &mut api_url, &mut api_key, &mut model);
+        }
+    }
+
+    // 再读 config.yml 补充缺失字段
+    if config_path.exists() {
+        if let Ok(content) = fs::read_to_string(&config_path) {
+            let mut u = String::new();
+            let mut k = String::new();
+            let mut m = String::new();
+            parse_chat_model(&content, &mut u, &mut k, &mut m);
+            if api_url.is_empty() { api_url = u; }
+            if api_key.is_empty() { api_key = k; }
+            if model.is_empty() { model = m; }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "apiUrl": api_url,
+        "apiKey": api_key,
+        "model": model,
+    }))
+}
+
+/// 读取 ~/.soloncode/skills/ 目录下的 skill 列表
+/// 每个 skill 是一个子目录，包含 SKILL.md
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SkillInfo {
+    name: String,
+    description: String,
+    path: String,
+    enabled: bool,
+}
+
+#[tauri::command]
+fn list_skills() -> Result<Vec<SkillInfo>, String> {
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE").unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+
+    let skills_dir = Path::new(&home).join(".soloncode").join("skills");
+    if !skills_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut skills = Vec::new();
+    let entries = fs::read_dir(&skills_dir).map_err(|e| format!("读取 skills 目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() { continue; }
+
+        let skill_md = path.join("SKILL.md");
+        let mut name = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut description = String::new();
+
+        // 解析 SKILL.md frontmatter
+        if skill_md.exists() {
+            if let Ok(content) = fs::read_to_string(&skill_md) {
+                let mut in_frontmatter = false;
+                let mut fence_count = 0;
+                for line in content.lines() {
+                    if line.trim() == "---" {
+                        fence_count += 1;
+                        if fence_count == 1 { in_frontmatter = true; continue; }
+                        if fence_count == 2 { break; }
+                    }
+                    if in_frontmatter && fence_count < 2 {
+                        if line.starts_with("name:") {
+                            name = line.trim_start_matches("name:").trim()
+                                .trim_matches('"').to_string();
+                        } else if line.starts_with("description:") {
+                            description = line.trim_start_matches("description:").trim()
+                                .trim_matches('"').to_string();
+                            // 截断过长描述
+                            if description.len() > 120 {
+                                description = format!("{}...", &description[..120]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 检查是否启用（disabled 文件标记）
+        let disabled_marker = path.join(".disabled");
+        let enabled = !disabled_marker.exists();
+
+        skills.push(SkillInfo {
+            name,
+            description,
+            path: path.to_string_lossy().to_string(),
+            enabled,
+        });
+    }
+
+    skills.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(skills)
+}
+
+/// 切换 skill 启用/禁用状态
+#[tauri::command]
+fn toggle_skill(skill_path: &str, enabled: bool) -> Result<(), String> {
+    let disabled_marker = Path::new(skill_path).join(".disabled");
+    if enabled {
+        if disabled_marker.exists() {
+            fs::remove_file(&disabled_marker).map_err(|e| format!("移除标记失败: {}", e))?;
+        }
+    } else {
+        fs::write(&disabled_marker, "").map_err(|e| format!("创建标记失败: {}", e))?;
+    }
+    Ok(())
+}
+
+/// 读取 ~/.soloncode/agents/ 目录下的 agent 列表
+/// 每个 agent 是一个子目录，包含 AGENT.md
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AgentInfo {
+    name: String,
+    description: String,
+    path: String,
+    enabled: bool,
+}
+
+#[tauri::command]
+fn list_agents() -> Result<Vec<AgentInfo>, String> {
+    let home = if cfg!(windows) {
+        std::env::var("USERPROFILE").unwrap_or_default()
+    } else {
+        std::env::var("HOME").unwrap_or_default()
+    };
+
+    let agents_dir = Path::new(&home).join(".soloncode").join("agents");
+    if !agents_dir.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut agents = Vec::new();
+    let entries = fs::read_dir(&agents_dir).map_err(|e| format!("读取 agents 目录失败: {}", e))?;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() { continue; }
+
+        let agent_md = path.join("AGENT.md");
+        let mut name = path.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
+        let mut description = String::new();
+
+        if agent_md.exists() {
+            if let Ok(content) = fs::read_to_string(&agent_md) {
+                let mut in_frontmatter = false;
+                let mut fence_count = 0;
+                for line in content.lines() {
+                    if line.trim() == "---" {
+                        fence_count += 1;
+                        if fence_count == 1 { in_frontmatter = true; continue; }
+                        if fence_count == 2 { break; }
+                    }
+                    if in_frontmatter && fence_count < 2 {
+                        if line.starts_with("name:") {
+                            name = line.trim_start_matches("name:").trim()
+                                .trim_matches('"').to_string();
+                        } else if line.starts_with("description:") {
+                            description = line.trim_start_matches("description:").trim()
+                                .trim_matches('"').to_string();
+                            if description.len() > 120 {
+                                description = format!("{}...", &description[..120]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let disabled_marker = path.join(".disabled");
+        let enabled = !disabled_marker.exists();
+
+        agents.push(AgentInfo {
+            name,
+            description,
+            path: path.to_string_lossy().to_string(),
+            enabled,
+        });
+    }
+
+    agents.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(agents)
+}
+
+/// 切换 agent 启用/禁用状态
+#[tauri::command]
+fn toggle_agent(agent_path: &str, enabled: bool) -> Result<(), String> {
+    let disabled_marker = Path::new(agent_path).join(".disabled");
+    if enabled {
+        if disabled_marker.exists() {
+            fs::remove_file(&disabled_marker).map_err(|e| format!("移除标记失败: {}", e))?;
+        }
+    } else {
+        fs::write(&disabled_marker, "").map_err(|e| format!("创建标记失败: {}", e))?;
+    }
+    Ok(())
+}
+
 /// 检查后端进程是否运行中
 #[tauri::command]
 fn backend_status() -> Result<bool, String> {
@@ -1043,7 +1312,12 @@ pub fn run() {
             terminal_start,
             terminal_write,
             terminal_resize,
-            terminal_kill
+            terminal_kill,
+            read_global_chat_model,
+            list_skills,
+            toggle_skill,
+            list_agents,
+            toggle_agent
         ])
         .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
