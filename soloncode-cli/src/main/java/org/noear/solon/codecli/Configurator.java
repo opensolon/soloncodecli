@@ -83,7 +83,6 @@ public class Configurator {
         engine.getCommandRegistry().register(new ClearCommand());
         engine.getCommandRegistry().register(new ResumeCommand());
         engine.getCommandRegistry().register(new ModelCommand());
-        engine.getCommandRegistry().register(new CommandsCommand(engine.getCommandRegistry()));
 
         return engine;
     }

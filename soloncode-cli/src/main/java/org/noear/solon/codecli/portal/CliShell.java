@@ -574,12 +574,13 @@ public class CliShell implements Runnable {
         // 连带版本号，紧凑排列
         terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getNameOrModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
-        terminal.writer().println(DIM + "Tips: " + RESET + "(esc)" + DIM + " interrupt | " +
+        terminal.writer().println(DIM + "Tips: " +
+                RESET + "(esc)" + DIM + " interrupt | " +
+                RESET + "/(tab)" + DIM + " commands | " +
                 RESET + "'/exit'" + DIM + " | " +
                 RESET + "'/resume'" + DIM + " | " +
                 RESET + "'/clear'" + DIM + " | " +
-                RESET + "'/model'" + DIM + " | " +
-                RESET + "'/commands'" + DIM + RESET);
+                RESET + "'/model'" + DIM +  RESET);
 
         terminal.flush();
     }
