@@ -17,7 +17,9 @@ package org.noear.solon.codecli.command;
 
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
-import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandRegistry;
+import org.noear.solon.ai.harness.command.CommandResult;
 import reactor.core.publisher.Flux;
 
 import java.util.Arrays;
@@ -32,7 +34,7 @@ import java.util.List;
  * @author noear
  * @since 2026.4.28
  */
-public class CommandDispatcher {
+public class WebCommandDispatcher {
 
     @FunctionalInterface
     public interface AgentTaskHandler {
@@ -48,7 +50,7 @@ public class CommandDispatcher {
 
     private final CommandRegistry registry;
 
-    public CommandDispatcher(CommandRegistry registry) {
+    public WebCommandDispatcher(CommandRegistry registry) {
         this.registry = registry;
     }
 
@@ -58,14 +60,13 @@ public class CommandDispatcher {
      * @param input       用户原始输入
      * @param session     Agent 会话
      * @param engine      Agent 运行时
-     * @param agentProps  Agent 属性配置
      * @param environment 当前运行环境（"cli"、"web" 等）
      * @param agentHandler Agent 任务回调（Web 端使用）
      * @return 命令结果，如果输入不是命令则返回 null
      */
     public CommandResult dispatch(String input, AgentSession session, HarnessEngine engine,
-                                   AgentProperties agentProps, String environment,
-                                   AgentTaskHandler agentHandler) throws Exception {
+                                  String environment,
+                                  AgentTaskHandler agentHandler) throws Exception {
         if (!input.startsWith("/")) {
             return null;
         }
@@ -89,8 +90,7 @@ public class CommandDispatcher {
         }
 
         // 构建 Web 上下文
-        WebCommandContext ctx = new WebCommandContext(session, engine, agentProps,
-                input, cmdName, args);
+        WebCommandContext ctx = new WebCommandContext(session, engine, input, cmdName, args);
 
         // 执行命令
         boolean handled = command.execute(ctx);

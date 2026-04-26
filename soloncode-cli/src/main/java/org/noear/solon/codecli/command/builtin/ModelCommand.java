@@ -16,10 +16,10 @@
 package org.noear.solon.codecli.command.builtin;
 
 import org.noear.solon.ai.chat.ChatConfig;
-import org.noear.solon.codecli.command.Command;
-import org.noear.solon.codecli.command.CommandContext;
-import org.noear.solon.codecli.command.CommandType;
-import org.noear.solon.codecli.core.AgentFlags;
+import org.noear.solon.ai.harness.HarnessFlags;
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandContext;
+import org.noear.solon.ai.harness.command.CommandType;
 
 /**
  * /model 命令（多子命令）
@@ -59,11 +59,11 @@ public class ModelCommand implements Command {
         String flag = ctx.argAt(0);
 
         if ("ls".equals(flag) || flag == null || flag.isEmpty()) {
-            String currentModel = ctx.getSession().getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
-            currentModel = ctx.getAgentRuntime().getModelOrMain(currentModel).getNameOrModel();
+            String currentModel = ctx.getSession().getContext().getAs(HarnessFlags.VAR_MODEL_SELECTED);
+            currentModel = ctx.getEngine().getModelOrMain(currentModel).getNameOrModel();
 
             ctx.println(ctx.color(BOLD + "Models:" + RESET));
-            for (ChatConfig m : ctx.getAgentProps().getModels()) {
+            for (ChatConfig m : ctx.getEngine().getProps().getModels()) {
                 String model = m.getNameOrModel();
                 String desc = m.getDescriptionOrModel();
                 String suffix = model.equals(currentModel) ? " " + GREEN + "(active)" + RESET : "";
@@ -77,11 +77,11 @@ public class ModelCommand implements Command {
             ctx.println(ctx.color(DIM + "  /model ls" + RESET + "       List all available models"));
             ctx.println(ctx.color(DIM + "  /model <name>" + RESET + "   Switch to the specified model"));
         } else {
-            if (ctx.getAgentProps().getModelOrNil(flag) == null) {
+            if (ctx.getEngine().getProps().getModelOrNil(flag) == null) {
                 ctx.println(ctx.color(RED + "Model not found: " + RESET + BOLD + flag + RESET));
                 ctx.println(ctx.color(DIM + "Use '/model' to see available models." + RESET));
             } else {
-                ctx.getSession().getContext().put(AgentFlags.VAR_MODEL_SELECTED, flag);
+                ctx.getSession().getContext().put(HarnessFlags.VAR_MODEL_SELECTED, flag);
                 ctx.getSession().updateSnapshot();
                 ctx.println(ctx.color(GREEN + "Model switched to: " + RESET + BOLD + flag + RESET));
             }

@@ -5,13 +5,13 @@ import com.agentclientprotocol.sdk.agent.transport.WebSocketSolonAcpAgentTranspo
 import com.agentclientprotocol.sdk.spec.AcpAgentTransport;
 import io.modelcontextprotocol.json.McpJsonMapper;
 import org.noear.solon.Solon;
-import org.noear.solon.Utils;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.agent.AgentSessionProvider;
 import org.noear.solon.ai.agent.session.FileAgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.HarnessExtension;
 import org.noear.solon.annotation.*;
+import org.noear.solon.codecli.command.builtin.*;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.codecli.portal.AcpLink;
@@ -26,7 +26,6 @@ import org.noear.solon.net.websocket.WebSocketRouter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -76,6 +75,15 @@ public class Configurator {
         HarnessEngine engine = HarnessEngine.of(props)
                 .sessionProvider(sessionProvider)
                 .build();
+
+        engine.getCommandRegistry().load(Paths.get(AgentProperties.getUserHome(), props.getHarnessCommands()));
+        engine.getCommandRegistry().load(Paths.get(agentProps.getWorkspace(), props.getHarnessCommands()));
+
+        engine.getCommandRegistry().register(new ExitCommand());
+        engine.getCommandRegistry().register(new ClearCommand());
+        engine.getCommandRegistry().register(new ResumeCommand());
+        engine.getCommandRegistry().register(new ModelCommand());
+        engine.getCommandRegistry().register(new CommandsCommand(engine.getCommandRegistry()));
 
         return engine;
     }

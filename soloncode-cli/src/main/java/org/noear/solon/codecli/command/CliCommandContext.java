@@ -19,7 +19,7 @@ import org.jline.reader.LineReader;
 import org.jline.terminal.Terminal;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
-import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.ai.harness.command.CommandContext;
 
 import java.util.List;
 
@@ -34,7 +34,6 @@ public class CliCommandContext implements CommandContext {
     private final Terminal terminal;
     private final LineReader reader;
     private final HarnessEngine agentRuntime;
-    private final AgentProperties agentProps;
     private final String rawInput;
     private final String commandName;
     private final List<String> args;
@@ -49,14 +48,13 @@ public class CliCommandContext implements CommandContext {
     }
 
     public CliCommandContext(AgentSession session, Terminal terminal, LineReader reader,
-                             HarnessEngine agentRuntime, AgentProperties agentProps,
+                             HarnessEngine agentRuntime,
                              String rawInput, String commandName, List<String> args,
                              AgentTaskRunner agentTaskRunner) {
         this.session = session;
         this.terminal = terminal;
         this.reader = reader;
         this.agentRuntime = agentRuntime;
-        this.agentProps = agentProps;
         this.rawInput = rawInput;
         this.commandName = commandName;
         this.args = args;
@@ -83,13 +81,8 @@ public class CliCommandContext implements CommandContext {
     }
 
     @Override
-    public HarnessEngine getAgentRuntime() {
+    public HarnessEngine getEngine() {
         return agentRuntime;
-    }
-
-    @Override
-    public AgentProperties getAgentProps() {
-        return agentProps;
     }
 
     @Override

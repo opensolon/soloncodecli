@@ -132,21 +132,21 @@ package org.noear.solon.codecli.command;
  * CLI 命令接口
  */
 public interface CliCommand {
-    
+
     /** 命令名（不含 /），如 "model"、"exit" */
     String name();
-    
+
     /** 命令描述，用于帮助文本 */
     String description();
-    
+
     /** 命令类型 */
     CliCommandType type();
-    
+
     /** 命令来源 */
     default CliCommandSource source() {
         return CliCommandSource.BUILTIN;
     }
-    
+
     /**
      * 执行命令
      * @param context 命令上下文（session, terminal, args 等）
@@ -420,25 +420,40 @@ import org.noear.solon.core.util.Assert;
 
 /**
  * 基于 Markdown 模板的自定义命令（对标 Claude Code 的 Custom Commands）
- * 
+ *
  * .md 文件内容即为 prompt 模板，支持 $ARGUMENTS 占位符
  */
 public class MarkdownCommand implements CliCommand {
     private final String name;
     private final String template;
     private final CliCommandSource source;
-    
+
     public MarkdownCommand(String name, String template, CliCommandSource source) {
         this.name = name;
         this.template = template;
         this.source = source;
     }
-    
-    @Override public String name() { return name; }
-    @Override public String description() { return "Custom command: " + name; }
-    @Override public CliCommandType type() { return CliCommandType.AGENT; }
-    @Override public CliCommandSource source() { return source; }
-    
+
+    @Override
+    public String name() {
+        return name;
+    }
+
+    @Override
+    public String description() {
+        return "Custom command: " + name;
+    }
+
+    @Override
+    public CliCommandType type() {
+        return CliCommandType.AGENT;
+    }
+
+    @Override
+    public CliCommandSource source() {
+        return source;
+    }
+
     /**
      * 获取替换 $ARGUMENTS 后的 prompt 文本
      */
@@ -446,13 +461,13 @@ public class MarkdownCommand implements CliCommand {
         String args = Assert.isEmpty(arguments) ? "" : arguments;
         return template.replace("$ARGUMENTS", args);
     }
-    
+
     @Override
     public boolean execute(CliCommandContext ctx) throws Exception {
         // 拼接参数
         String arguments = String.join(" ", ctx.getArgs());
         String prompt = getResolvedPrompt(arguments);
-        
+
         // 作为 Agent 任务执行
         // 通过 CliShell 回调 performAgentTask
         return false; // 返回 false，由 CliShell 继续处理为 agent task

@@ -15,9 +15,10 @@
  */
 package org.noear.solon.codecli.command.builtin;
 
-import org.noear.solon.codecli.command.Command;
-import org.noear.solon.codecli.command.CommandContext;
-import org.noear.solon.codecli.command.CommandType;
+
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandContext;
+import org.noear.solon.ai.harness.command.CommandType;
 
 /**
  * /clear 命令

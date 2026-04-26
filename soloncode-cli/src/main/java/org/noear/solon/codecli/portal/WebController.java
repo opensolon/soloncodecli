@@ -30,18 +30,12 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.ai.harness.HarnessFlags;
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandResult;
 import org.noear.solon.annotation.*;
-import org.noear.solon.codecli.command.Command;
-import org.noear.solon.codecli.command.CommandDispatcher;
-import org.noear.solon.codecli.command.CommandRegistry;
-import org.noear.solon.codecli.command.CommandResult;
-import org.noear.solon.codecli.command.MarkdownCommandLoader;
-import org.noear.solon.codecli.command.builtin.ClearCommand;
-import org.noear.solon.codecli.command.builtin.HelpCommand;
-import org.noear.solon.codecli.command.builtin.ModelCommand;
-import org.noear.solon.codecli.command.builtin.ResumeCommand;
+import org.noear.solon.codecli.command.WebCommandDispatcher;
 import org.noear.solon.codecli.core.AgentFlags;
-import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ModelAndView;
 import org.noear.solon.core.handle.Result;
@@ -73,27 +67,10 @@ public class WebController {
 
     private final HarnessEngine engine;
     private final WebStreamBuilder streamBuilder;
-    private final CommandRegistry commandRegistry;
 
     public WebController(HarnessEngine engine) {
         this.engine = engine;
         this.streamBuilder = new WebStreamBuilder(engine);
-        this.commandRegistry = new CommandRegistry();
-
-        // 注册内置命令（不包含 ExitCommand，仅 CLI 适用）
-        commandRegistry.register(new ClearCommand());
-        commandRegistry.register(new ResumeCommand());
-        commandRegistry.register(new ModelCommand());
-        commandRegistry.register(new HelpCommand(commandRegistry));
-
-        // 加载自定义命令（用户级 + 项目级）
-        AgentProperties agentProps = (AgentProperties) engine.getProps();
-        MarkdownCommandLoader.loadFromDirectory(
-                Paths.get(AgentProperties.getUserHome(), ".soloncode", "commands").toString(),
-                commandRegistry);
-        MarkdownCommandLoader.loadFromDirectory(
-                Paths.get(agentProps.getWorkspace(), ".soloncode", "commands").toString(),
-                commandRegistry);
     }
 
     /**
@@ -209,7 +186,7 @@ public class WebController {
 
         if (Assert.isNotEmpty(sessionId)) {
             AgentSession session = engine.getSession(sessionId);
-            String selected = session.getContext().getOrDefault(AgentFlags.VAR_MODEL_SELECTED,
+            String selected = session.getContext().getOrDefault(HarnessFlags.VAR_MODEL_SELECTED,
                     engine.getMainModel().getNameOrModel());
 
             data.put("selected", selected);
@@ -225,7 +202,7 @@ public class WebController {
     public Result models_select(@Param("sessionId") String sessionId, @Param("modelName") String modelName) throws Exception {
         AgentSession session = engine.getSession(sessionId);
 
-        session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, modelName);
+        session.getContext().put(HarnessFlags.VAR_MODEL_SELECTED, modelName);
 
         session.updateSnapshot();
 
@@ -353,20 +330,12 @@ public class WebController {
      */
     private void handleCommand(Context ctx, AgentSession session, ChatModel chatModel,
                                String sessionCwd, String input) throws Throwable {
-        CommandDispatcher dispatcher = new CommandDispatcher(commandRegistry);
-        CommandResult result = dispatcher.dispatch(input, session, engine, (AgentProperties) engine.getProps(), "web",
+        WebCommandDispatcher dispatcher = new WebCommandDispatcher(engine.getCommandRegistry());
+        CommandResult result = dispatcher.dispatch(input, session, engine, "web",
                 (command, webCtx) -> {
                     // AGENT 类型命令的回调：返回 Flux 流
-                    try {
-                        List<String> allowedTools = command.allowedTools();
-                        if (allowedTools != null && !allowedTools.isEmpty()) {
-                            session.getContext().put(AgentFlags.VAR_ALLOWED_TOOLS, allowedTools);
-                        }
                         Prompt prompt = Prompt.of(webCtx.getAgentTaskPrompt());
                         return streamBuilder.buildStreamFlux(session, chatModel, sessionCwd, prompt);
-                    } finally {
-                        session.getContext().remove(AgentFlags.VAR_ALLOWED_TOOLS);
-                    }
                 });
 
         if (result == null) {
@@ -409,7 +378,7 @@ public class WebController {
     @Mapping("/chat/commands")
     public Result<List<Map>> commands() {
         List<Map> data = new ArrayList<>();
-        for (Command cmd : commandRegistry.all()) {
+        for (Command cmd : engine.getCommandRegistry().all()) {
             // 跳过 CLI 专属命令（不在 Web 端展示）
             if (cmd.cliOnly()) {
                 continue;
@@ -447,7 +416,7 @@ public class WebController {
         }
 
         final AgentSession session = engine.getSession(sessionId);
-        session.getContext().put(AgentFlags.VAR_MODEL_SELECTED, model);
+        session.getContext().put(HarnessFlags.VAR_MODEL_SELECTED, model);
         final ChatModel chatModel = engine.getModelOrMain(model);
 
         // HITL approve/reject handling

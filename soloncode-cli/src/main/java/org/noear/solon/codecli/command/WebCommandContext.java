@@ -17,7 +17,7 @@ package org.noear.solon.codecli.command;
 
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
-import org.noear.solon.codecli.core.AgentProperties;
+import org.noear.solon.ai.harness.command.CommandContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -35,7 +35,6 @@ public class WebCommandContext implements CommandContext {
 
     private final AgentSession session;
     private final HarnessEngine agentRuntime;
-    private final AgentProperties agentProps;
     private final String rawInput;
     private final String commandName;
     private final List<String> args;
@@ -44,12 +43,9 @@ public class WebCommandContext implements CommandContext {
     private boolean agentTaskRequested = false;
     private String agentTaskPrompt;
 
-    public WebCommandContext(AgentSession session, HarnessEngine agentRuntime,
-                              AgentProperties agentProps,
-                              String rawInput, String commandName, List<String> args) {
+    public WebCommandContext(AgentSession session, HarnessEngine agentRuntime, String rawInput, String commandName, List<String> args) {
         this.session = session;
         this.agentRuntime = agentRuntime;
-        this.agentProps = agentProps;
         this.rawInput = rawInput;
         this.commandName = commandName;
         this.args = args != null ? args : Collections.emptyList();
@@ -61,7 +57,7 @@ public class WebCommandContext implements CommandContext {
     }
 
     @Override
-    public HarnessEngine getAgentRuntime() {
+    public HarnessEngine getEngine() {
         return agentRuntime;
     }
 
@@ -78,11 +74,6 @@ public class WebCommandContext implements CommandContext {
     @Override
     public List<String> getArgs() {
         return args;
-    }
-
-    @Override
-    public AgentProperties getAgentProps() {
-        return agentProps;
     }
 
     @Override

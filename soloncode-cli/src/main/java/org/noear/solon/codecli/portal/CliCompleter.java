@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.noear.solon.codecli.command;
+package org.noear.solon.codecli.portal;
 
 import org.jline.reader.Candidate;
 import org.jline.reader.Completer;
 import org.jline.reader.LineReader;
 import org.jline.reader.ParsedLine;
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandRegistry;
 
 import java.util.List;
 
@@ -28,10 +30,10 @@ import java.util.List;
  * @author noear
  * @since 2026.4.28
  */
-public class CliCommandCompleter implements Completer {
+public class CliCompleter implements Completer {
     private final CommandRegistry registry;
 
-    public CliCommandCompleter(CommandRegistry registry) {
+    public CliCompleter(CommandRegistry registry) {
         this.registry = registry;
     }
 

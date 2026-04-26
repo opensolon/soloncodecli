@@ -15,10 +15,10 @@
  */
 package org.noear.solon.codecli.command.builtin;
 
-import org.noear.solon.codecli.command.Command;
-import org.noear.solon.codecli.command.CommandContext;
-import org.noear.solon.codecli.command.CommandRegistry;
-import org.noear.solon.codecli.command.CommandType;
+import org.noear.solon.ai.harness.command.Command;
+import org.noear.solon.ai.harness.command.CommandContext;
+import org.noear.solon.ai.harness.command.CommandRegistry;
+import org.noear.solon.ai.harness.command.CommandType;
 
 /**
  * /help 命令
@@ -26,7 +26,7 @@ import org.noear.solon.codecli.command.CommandType;
  * @author noear
  * @since 2026.4.28
  */
-public class HelpCommand implements Command {
+public class CommandsCommand implements Command {
     private static final String BOLD = "\033[1m";
     private static final String DIM = "\033[2m";
     private static final String CYAN = "\033[36m";
@@ -34,13 +34,13 @@ public class HelpCommand implements Command {
 
     private final CommandRegistry registry;
 
-    public HelpCommand(CommandRegistry registry) {
+    public CommandsCommand(CommandRegistry registry) {
         this.registry = registry;
     }
 
     @Override
     public String name() {
-        return "help";
+        return "commands";
     }
 
     @Override

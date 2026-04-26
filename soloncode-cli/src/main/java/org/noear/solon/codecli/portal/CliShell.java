@@ -35,17 +35,10 @@ import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.ai.harness.HarnessFlags;
 import org.noear.solon.ai.harness.agent.TaskSkill;
-import org.noear.solon.codecli.command.CliCommandCompleter;
+import org.noear.solon.ai.harness.command.Command;
 import org.noear.solon.codecli.command.CliCommandContext;
-import org.noear.solon.codecli.command.Command;
-import org.noear.solon.codecli.command.CommandRegistry;
-import org.noear.solon.codecli.command.MarkdownCommandLoader;
-import org.noear.solon.codecli.command.builtin.ClearCommand;
-import org.noear.solon.codecli.command.builtin.ExitCommand;
-import org.noear.solon.codecli.command.builtin.HelpCommand;
-import org.noear.solon.codecli.command.builtin.ModelCommand;
-import org.noear.solon.codecli.command.builtin.ResumeCommand;
 import org.noear.solon.codecli.core.AgentFlags;
 import org.noear.solon.codecli.core.AgentProperties;
 import org.noear.solon.core.util.Assert;
@@ -57,7 +50,6 @@ import reactor.core.scheduler.Schedulers;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,7 +69,6 @@ public class CliShell implements Runnable {
     private LineReader reader;
     private final HarnessEngine agentRuntime;
     private final AgentProperties agentProps;
-    private final CommandRegistry commandRegistry = new CommandRegistry();
 
     // ANSI 颜色常量
     private final static String
@@ -99,15 +90,9 @@ public class CliShell implements Runnable {
                     .encoding(StandardCharsets.UTF_8)
                     .build();
 
-            // 注册内置命令
-            registerBuiltinCommands();
-
-            // 加载自定义命令
-            loadCustomCommands();
-
             this.reader = LineReaderBuilder.builder()
                     .terminal(terminal)
-                    .completer(new CliCommandCompleter(commandRegistry))
+                    .completer(new CliCompleter(agentRuntime.getCommandRegistry()))
                     .build();
         } catch (Throwable e) {
             LOG.error("JLine initialization failed", e);
@@ -152,7 +137,7 @@ public class CliShell implements Runnable {
         AgentSession session = prepare(agentProps.getSessionId());
 
         try {
-            if (!isSystemCommand(session, input)) {
+            if (!isCommand(session, input)) {
                 performAgentTask(session, input);
             }
         } catch (Throwable e) {
@@ -189,7 +174,7 @@ public class CliShell implements Runnable {
                     continue;
                 }
 
-                if (!isSystemCommand(session, input)) {
+                if (!isCommand(session, input)) {
                     performAgentTask(session, input);
                 }
             } catch (Throwable e) {
@@ -198,34 +183,7 @@ public class CliShell implements Runnable {
         }
     }
 
-
-    /**
-     * 注册内置命令
-     */
-    private void registerBuiltinCommands() {
-        commandRegistry.register(new ExitCommand());
-        commandRegistry.register(new ClearCommand());
-        commandRegistry.register(new ResumeCommand());
-        commandRegistry.register(new ModelCommand());
-        commandRegistry.register(new HelpCommand(commandRegistry));
-    }
-
-    /**
-     * 加载自定义命令（用户级 + 项目级）
-     */
-    private void loadCustomCommands() {
-        // 1. 用户级命令：~/.soloncode/commands/
-        MarkdownCommandLoader.loadFromDirectory(
-                Paths.get(AgentProperties.getUserHome(), ".soloncode", "commands").toString(),
-                commandRegistry);
-
-        // 2. 项目级命令：.soloncode/commands/
-        MarkdownCommandLoader.loadFromDirectory(
-                Paths.get(agentProps.getWorkspace(), ".soloncode", "commands").toString(),
-                commandRegistry);
-    }
-
-    private boolean isSystemCommand(AgentSession session, String input) throws Exception {
+    private boolean isCommand(AgentSession session, String input) throws Exception {
         if (!input.startsWith("/")) {
             return false;
         }
@@ -238,7 +196,7 @@ public class CliShell implements Runnable {
                 : Collections.emptyList();
 
         // 查找命令
-        Command command = commandRegistry.find(cmdName);
+        Command command = agentRuntime.getCommandRegistry().find(cmdName);
         if (command == null) {
             terminal.writer().println(RED + "Unknown command: /" + cmdName + RESET);
             terminal.writer().println(DIM + "Type /help for available commands." + RESET);
@@ -248,20 +206,12 @@ public class CliShell implements Runnable {
 
         // 构建 context（注入 agentTaskRunner 回调）
         CliCommandContext ctx = new CliCommandContext(session, terminal, reader,
-                agentRuntime, agentProps, input, cmdName, args,
+                agentRuntime, input, cmdName, args,
                 (sess, prompt) -> {
                     try {
-                        // 将命令的 allowedTools 传入 session 上下文
-                        List<String> allowedTools = command.allowedTools();
-                        if (allowedTools != null && !allowedTools.isEmpty()) {
-                            session.getContext().put(AgentFlags.VAR_ALLOWED_TOOLS, allowedTools);
-                        }
                         performAgentTask(session, prompt);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
-                    } finally {
-                        // 清除 allowedTools 限制，避免影响后续交互
-                        session.getContext().remove(AgentFlags.VAR_ALLOWED_TOOLS);
                     }
                 });
 
@@ -283,7 +233,7 @@ public class CliShell implements Runnable {
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
         final AtomicBoolean isFirstConversation = new AtomicBoolean(true);
 
-        String modelSelected = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+        String modelSelected = session.getContext().getAs(HarnessFlags.VAR_MODEL_SELECTED);
         ChatModel chatModel = agentRuntime.getModelOrMain(modelSelected);
 
         while (true) {
@@ -616,7 +566,7 @@ public class CliShell implements Runnable {
         if (session == null) {
             chatModel = agentRuntime.getMainModel();
         } else {
-            String modelSelected = session.getContext().getAs(AgentFlags.VAR_MODEL_SELECTED);
+            String modelSelected = session.getContext().getAs(HarnessFlags.VAR_MODEL_SELECTED);
             chatModel = agentRuntime.getModelOrMain(modelSelected);
         }
 
@@ -625,11 +575,11 @@ public class CliShell implements Runnable {
         terminal.writer().println(BOLD + "SolonCode" + RESET + DIM + " " + AgentFlags.getVersion() + " PID-" + Utils.pid() + " Model:" + chatModel.getNameOrModel() + RESET);
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(DIM + "Tips: " + RESET + "(esc)" + DIM + " interrupt | " +
-                RESET + "'/help'" + DIM + " | " +
                 RESET + "'/exit'" + DIM + " | " +
                 RESET + "'/resume'" + DIM + " | " +
                 RESET + "'/clear'" + DIM + " | " +
-                RESET + "'/model'" + DIM + RESET);
+                RESET + "'/model'" + DIM + " | " +
+                RESET + "'/commands'" + DIM + RESET);
 
         terminal.flush();
     }
