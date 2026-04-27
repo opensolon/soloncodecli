@@ -19,6 +19,7 @@ import org.jline.reader.LineReader;
 import org.jline.terminal.Terminal;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
+import org.noear.solon.ai.harness.command.Command;
 import org.noear.solon.ai.harness.command.CommandContext;
 
 import java.util.List;
@@ -44,7 +45,7 @@ public class CliCommandContext implements CommandContext {
      */
     @FunctionalInterface
     public interface AgentTaskRunner {
-        void run(AgentSession session, String prompt);
+        void run(String prompt, String model);
     }
 
     public CliCommandContext(AgentSession session, Terminal terminal, LineReader reader,
@@ -64,20 +65,6 @@ public class CliCommandContext implements CommandContext {
     @Override
     public AgentSession getSession() {
         return session;
-    }
-
-    /**
-     * 获取 JLine Terminal（CLI 专属，不在通用接口上）
-     */
-    public Terminal getTerminal() {
-        return terminal;
-    }
-
-    /**
-     * 获取 JLine LineReader（CLI 专属，不在通用接口上）
-     */
-    public LineReader getReader() {
-        return reader;
     }
 
     @Override
@@ -112,14 +99,9 @@ public class CliCommandContext implements CommandContext {
     }
 
     @Override
-    public void runAgentTask(String input) {
+    public void runAgentTask(String input, String model) {
         if (agentTaskRunner != null) {
-            agentTaskRunner.run(session, input);
+            agentTaskRunner.run(input, model);
         }
-    }
-
-    @Override
-    public String getAgentTaskPrompt() {
-        return null; // CLI 端不需要此方法，直接在 runAgentTask 回调中处理
     }
 }

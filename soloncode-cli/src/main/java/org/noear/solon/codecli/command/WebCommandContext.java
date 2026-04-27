@@ -18,6 +18,7 @@ package org.noear.solon.codecli.command;
 import org.noear.solon.ai.agent.AgentSession;
 import org.noear.solon.ai.harness.HarnessEngine;
 import org.noear.solon.ai.harness.command.CommandContext;
+import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,6 +34,12 @@ import java.util.List;
  */
 public class WebCommandContext implements CommandContext {
 
+    @FunctionalInterface
+    public interface AgentTaskHandler {
+        Flux<String> run(String prompt, String model);
+    }
+
+
     private final AgentSession session;
     private final HarnessEngine agentRuntime;
     private final String rawInput;
@@ -42,6 +49,7 @@ public class WebCommandContext implements CommandContext {
     private final List<String> outputBuffer = new ArrayList<>();
     private boolean agentTaskRequested = false;
     private String agentTaskPrompt;
+    private String agentTaskModel;
 
     public WebCommandContext(AgentSession session, HarnessEngine agentRuntime, String rawInput, String commandName, List<String> args) {
         this.session = session;
@@ -87,14 +95,18 @@ public class WebCommandContext implements CommandContext {
     }
 
     @Override
-    public void runAgentTask(String prompt) {
+    public void runAgentTask(String prompt, String model) {
         this.agentTaskRequested = true;
         this.agentTaskPrompt = prompt;
+        this.agentTaskModel = model;
     }
 
-    @Override
     public String getAgentTaskPrompt() {
         return agentTaskPrompt;
+    }
+
+    public String getAgentTaskModel() {
+        return agentTaskModel;
     }
 
     /**

@@ -35,19 +35,6 @@ import java.util.List;
  * @since 2026.4.28
  */
 public class WebCommandDispatcher {
-
-    @FunctionalInterface
-    public interface AgentTaskHandler {
-        /**
-         * Agent 任务回调函数（由各端实现）
-         *
-         * @param command 触发的命令
-         * @param ctx     Web 命令上下文（包含 agentTaskPrompt）
-         * @return Flux 流（Web 端）或 null（CLI 端直接在回调内处理）
-         */
-        Flux<String> handle(Command command, WebCommandContext ctx);
-    }
-
     private final CommandRegistry registry;
 
     public WebCommandDispatcher(CommandRegistry registry) {
@@ -60,13 +47,11 @@ public class WebCommandDispatcher {
      * @param input       用户原始输入
      * @param session     Agent 会话
      * @param engine      Agent 运行时
-     * @param environment 当前运行环境（"cli"、"web" 等）
      * @param agentHandler Agent 任务回调（Web 端使用）
      * @return 命令结果，如果输入不是命令则返回 null
      */
     public CommandResult dispatch(String input, AgentSession session, HarnessEngine engine,
-                                  String environment,
-                                  AgentTaskHandler agentHandler) throws Exception {
+                                  WebCommandContext.AgentTaskHandler agentHandler) throws Exception {
         if (!input.startsWith("/")) {
             return null;
         }
@@ -85,7 +70,7 @@ public class WebCommandDispatcher {
         }
 
         // 检查环境支持
-        if (!isSupported(command, environment)) {
+        if (command.cliOnly()) {
             return null;
         }
 
@@ -99,21 +84,11 @@ public class WebCommandDispatcher {
         if (ctx.isAgentTaskRequested()) {
             Flux<String> flux = null;
             if (agentHandler != null) {
-                flux = agentHandler.handle(command, ctx);
+                flux = agentHandler.run(ctx.getAgentTaskPrompt(), ctx.getAgentTaskModel());
             }
             return new CommandResult(true, ctx.getOutputBuffer(), true, flux);
         } else {
             return new CommandResult(handled, ctx.getOutputBuffer(), false, null);
         }
-    }
-
-    /**
-     * 检查命令是否支持指定环境
-     */
-    public static boolean isSupported(Command command, String environment) {
-        if (command.cliOnly() && !"cli".equals(environment)) {
-            return false;
-        }
-        return true;
     }
 }

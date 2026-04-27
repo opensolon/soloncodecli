@@ -331,11 +331,16 @@ public class WebController {
     private void handleCommand(Context ctx, AgentSession session, ChatModel chatModel,
                                String sessionCwd, String input) throws Throwable {
         WebCommandDispatcher dispatcher = new WebCommandDispatcher(engine.getCommandRegistry());
-        CommandResult result = dispatcher.dispatch(input, session, engine, "web",
-                (command, webCtx) -> {
-                    // AGENT 类型命令的回调：返回 Flux 流
-                        Prompt prompt = Prompt.of(webCtx.getAgentTaskPrompt());
-                        return streamBuilder.buildStreamFlux(session, chatModel, sessionCwd, prompt);
+        CommandResult result = dispatcher.dispatch(input, session, engine,
+                (String prompt, String model) -> {
+                    final ChatModel chatModelSelected;
+                    if(model != null){
+                        chatModelSelected = engine.getModelOrMain(model);
+                    } else {
+                        chatModelSelected = chatModel;
+                    }
+
+                    return streamBuilder.buildStreamFlux(session, chatModelSelected, sessionCwd, Prompt.of(prompt));
                 });
 
         if (result == null) {

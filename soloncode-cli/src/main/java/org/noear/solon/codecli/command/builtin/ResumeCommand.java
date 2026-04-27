@@ -43,7 +43,7 @@ public class ResumeCommand implements Command {
 
     @Override
     public boolean execute(CommandContext ctx) throws Exception {
-        ctx.runAgentTask(null);
+        ctx.runAgentTask(null, null);
         return true;
     }
 }

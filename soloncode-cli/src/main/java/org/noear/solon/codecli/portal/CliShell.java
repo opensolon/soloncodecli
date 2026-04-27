@@ -138,7 +138,7 @@ public class CliShell implements Runnable {
 
         try {
             if (!isCommand(session, input)) {
-                performAgentTask(session, input);
+                performAgentTask(session, input, null);
             }
         } catch (Throwable e) {
             terminal.writer().println("\n" + RED + "! Error: " + RESET + e.getMessage());
@@ -175,7 +175,7 @@ public class CliShell implements Runnable {
                 }
 
                 if (!isCommand(session, input)) {
-                    performAgentTask(session, input);
+                    performAgentTask(session, input, null);
                 }
             } catch (Throwable e) {
                 terminal.writer().println("\n" + RED + "! Error: " + RESET + e.getMessage());
@@ -204,9 +204,9 @@ public class CliShell implements Runnable {
         // 构建 context（注入 agentTaskRunner 回调）
         CliCommandContext ctx = new CliCommandContext(session, terminal, reader,
                 agentRuntime, input, cmdName, args,
-                (sess, prompt) -> {
+                (sess, prompt, model) -> {
                     try {
-                        performAgentTask(session, prompt);
+                        performAgentTask(session, prompt, model);
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -223,14 +223,17 @@ public class CliShell implements Runnable {
         return handled;
     }
 
-    private void performAgentTask(AgentSession session, String input) throws Exception {
+    private void performAgentTask(AgentSession session, String input, String modelSelected) throws Exception {
         terminal.writer().println("\n" + BOLD + "Assistant" + RESET);
 
         String currentInput = input;
         final AtomicBoolean isTaskCompleted = new AtomicBoolean(false);
         final AtomicBoolean isFirstConversation = new AtomicBoolean(true);
 
-        String modelSelected = session.getContext().getAs(HarnessFlags.VAR_MODEL_SELECTED);
+        if (modelSelected == null) {
+            modelSelected = session.getContext().getAs(HarnessFlags.VAR_MODEL_SELECTED);
+        }
+
         ChatModel chatModel = agentRuntime.getModelOrMain(modelSelected);
 
         while (true) {
@@ -573,7 +576,7 @@ public class CliShell implements Runnable {
         terminal.writer().println(DIM + path + RESET);
         terminal.writer().println(DIM + "Tips: " +
                 RESET + "(esc)" + DIM + " interrupt | " +
-                RESET + "/(tab)" + DIM + " ls commands" +  RESET);
+                RESET + "/(tab)" + DIM + " ls commands" + RESET);
 
         terminal.flush();
     }
