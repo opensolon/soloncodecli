@@ -36,7 +36,7 @@ public class AgentFlags {
 
                 lastVersion = ONode.ofJson(json).get("cli_version").getValueAs();
             } catch (Throwable e) {
-                LOG.warn("Update detection failed", e);
+                LOG.warn("Update detection failed: {}", e.getMessage());
             }
         }
 
