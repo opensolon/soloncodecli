@@ -3,6 +3,7 @@
 
 * 添加 soloncode openai baseUrl 配置支持（其它的仍要配置全地址）
 * 添加 soloncode commands 命令支持
+* 添加 soloncode web 会话缩进支持
 
 ### v2026.4.28
 
